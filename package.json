@@ -1,0 +1,20 @@
+{
+  "name": "nikki-block-town",
+  "version": "2.1.13",
+  "private": true,
+  "description": "暖暖的方块小镇：使用 Three.js 构建的非官方同人模拟经营游戏",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "start:api": "node server-api.js",
+    "build": "python tools/build_dist.py",
+    "check": "node tools/check-source.cjs",
+    "test": "node --test tools/qa/canon_record_checks.cjs tools/qa/local_play_isolation_checks.cjs"
+  },
+  "dependencies": {
+    "three": "^0.170.0"
+  }
+}

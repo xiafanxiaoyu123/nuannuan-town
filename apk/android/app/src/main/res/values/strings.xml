@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">暖暖的方块小镇</string>
+    <string name="title_activity_main">暖暖的方块小镇</string>
+    <string name="package_name">com.nikkitown.blocktown</string>
+    <string name="custom_url_scheme">com.nikkitown.blocktown</string>
+    <!-- Pinned X.509 SubjectPublicKeyInfo (base64) for signed resource overlays. -->
+    <string name="android_overlay_update_public_key" translatable="false"></string>
+    <string name="android_overlay_update_key_id" translatable="false"></string>
+</resources>

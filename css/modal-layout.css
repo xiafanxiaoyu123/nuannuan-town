@@ -1,0 +1,34 @@
+/* 卡片外框留出悬浮标题和关闭按钮；只滚动内容，不裁掉卡片顶部。 */
+#ui .veil {
+  --modal-top-space: max(2rem, calc(env(safe-area-inset-top, 0px) + 1.5rem));
+  --modal-bottom-space: max(1rem, calc(env(safe-area-inset-bottom, 0px) + .65rem));
+  padding-top: var(--modal-top-space);
+  padding-bottom: var(--modal-bottom-space);
+  padding-left: max(.75rem, env(safe-area-inset-left, 0px));
+  padding-right: max(.75rem, env(safe-area-inset-right, 0px));
+  min-height: 0;
+}
+#ui .veil > .modal {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: calc(100dvh - var(--modal-top-space) - var(--modal-bottom-space));
+  max-width: 100%;
+  overflow: visible;
+}
+#ui .modal > .modal-body,
+#ui .modal > .tutorial-guide {
+  flex: 0 1 auto;
+  min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  max-height: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+#ui .modal > .ribbon { z-index: 1; max-width: calc(100% - 3.5rem); padding-left: 1rem; padding-right: 1rem; letter-spacing: .15em; }
+#ui .modal > .x { z-index: 2; }
+/* 商店已有内部高度上限，外框接管滚动后不再形成双重滚动条。 */
+#ui .shop-modal .shop { max-height: none; overflow: visible; }

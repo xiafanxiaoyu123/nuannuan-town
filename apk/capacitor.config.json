@@ -1,0 +1,17 @@
+{
+  "appId": "com.nikkitown.blocktown",
+  "appName": "暖暖的方块小镇",
+  "webDir": "../dist",
+  "backgroundColor": "#ffdbe8",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "disable"
+    }
+  }
+}

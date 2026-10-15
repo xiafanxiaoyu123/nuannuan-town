@@ -1,0 +1,81 @@
+/* 结算内容与操作区分开，屏幕变矮时仅滚动明细，保留返回/重试/下一关。 */
+#ui .veil > .result-modal {
+  width: min(39rem, calc(100vw - 2rem));
+  max-width: 100%;
+  max-height: calc(100dvh - 3.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  padding: 1.5rem 1.3rem 1rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: visible;
+}
+#ui .result-modal > .result {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  align-items: stretch;
+  min-height: 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(100dvh - 6.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  padding: 0;
+  overflow: hidden;
+}
+#ui .result-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  padding: 1rem .35rem .2rem;
+}
+#ui .result-summary { min-width: 0; }
+#ui .result-summary h2 { margin: .25rem 0 .5rem; font-size: calc(1.6rem * var(--reading-scale, 1)); line-height: 1.25; overflow-wrap: anywhere; }
+#ui .result-body .lines { margin: .65rem 0 .4rem; }
+#ui .result-body .lines > div { gap: .7rem; padding: .45rem .7rem; font-size: calc(.88rem * var(--reading-scale, 1)); line-height: 1.4; text-align: left; }
+#ui .result-body .lines > div b { flex-shrink: 0; max-width: 55%; font-size: calc(1rem * var(--reading-scale, 1)); text-align: right; overflow-wrap: anywhere; }
+#ui .result-body .total { margin: .7rem 0 .5rem; font-size: clamp(2rem, 8vw, 3.2rem); }
+#ui .result-body .total img { width: 2.8rem; height: 2.8rem; }
+#ui .result .result-actions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .55rem;
+  margin: .55rem 0 0;
+  padding: .8rem .1rem .3rem;
+  border-top: 1px solid #ecdce2;
+  background: var(--paper, #fffaf4);
+}
+#ui .result .result-actions .btn {
+  flex: 1 1 7.8rem;
+  min-width: 0;
+  min-height: max(44px, calc(2.8rem * var(--button-scale, 1)));
+  height: auto;
+  padding: .55rem .6rem;
+  font-size: calc(.95rem * var(--button-scale, 1));
+  line-height: 1.25;
+  white-space: normal;
+  touch-action: manipulation;
+}
+#ui .result .result-actions .btn svg { flex-shrink: 0; }
+#ui .result-body:focus-visible { outline: 2px solid #b43e76; outline-offset: -2px; border-radius: .5rem; }
+@media (max-width: 420px) {
+  #ui .veil > .result-modal { width: 100%; padding: 1.25rem .65rem .65rem; border-radius: 1.5rem; }
+  #ui .result-modal > .result { max-height: calc(100dvh - 6rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+  #ui .result-body { padding-left: .1rem; padding-right: .1rem; }
+  #ui .result-body .stars svg { width: 3.2rem; height: 3.2rem; }
+  #ui .result-body .stars svg:nth-child(2) { width: 4rem; height: 4rem; margin-top: -.65rem; }
+}
+@media (max-height: 560px) and (orientation: landscape) {
+  #ui .veil > .result-modal { width: min(53rem, 100%); padding: 1.2rem .85rem .6rem; }
+  #ui .result-modal > .result { max-height: calc(100dvh - 5.8rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+  #ui .result-body { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); align-items: start; gap: .35rem 1rem; padding-top: .8rem; }
+  #ui .result-summary { grid-column: 1; grid-row: 1; }
+  #ui .result-body .lines { grid-column: 2; grid-row: 1 / span 2; margin: 0; }
+  #ui .result-body .total { grid-column: 1; grid-row: 2; align-self: start; margin: .2rem 0; font-size: 2.4rem; }
+  #ui .result .result-actions { margin-top: .35rem; padding-top: .5rem; }
+}
