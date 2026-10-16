@@ -95,6 +95,7 @@ export function installBuildIsland(town) {
   (town.inter ||= []).push(...interactions);
   const bases = Object.fromEntries(Object.entries(boats).map(([id,b])=>[id,{pos:b.position.clone(),rot:b.rotation.clone()}]));
   let sailing = null, closed = false;
+  const focusPoint = new THREE.Vector3();
   const boardPassengers = boat => {
     const passengers = [];
     for (const [role, actor, x, y, scale] of [['player', town.player, -.73, .38, .82], ['momo', town.momo, .5, .7, .88]]) {
@@ -139,6 +140,13 @@ export function installBuildIsland(town) {
   const controller = {
     ground,homeDock,buildDock,boats,interactions,rects,
     get active(){return !!sailing;},
+    travelFocus() {
+      const passenger = sailing?.passengers.find(p => p.obj.userData.buildPassenger === 'player');
+      if (!passenger) return null;
+      passenger.obj.getWorldPosition(focusPoint);
+      focusPoint.y += .8;
+      return focusPoint;
+    },
     travel(source,destination=source==='home'?'build':'home') {
       if(closed||sailing||!boats[source]||destination!==(source==='home'?'build':'home'))return Promise.resolve(false);
       return new Promise(resolve=>{sailing={source,destination,identity:S,passengers:boardPassengers(boats[source]),start:performance.now(),resolve,timer:setTimeout(()=>finish(true),1750)};tick(performance.now()/1000);});

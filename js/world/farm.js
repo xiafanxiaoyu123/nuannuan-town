@@ -366,7 +366,7 @@ export class Farm {
     audio.sfx('harvest');
     fx.sparkle(this.town.scene, new THREE.Vector3(pos.x, 0.8, pos.z), 10, [c.color, '#fff3a8', '#ffffff']);
     bus.emit('float', { x: pos.x, y: 1.6, z: pos.z, text: giantId ? `巨大${c.name}！` : `${c.name} +${n}`, cls: 'good' });
-    if (giantId) this.showOff(giantId, { toggle: false });
+    // 收获只入装修仓库；手持展示由玩家在家园面板主动选择。
     if (giantId) bus.emit('giantCrop', giantId);
     this.refresh(rec, true);
     stat('harvested');

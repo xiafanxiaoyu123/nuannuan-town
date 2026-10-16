@@ -2,8 +2,8 @@
 // 界面只通过 live 查询和操作；保留原交接文档定义的返回结构。
 // 全部奖励入真实存档；阶段奖励和签到送的都是能摆、能穿的实物。
 import { S, bus, save, getStat, addCoins, checkQuest, FRIEND_AT, beauty, spend } from '../core/state.js';
-import { seeded } from '../core/util.js';
-import { DAILY_POOL, DAILY_CHEST, SIGNIN, MODIFIERS, PERKS, SET_EFFECTS, BEAUTY_REWARDS, PROJECT, STORIES, VISIT_LINES, FESTIVALS } from './data.js';
+import { SIGNIN, MODIFIERS, PERKS, SET_EFFECTS, BEAUTY_REWARDS, PROJECT, STORIES, VISIT_LINES, FESTIVALS } from './data.js';
+import { createDailyService } from '../features/daily/service.js';
 import { SETS, CLOTH, CLOTHES, CROPS, FRUITS } from '../data.js';
 import { RESIDENTS as NPCS } from './people.js';
 import { FISH, FLOWERS } from '../models/items.js';
@@ -13,50 +13,9 @@ import { gameDayKey, gameDayNo } from '../core/gametime.js';
 // 日期按本地日历计算，不能用 UTC 截日期；昨天也用日历减一天，兼容夏令时
 const dateKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const today = () => dateKey(new Date());
-const dailyDef = (id) => DAILY_POOL.find((d) => d.id === id);
-
-function refreshDay() {
-  const st = S.live, day = today();
-  if (st.day === day && st.daily.length === 3 && st.daily.every((t) => dailyDef(t.id))) return;
-  const rand = seeded(Number(day.replace(/-/g, ''))), pool = DAILY_POOL.slice();
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-  const plays = Math.max(getStat('plays'), Object.values(S.shops).reduce((n, s) => n + (s.plays || 0), 0));
-  const tier = plays < 10 ? 0 : plays < 40 ? 1 : 2, types = new Set();
-  st.daily = [];
-  for (const d of pool) {
-    if (types.has(d.type)) continue;
-    types.add(d.type);
-    st.daily.push({ id: d.id, n: d.n[tier], base: d.type === 'stat' ? getStat(d.stat) : 0, prog: 0, claimed: false });
-    if (st.daily.length === 3) break;
-  }
-  st.day = day;
-  st.chest = false;
-  save();
-}
-
-// 只在新系统启用时订阅一次；统计增长前先换日，避免午夜后的第一笔进度被当作基线
-let dailyReady = false;
-export function initDaily() {
-  refreshDay();
-  if (dailyReady) return;
-  dailyReady = true;
-  bus.on('beforeStat', refreshDay);
-  bus.on('played', ({ id, total, mode, elapsed, endedAt }) => {
-    refreshDay();
-    if (dateKey(new Date(endedAt ?? Date.now())) !== S.live.day) return;
-    let changed = false;
-    for (const t of S.live.daily) {
-      if (t.claimed) continue;
-      const d = dailyDef(t.id);
-      const value = d.type === 'score' && d.shop === id ? total : d.type === 'endless' && mode === 'endless' ? elapsed : 0;
-      if (Number.isFinite(value) && value > t.prog) { t.prog = value; changed = true; }
-    }
-    if (changed) { save(); bus.emit('liveDaily'); }
-  });
-}
+// 保留旧接口入口；服务每次从 live binding 读取 S，换档后不会继续写旧对象。
+const dailyService = createDailyService({ getState: () => S, getStat, save, addCoins, bus });
+export function initDaily() { dailyService.init(); }
 
 const BOOK_TABS = [
   { id: 'fish', name: '鱼', reward: 500, items: FISH.map((f) => ({ id: f.id, name: f.name, kind: 'fish', hint: f.fest ? `${FESTIVALS.find((x) => x.id === f.fest).name}期间在钓场钓到` : '在悠然钓场钓到', optional: !!f.fest })) },
@@ -138,32 +97,9 @@ export function initStories() {
 
 export const live = {
   // ——— 每日订单 ———
-  daily() {
-    refreshDay();
-    const tasks = S.live.daily.map((t) => {
-      const d = dailyDef(t.id), cur = Math.max(0, d.type === 'stat' ? getStat(d.stat) - t.base : t.prog);
-      return { id: t.id, text: d.text.replace('{n}', t.n), cur, need: t.n, reward: d.reward, done: cur >= t.n, claimed: t.claimed };
-    });
-    return { date: S.live.day, tasks, chest: { ...DAILY_CHEST, done: tasks.filter((t) => t.claimed).length, claimed: S.live.chest } };
-  },
-  claimDaily(id) {
-    const t = this.daily().tasks.find((x) => x.id === id);
-    if (!t || t.claimed || !t.done) return 0;
-    S.live.daily.find((x) => x.id === id).claimed = true;
-    addCoins(t.reward, 'live');
-    save();
-    bus.emit('liveDaily');
-    return t.reward;
-  },
-  claimChest() {
-    const d = this.daily();
-    if (d.chest.claimed || d.chest.done < d.chest.need) return 0;
-    S.live.chest = true;
-    addCoins(DAILY_CHEST.coins, 'live');
-    save();
-    bus.emit('liveDaily');
-    return DAILY_CHEST.coins;
-  },
+  daily() { return dailyService.daily(); },
+  claimDaily(id) { return dailyService.claimDaily(id); },
+  claimChest() { return dailyService.claimChest(); },
 
   // ——— 七日签到 ———
   signin() {

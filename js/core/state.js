@@ -2,7 +2,7 @@
 import { Emitter } from './util.js';
 import { DEFAULT_OUTFIT, CLOTHES, CLOTH, CROP, DECO, HOUSES, QUESTS, SHOPS, STYLES, YARDS, ACHS } from '../data.js';
 import { RESIDENTS as NPCS } from '../live/people.js';
-import { outfitFx, cropFestivalBonus } from '../live/effects.js';
+import { outfitFx, cropFestivalBonusForDay } from '../shared/effect-rules.js';
 import { parseSaveFile, validateSaveData, SAVE_FILE_FORMAT, SAVE_FILE_VERSION, MAX_SAVE_BYTES } from './save-format.js';
 import { PAID_PHOTO_POSE_IDS } from '../live/photo-poses.js';
 import { normalizeMomoCloak, normalizeMomoOwned } from '../models/momo-cloaks.js';
@@ -11,10 +11,9 @@ import { BUILD_LOT, MAX_BUILD_LEVEL, MAX_BUILD_FLOOR } from '../world/build-cons
 import { validateYardLayout, yardFootprint, isBuildInterior, buildInteriorChecker, buildStairObstructions, isBuildRoof } from '../world/yard-building.js';
 import { LOCAL_PLAY } from './local-play-mode.js';
 import { prepareLocalPlaySave } from './local-play-save.js';
+import { createPlayerDefaults, createStartingPlot as plotAt } from '../shared/player-defaults.js';
+import { diagnostics } from '../devtools/diagnostics.js';
 export { MAX_SAVE_BYTES } from './save-format.js';
-
-// 后院默认开垦好的几块田（2×2 格一块）
-const plotAt = (i) => ({ id: 'plot', gx: 3 + (i % 4) * 2, gz: 9 + Math.floor(i / 4) * 2, rot: 0 });
 
 // ?slot=xxx 可以开独立存档位（调试或多人共用一台电脑时用）
 const slot = new URLSearchParams(location.search).get('slot');
@@ -32,59 +31,7 @@ export function setCloudSaveBase(base) {
 }
 
 function fresh() {
-  return prepareLocalPlaySave({
-    v: 3,
-    coins: 200,
-    tut: {},
-    started: false,
-    owned: CLOTHES.filter((c) => c.price === 0).map((c) => c.id),
-    outfit: { ...DEFAULT_OUTFIT },
-    momoCloak: 'classic',
-    momoOwned: ['classic'],
-    crops: {},
-    seeds: {}, // 签到赠送的免费种子，播种时优先消耗
-    gday: 0, // 小镇日历：已经过了多少个小镇日
-    work: {}, // 上班方案：每家店一套预设穿搭；没有记录 = 不自动切换
-    workPrev: null, // 上班前身上那套，打烊后换回来
-    decor: {},
-    live: {
-      day: '', daily: [], chest: false,
-      sign: { last: '', streak: 0 },
-      book: { fish: {}, crop: {}, set: {}, npc: {}, flower: {}, claimed: {} },
-      miles: [],
-      project: { phase: 0, paid: 0 },
-      visit: { day: '', npc: '', claimed: false, beauty: 0 },
-      story: Object.fromEntries(NPCS.map((n) => [n.id, 0])),
-      storyClaimed: {},
-      residents: { day: '', base: {}, tasks: {}, reviews: [], album: {}, poems: [], performed: '' },
-      canon: { dada: null, met: {} }, // 原作角色来访（非官方小镇日常）的独立账本
-      fun: { day: '', used: {}, capsule: 0 }, // 小镇里的互动小物件
-      granted: {}, // 已经补发过的实物奖励
-      photo: { camera: false, stick: false, tripod: false, shots: 0, poses: [] }, // 莱拉的相机、配件与已购买姿势
-      nonoy: { love: 0, last: '', got: [] }, // 和诺诺伊的亲密度（按现实日期每天一次）
-    },
-    placed: Array.from({ length: 6 }, (_, i) => plotAt(i)),
-    placedIn: [],
-    wallsIn: [], // 最高级房屋的自由隔断；家具与地板坐标不因扩建迁移。
-    buildPlaced: [],
-    buildFloor: {},
-    decorLayouts: { build: [null, null, null] },
-    buildQuest: { version: 1, stage: 0, rewarded: false },
-    buildMigrationVersion: 1,
-    buildHeightVersion: 2,
-    farm: {},
-    seed: 'radish',
-    house: 1,
-    yardLv: 1,
-    ach: {},
-    npc: {},
-    req: {},
-    shops: { cafe: { lv: 1, best: 0, plays: 0 }, flower: { lv: 1, best: 0, plays: 0 }, tailor: { lv: 1, best: 0, plays: 0 }, fish: { lv: 1, best: 0, plays: 0 }, bakery: { lv: 1, best: 0, plays: 0 } },
-    stats: {},
-    quest: 0,
-    clock: 0.22,
-    settings: normalizeGraphicsSettings({ music: 0.6, sfx: 0.8, quality: 'high', orient: '' }),
-  });
+  return prepareLocalPlaySave(createPlayerDefaults());
 }
 
 export let S = fresh();
@@ -400,10 +347,14 @@ export function replaceSaveData(data, base = null) {
 }
 
 let saveTimer = 0;
+// 只返回运行状态；不读取存档正文，也不暴露自定义 slot 的名称。
+export function saveDiagnostics() {
+  return { mode: LOCAL_PLAY ? 'local-play' : 'normal', slot: slot ? 'isolated' : 'default', pending: !!saveTimer };
+}
 export function save() {
   // 装修中的家具购买尚未结算；暂不把临时布局写入存档，避免关闭页面绕过最终扣款。
   // DecorSys 在完成/离开装修时清除该标记后会显式保存一次。
-  if (globalThis.__nuannuanDecorTransaction) return;
+  if (globalThis.__nuannuanDecorTransaction) { diagnostics.saved('deferred'); return; }
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushSave, 200);
 }
@@ -411,8 +362,13 @@ export function save() {
 export function flushSave() {
   clearTimeout(saveTimer);
   saveTimer = 0;
-  if (globalThis.__nuannuanDecorTransaction) return false;
-  try { localStorage.setItem(KEY, localSaveText(S)); return true; } catch (e) { return false; }
+  if (globalThis.__nuannuanDecorTransaction) { diagnostics.saved('deferred'); return false; }
+  try {
+    const raw = localSaveText(S);
+    localStorage.setItem(KEY, raw);
+    diagnostics.saved('saved', raw);
+    return true;
+  } catch (e) { diagnostics.saved('error'); return false; }
 }
 // 自动存档：除了平时随手存的那一份，每 5 分钟另存一份备份，存档坏了或想反悔时可以读回来
 const BAK = KEY + ':bak';
@@ -593,7 +549,7 @@ export function checkAch(silent) {
 export const achPending = () => ACHS.filter((a) => S.ach[a.id] === 1).length;
 export const achReward = (a) => Math.round(a.reward * (1 + outfitFx(S.outfit, 'star')));
 export const shopUpgradePrice = (id) => Math.round((SHOPS[id].upgrade[S.shops[id].lv - 1] || 0) * (1 - outfitFx(S.outfit, 'charge')));
-export const cropSellPrice = (id, hot) => Math.round(CROP[id].sell * (hot ? 1.5 : 1) * (1 + outfitFx(S.outfit, 'dust')) * (1 + cropFestivalBonus()));
+export const cropSellPrice = (id, hot) => Math.round(CROP[id].sell * (hot ? 1.5 : 1) * (1 + outfitFx(S.outfit, 'dust')) * (1 + cropFestivalBonusForDay(S.gday || 0)));
 // 巨大作物是种植稀有掉落：回收价固定为对应普通作物售价的 20 倍，
 // 不走家具半价公式，避免仓库摆件价格和收获价值不一致。
 export const decorSellPrice = (id) => {

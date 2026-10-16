@@ -1,0 +1,101 @@
+/* 可视布料与音符由 Three 绘制；DOM 只提供相机投影一致的触摸面。 */
+.ghud.tailor .tailor-board {
+  position: absolute; inset: 0; padding: 0; border: 0; border-radius: 0;
+  background: none; box-shadow: none; pointer-events: none;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.tailor-board-title {
+  position: absolute; top: calc(var(--runway-top, 30vh) - 1.8rem); left: 50%; transform: translateX(-50%);
+  color: #745565; font-size: .8rem; letter-spacing: .08em; white-space: nowrap;
+  text-shadow: 0 1px 3px #fff, 0 0 8px #fff;
+}
+.tailor-pause {
+  position: absolute; top: 5rem; right: max(1.2rem, env(safe-area-inset-right));
+  min-width: 48px; min-height: 36px; padding: .3rem .7rem; border-radius: 1rem;
+  background: #fff8f0e8; color: #805b71; font: inherit; pointer-events: auto;
+  box-shadow: 0 2px 0 #d4bdbd88;
+}
+.tailor-pause:disabled { opacity: .65; }
+.tailor-lanes {
+  position: absolute; left: 0; top: 0; margin: 0;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: hidden;
+  transform-origin: 0 0; border-radius: 0; pointer-events: none;
+  border: 0; box-sizing: border-box;
+}
+.tailor-lane {
+  position: relative; min-width: 0; overflow: hidden; pointer-events: auto;
+  background: transparent; touch-action: none;
+}
+.tailor-lane:last-of-type { border-right: 0; }
+.tailor-lane::before {
+  content: none;
+}
+.tailor-lane.pressed {
+  background: transparent;
+}
+.tailor-judge-line {
+  position: absolute; bottom: var(--judge-inset, 25px); left: 0; right: 0; border-top: 4px solid #fff;
+  visibility: hidden; pointer-events: none;
+}
+.tailor-judge-line span {
+  position: absolute; left: 50%; top: 6px; transform: translateX(-50%); color: #8b6c6c;
+  font-size: .65rem; letter-spacing: .2em; white-space: nowrap;
+}
+.tailor-note {
+  position: absolute; top: calc((var(--note-size, 40px) - var(--note-height, 40px)) / 2); left: 50%;
+  width: var(--note-width, 40px); height: var(--note-height, 40px);
+  margin-left: calc(var(--note-width, 40px) / -2); pointer-events: none; visibility: hidden;
+}
+.tailor-note .tailor-button {
+  position: absolute; inset: 0; border-radius: 50%; border: 3px solid #ffffffed; background: var(--c);
+  box-shadow: inset 0 0 0 2px #ffffff55, 0 5px 0 #7b537844, 0 6px 9px #6c4f5b33;
+}
+.tailor-button::after {
+  content: ''; position: absolute; inset: 28%;
+  background: radial-gradient(circle at 20% 20%, #6c5268 0 2px, transparent 2.5px), radial-gradient(circle at 80% 20%, #6c5268 0 2px, transparent 2.5px), radial-gradient(circle at 20% 80%, #6c5268 0 2px, transparent 2.5px), radial-gradient(circle at 80% 80%, #6c5268 0 2px, transparent 2.5px);
+}
+.tailor-thread {
+  position: absolute; bottom: 50%; left: 27%; width: 46%; height: 0;
+  border: 2px dashed #ffffffd9; border-bottom: 0; border-radius: 1rem 1rem 0 0;
+  background: var(--c); opacity: .8;
+}
+.tailor-note.sewn { opacity: .25; }
+.tailor-note.hold .tailor-button { box-shadow: 0 0 0 4px #fff8, 0 0 16px var(--c); }
+.ghud.tailor .lanekeys {
+  position: absolute; inset: 0; width: auto; margin: 0; transform: none;
+  display: block; padding: 0;
+  pointer-events: none;
+}
+.ghud.tailor .lanekey {
+  position: absolute; min-width: 0; min-height: 56px; padding: .25rem .15rem; border-radius: 0 0 .7rem .7rem;
+  flex-direction: row; justify-content: center; gap: .4rem; font-size: .72rem;
+  background: var(--lane-pressed, #fbd8e5); box-shadow: 0 4px 0 #95748655;
+  touch-action: none; pointer-events: auto;
+}
+.ghud.tailor .lanekey > i { width: .8rem; height: .8rem; box-shadow: inset 0 0 0 .12rem #ffffffb3; }
+.ghud.tailor .lanekey .kbd { min-width: 1.7rem; font-size: 1rem; }
+.ghud.tailor .lanekey.pressed { background: var(--c); box-shadow: inset 0 0 0 2px #fff, 0 0 18px #fff8; }
+.ghud.tailor .judge { left: 50%; top: 82px; font-size: 1.6rem; }
+.ghud.tailor .bigcombo { left: auto; right: 4%; top: 100px; transform: none; }
+.ghud.tailor .bigcombo b { font-size: 2.7rem; }
+.ghud.tailor .bigcombo span { font-size: .7rem; }
+.ghud.tailor .hold-resume { left: 50%; right: auto; top: 31%; transform: translateX(-50%); width: min(86vw, 32rem); z-index: 5; }
+@media (max-aspect-ratio: 1/1) {
+  .ghud.tailor .judge { top: 115px; font-size: 1.65rem; }
+  .ghud.tailor .bigcombo { right: .7rem; top: 110px; }
+  .ghud.tailor .bigcombo b { font-size: 2rem; }
+  .ghud.tailor .bigcombo span { font-size: .6rem; }
+  .ghud.tailor .lanekey { flex-direction: column; gap: .1rem; min-height: 56px; }
+  .ghud.tailor .lanekey > i { display: none; }
+  .ghud.tailor .gprog { padding: .25rem .5rem; font-size: .72rem; }
+  .ghud.tailor .gprog div { width: 3rem; }
+}
+@media (max-height: 460px) and (min-aspect-ratio: 1/1) {
+  .tailor-pause { top: 4.6rem; right: .8rem; min-height: 32px; }
+  .ghud.tailor .lanekey { min-height: 56px; gap: .2rem; padding: .25rem .15rem; }
+  .ghud.tailor .lanekey .lane-name { display: none; }
+  .tailor-board-title { font-size: .68rem; top: calc(var(--runway-top, 30vh) - 1.5rem); }
+  .ghud.tailor .judge { top: 82px; font-size: 1.6rem; }
+  .ghud.tailor .bigcombo b { font-size: 2rem; }
+  .ghud.tailor .hold-resume { top: 33%; font-size: .72rem; padding: .35rem; }
+}

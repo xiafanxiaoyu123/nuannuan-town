@@ -11,6 +11,7 @@ import { S } from './state.js';
 import { fx } from './fx.js';
 import { setGeoDetail } from './kit.js';
 import { performanceLog } from './performance-log.js';
+import { diagnostics } from '../devtools/diagnostics.js';
 import { audio } from './audio.js';
 import { isMobileDevice } from './orient.js';
 import { normalizeGraphicsSettings, effectiveQuality, effectiveFpsLimit, resolveAntiAlias } from './graphics-settings.js';
@@ -116,7 +117,8 @@ class App {
     this.composer.addPass(this.renderPass);
     this.composer.addPass(this.bloom);
     this.composer.addPass(this.finish);
-    this.composer.addPass(new OutputPass());
+    this.output = new OutputPass();
+    this.composer.addPass(this.output);
     // FXAA 在输出色彩转换后工作，避免对线性颜色作边缘判断。
     this.composer.addPass(this.fxaa);
 
@@ -289,15 +291,21 @@ class App {
       this.acc = 0; this.frameElapsed = 0;
     }
     const frameSeconds = dt, startedAt = performance.now();
+    const recording = diagnostics.active;
+    let stageAt = recording ? startedAt : 0;
     dt = Math.min(dt, 0.05);
     this.time += dt;
     updateTweens(dt);
+    if (recording) { const now = performance.now(); diagnostics.stage('tweens', now - stageAt); stageAt = now; }
     fx.update(dt);
+    if (recording) { const now = performance.now(); diagnostics.stage('effects', now - stageAt); stageAt = now; }
     const v = this.view;
     if (!v) return;
     if (!this.width || !window.innerWidth) { if (window.innerWidth) this.resize(); return; }
     v.update && v.update(dt, this.time);
+    if (recording) { const now = performance.now(); diagnostics.stage('view', now - stageAt); stageAt = now; }
     for (const f of this.hooks) f(dt, this.time);
+    if (recording) { const now = performance.now(); diagnostics.stage('hooks', now - stageAt); stageAt = now; }
     // 阴影按真实经过时间限频，高刷 / 无限制 / 降帧切换都不会改变更新预算。
     if (!this.renderer.shadowMap.autoUpdate) {
       this.shadowElapsed += frameSeconds;
@@ -309,11 +317,18 @@ class App {
     }
     this.renderer.info.autoReset = false;
     this.renderer.info.reset();
+    if (recording) stageAt = performance.now();
     const draw = () => this.usePost ? this.composer.render(dt) : this.renderer.render(v.scene, v.camera);
-    if (v.renderOptimizer) v.renderOptimizer.render(draw);
+    if (recording) diagnostics.renderFrame(this, v, draw);
+    else if (v.renderOptimizer) v.renderOptimizer.render(draw);
     else draw();
     this.renderer.info.autoReset = true;
-    performanceLog.sample(frameSeconds, performance.now() - startedAt, this);
+    const finishedAt = performance.now();
+    if (recording) {
+      diagnostics.stage('render', finishedAt - stageAt);
+      diagnostics.sampleFrame(frameSeconds, finishedAt - startedAt, this);
+    }
+    performanceLog.sample(frameSeconds, finishedAt - startedAt, this);
     // 自适应：持续掉帧时先降像素比，手机上再不行就锁 30 帧（稳定的 30 帧比忽高忽低更顺）
     this.fpsAvg += (1 / Math.max(frameSeconds, 0.001) - this.fpsAvg) * 0.05;
     const target = this.fpsCap ?? 60;

@@ -27,6 +27,8 @@ import { buildIslandPanel } from './ui/build-island-panel.js';
 import { advanceBuildQuest } from './world/build-island-rules.js';
 import { BUILD_HOME_DOCK, BUILD_DOCK, BUILD_SPAWN } from './world/build-constants.js';
 import { LOCAL_PLAY } from './core/local-play-mode.js';
+import { saveDiagnostics } from './core/state.js';
+import { installDiagnostics } from './devtools/install.js';
 
 const GAMES = { cafe: CafeGame, flower: FlowerGame, tailor: TailorGame, fish: FishGame };
 const WISHES = ['愿今天的客人都带着笑容离开', '愿菜地里的草莓又大又甜', '愿衣橱里永远少一件新裙子', '愿大喵今天不偷吃蛋糕', '愿小镇的每个夜晚都有星星', '愿下一位客人给双倍小费'];
@@ -364,6 +366,7 @@ async function boot() {
   game.town = new Town();
   game.wardrobe = new Wardrobe(game);
   ui.init(game);
+  installDiagnostics({ app, ui, bus, account, saveInfo: saveDiagnostics, localPlay: LOCAL_PLAY });
 
   bus.on('openShop', (id) => game.openShop(id));
   bus.on('openBoutique', () => game.openWardrobe('shop'));

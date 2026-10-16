@@ -1,6 +1,6 @@
 // 新系统用到的 3D 美术：订单板、宝箱、工地（三期）、面包房、节日装饰、面包
 import { THREE, cbox, box, cyl, sph, torus, group, mat, glow, textPlane } from '../core/kit.js';
-import { icon } from '../core/icons.js';
+import { icon } from '../core/icon-renderer.js';
 import { BREADS } from './data.js';
 
 const WOOD = '#d2a67e', WOOD_D = '#b3855f', STONE = '#f1e9df', STONE_D = '#ddd2c5', CREAM = '#fff6ea';

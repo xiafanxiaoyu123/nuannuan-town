@@ -2,7 +2,8 @@
 import { h, fmt } from '../core/util.js';
 import { audio } from '../core/audio.js';
 import { S, beauty, bus } from '../core/state.js';
-import { ui, svg, priceTag } from '../ui/ui.js';
+import { svg } from '../ui/components/svg.js';
+import { priceTag } from '../ui/components/price-tag.js';
 import { coinIco, cropIco, fishIco, clothIcon, shopIcon, mergeIco } from '../core/icons.js';
 import { STYLES, CLOTHES } from '../data.js';
 import { RESIDENTS as NPCS } from './people.js';
@@ -14,6 +15,18 @@ import { FISH } from '../models/items.js';
 import { gameDate, mdText } from '../core/gametime.js';
 import { seedIco, decorIcon, npcIco } from '../core/icons.js';
 
+// UI.init 在创建 HUD 或安装订阅前同步注入现有单例；不反向导入 UI。
+let boundUi = null;
+export function bindLivePanels(instance) {
+  if (!instance || typeof instance.modal !== 'function') throw new TypeError('Live panels require the existing UI instance');
+  if (boundUi && boundUi !== instance) throw new Error('Live panels are already bound to another UI instance');
+  boundUi = instance;
+}
+function requireLivePanelUi() {
+  if (!boundUi) throw new Error('Live panels are not initialized; call ui.init(game) before opening panels');
+  return boundUi;
+}
+
 const click = (fn, snd = 'click') => (e) => { audio.init(); audio.sfx(snd); fn(e); };
 const PICO = {
   heart: '<svg viewBox="0 0 24 24"><path class="fill" d="M12 20s-7-4.400-7-9.600A4 4 0 0 1 12 8a4 4 0 0 1 7 2.400C19 15.600 12 20 12 20z"/></svg>',
@@ -23,10 +36,11 @@ const PICO = {
   bolt: '<svg viewBox="0 0 24 24"><path class="fill" d="M13 2.500 5 13.500h5.500L9.500 21.500l8.500-11.500h-5.500z"/></svg>',
 };
 const pico = (n) => h('i', { class: 'pico', html: PICO[n] || PICO.star });
-const fly = (e, n = 6) => { const r = e.currentTarget.getBoundingClientRect(); ui.flyCoins(r.left + r.width / 2, r.top, n); };
+const fly = (e, n = 6) => { const r = e.currentTarget.getBoundingClientRect(); requireLivePanelUi().flyCoins(r.left + r.width / 2, r.top, n); };
 
 // ——— 每日订单 + 七日签到 ———
 export function dailyPanel() {
+  const ui = requireLivePanelUi();
   const body = h('div', { class: 'daily' });
   let date;
   const render = () => {
@@ -59,6 +73,7 @@ export function dailyPanel() {
 
 // ——— 图鉴 ———
 export function bookPanel() {
+  const ui = requireLivePanelUi();
   let cur = 'fish';
   const body = h('div', { class: 'book' });
   const pic = (it) => (it.kind === 'fish' ? fishIco(it.id) : it.kind === 'crop' ? cropIco(it.id) : it.kind === 'flower' ? mergeIco(it.id.split(':')[0], Number(it.id.split(':')[1])) : it.kind === 'set' ? clothIcon((CLOTHES.find((c) => c.set === it.id && c.cat === 'dress') || CLOTHES[0]).id) : null);
@@ -82,6 +97,7 @@ export function bookPanel() {
 
 // ——— 无尽模式：三选一强化 ———（返回 Promise<perk>）
 export function perkPicker(shopId) {
+  const ui = requireLivePanelUi();
   let cancel;
   const promise = new Promise((resolve) => {
     let settled = false;
@@ -132,6 +148,7 @@ export function setEffectChip(outfit) {
 
 // ——— 美化度阶段奖励 ———
 export function milestoneTrack() {
+  const ui = requireLivePanelUi();
   const box = h('div', { class: 'miles' });
   const render = () => {
     const b = beauty(), list = live.milestones(b), max = list[list.length - 1].need;
@@ -144,10 +161,11 @@ export function milestoneTrack() {
   render();
   return box;
 }
-export const milestonePanel = () => ui.modal(h('div', { class: 'milepanel' }, h('h2', {}, '阶段奖励'), h('p', { class: 'fine' }, '美化度到了就能领：噗灵之外还有新地面和三件摆设，500 美化度解锁居民来访。'), milestoneTrack()), { ribbon: 'HOME', cls: 'live-modal' });
+export const milestonePanel = () => requireLivePanelUi().modal(h('div', { class: 'milepanel' }, h('h2', {}, '阶段奖励'), h('p', { class: 'fine' }, '美化度到了就能领：噗灵之外还有新地面和三件摆设，500 美化度解锁居民来访。'), milestoneTrack()), { ribbon: 'HOME', cls: 'live-modal' });
 
 // ——— 新店建造 ———
 export function buildPanel(onChange) {
+  const ui = requireLivePanelUi();
   const body = h('div', { class: 'build' });
   let modal;
   const submit = (amount, e) => {
@@ -180,6 +198,7 @@ export function festivalBanner(f) {
   return h('button', { class: 'festbar', 'data-festival': f.id, style: { '--c': f.tone }, onclick: click(() => festivalPanel(f), 'tab') }, h('i', {}), h('b', {}, f.name), h('span', {}, `至 ${mdText(f.to)}`));
 }
 export function festivalPanel(f) {
+  const ui = requireLivePanelUi();
   const activity = FESTIVAL_ACTIVITIES[f.id];
   const body = h('div', { class: 'fest', style: { '--c': f.tone } },
     h('div', { class: 'fest-hero' }, h('em', {}, `${mdText(f.from)} — ${mdText(f.to)}`), h('h2', {}, f.name), h('p', {}, f.note), h('p', { class: 'fest-today' }, `小镇今天是 ${gameDate().text}`)),
@@ -200,6 +219,7 @@ export function festivalPanel(f) {
 
 // ——— 居民来访 ———
 export function visitCard(v) {
+  const ui = requireLivePanelUi();
   const st = STYLES[v.npc.like];
   let m;
   m = ui.modal(h('div', { class: 'visit', style: { '--c': st.color } },

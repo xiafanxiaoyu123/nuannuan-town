@@ -5,6 +5,7 @@ import { controls, CONTROL_RANGES } from '../core/preferences.js';
 import { performanceLog } from '../core/performance-log.js';
 import { normalizeGraphicsSettings, effectiveFpsLimit } from '../core/graphics-settings.js';
 import { isMobileDevice } from '../core/orient.js';
+import { diagnosticsPanel } from '../devtools/panel.js';
 
 // 保留按钮节点与触摸焦点；避免按下后重建整组选项，读屏和键盘也可识别当前选择。
 function optionGroup(title, options, read, change, attr) {
@@ -80,6 +81,7 @@ export function controlsPanel(ui) {
 
 export function performancePanel(ui) {
   const mobileDevice = isMobileDevice();
+  let modal;
   const body = h('div', { class: 'settings performance-settings' }, h('h2', {}, '画面与性能'));
   const current = h('p', { class: 'graphics-current res-note', 'data-graphics-current': '', 'aria-live': 'polite' });
   const aaNames = { off: '关闭', native: '系统抗锯齿', fxaa: 'FXAA', msaa2: '2× MSAA', msaa4: '4× MSAA' };
@@ -133,6 +135,12 @@ export function performancePanel(ui) {
     } }, '显示记录文本'));
   };
   body.append(h('h3', {}, '本机运行记录'), status, actions, reportText, h('p', { class: 'fine' }, '记录不会读取照片、存档内容或其他应用，也不会上传。后台停留不计入帧率，报告不测量手机温度。下载不便时，可显示记录文本并自行复制。'));
+  body.append(h('h3', { style: { marginTop: '1.25rem' } }, '排查运行问题'),
+    h('p', { class: 'fine' }, '只读查看场景、帧阶段耗时、保存与同步状态，记录问题出现的时刻并导出脱敏报告。'),
+    h('button', { class: 'btn alt sm', type: 'button', 'data-settings-open': 'diagnostics', style: { marginTop: '.7rem' }, onclick: () => {
+      modal.close(true); diagnosticsPanel(ui);
+    } }, '运行诊断（只读）'));
   render(); const timer = setInterval(render, 1000);
-  return ui.modal(body, { ribbon: '运行更舒服', cls: 'live-modal preferences-modal', onClose: () => clearInterval(timer) });
+  modal = ui.modal(body, { ribbon: '运行更舒服', cls: 'live-modal preferences-modal', onClose: () => clearInterval(timer) });
+  return modal;
 }

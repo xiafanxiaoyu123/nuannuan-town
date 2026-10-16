@@ -1,6 +1,7 @@
 // 存档文件的纯校验；不读写存储、不触发奖励，未知的有效扩展字段原样保留。
 import { CLOTHES, CLOTH, DECO, CROP, FRUIT, FLOOR, HOUSES, YARDS, SHOP_MAX_LV, MAX_STAGE } from '../data.js';
-import { DAILY_POOL, BEAUTY_REWARDS, PROJECT } from '../live/data.js';
+import { BEAUTY_REWARDS, PROJECT } from '../live/data.js';
+import { DAILY_TASK_COUNT, dailyDefinition, dailyProgressIsInteger } from '../shared/daily.js';
 import { createRecordRules } from '../live/canon-record.js';
 import { housePlan } from '../world/house-plan.js';
 import { isYardStructure, MAX_YARD_LEVEL, validateYardLayout, buildInteriorChecker } from '../world/yard-building.js';
@@ -150,11 +151,11 @@ function validateLive(l, interior) {
   obj(l, 'live');
   fields(l, ['day'], str, 'live'); fields(l, ['chest'], flag, 'live');
   for (const k of ['sign', 'book', 'project', 'visit', 'story', 'storyClaimed', 'residents', 'canon', 'fun', 'granted', 'photo', 'nonoy']) optional(l, k, obj, `live.${k}`);
-  optional(l, 'daily', (v, a) => arr(v, a, 3).forEach((t, i) => {
-    const at = `${a}[${i}]`; obj(t, at); const def = DAILY_POOL.find((d) => d.id === t.id); if (!def) fail(at, '订单类型无效');
+  optional(l, 'daily', (v, a) => arr(v, a, DAILY_TASK_COUNT).forEach((t, i) => {
+    const at = `${a}[${i}]`; obj(t, at); const def = dailyDefinition(t.id); if (!def) fail(at, '订单类型无效');
     num(t.n, at + '.n', 1); fields(t, ['base'], num, at);
     // 无尽订单记录逐帧累积的秒数，正常旧档也会带小数；其余计数仍要求整数。
-    optional(t, 'prog', (v, key) => num(v, key, 0, Number.MAX_SAFE_INTEGER, def.type !== 'endless'), at + '.prog');
+    optional(t, 'prog', (v, key) => num(v, key, 0, Number.MAX_SAFE_INTEGER, dailyProgressIsInteger(def)), at + '.prog');
     fields(t, ['claimed'], flag, at);
   }), 'live.daily');
   if (l.sign) { fields(l.sign, ['last'], str, 'live.sign'); optional(l.sign, 'streak', (v, a) => num(v, a, 0, 7), 'live.sign.streak'); }

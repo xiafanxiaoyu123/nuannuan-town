@@ -9,7 +9,7 @@ import { audio } from '../core/audio.js';
 import { fx } from '../core/fx.js';
 import { Character, NONOY_LOOK, MARQUES_LOOK, GIOVANNI_LOOK } from '../models/character.js';
 import { npcIco, clothIcon, coinIco, decorIcon } from '../core/icons.js';
-import { svg } from '../ui/ui.js';
+import { svg } from '../ui/components/svg.js';
 import { gameDayKey, gameDayNo } from '../core/gametime.js';
 import { festivalDialogue } from './festival-dialogue.js';
 import { installCraneRide } from './crane-ride.js';

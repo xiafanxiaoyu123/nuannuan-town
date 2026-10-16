@@ -352,6 +352,11 @@ export const account = {
   get entitlements() { return entitlementState; },
   get revision() { return revision; },
   get ready() { return syncReady; },
+  // 诊断摘要只有状态与计数；不暴露账号、云端载荷或同步祖先。
+  get diagnosticsInfo() {
+    return { status: LOCAL_PLAY ? 'local-only' : pending ? 'conflict' : syncReady ? 'ready' : authStatus,
+      revision, pending: !!syncTask, conflict: !!pending };
+  },
   get mailScope() { return `${apiBase() || globalThis.location?.origin || ''}|${profile?.id || ''}`; },
   has(feature) { return entitlementState.features.includes(String(feature)); },
   async accessPolicy() { return request('/api/billing/status'); },

@@ -18,6 +18,7 @@ export function buildIslandPanel(game) {
       (S.buildHeightArchive || []).some(a => a.source === 'buildPlaced' && a.blockedStairs > 0) && h('p', { class: 'fine build-migration-note' }, '已收回被楼板或屋顶遮挡的旧楼梯，请留出楼梯口后重新放置。原建筑布局已保留备份。'),
       !atIsland && h('p', { class: 'fine' }, q.hint),
       q.stage === 1 && h('div', { class: 'build-lunch' }, ...q.needs.map(n => h('span', { class: n.missing ? 'missing' : '' }, `${n.name} ${n.owned} / ${n.required}`))),
+      q.stage === 1 && h('p', { class: 'fine build-apple-hint' }, '苹果获取：后院装修 → 摆放「果树田」→ 靠近空田选择苹果树苗 → 等待结果后采摘。'),
       h('div', { class: 'build-actions' },
         atIsland && h('button', { class: 'btn', onclick: () => { modal.close(true); game.openDecor(); } }, '开始自由建造'),
         h('button', { class: 'btn ' + (atIsland ? 'alt' : ''), disabled: pending || (near && !atIsland && !q.canAdvance), 'data-build-quest-action': atIsland ? 'return' : q.action,

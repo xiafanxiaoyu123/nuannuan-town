@@ -1,19 +1,6 @@
 // 新系统的静态数据表（文案、数值初稿）。逻辑不在这里，见 api.js 与 docs/交接文档-新系统.md
-export const DAILY_POOL = [
-  { id: 'd_cafe', text: '在甜心咖啡屋单局营业额达到 {n}', type: 'score', shop: 'cafe', n: [120, 180, 260], reward: 120 },
-  { id: 'd_flower', text: '在花语小筑单局营业额达到 {n}', type: 'score', shop: 'flower', n: [100, 160, 230], reward: 120 },
-  { id: 'd_tailor', text: '在星梦裁缝铺单局营业额达到 {n}', type: 'score', shop: 'tailor', n: [100, 150, 200], reward: 120 },
-  { id: 'd_fish', text: '在悠然钓场钓到 {n} 条鱼', type: 'stat', stat: 'fish_caught', n: [4, 6, 9], reward: 110 },
-  { id: 'd_harvest', text: '收获作物或摘果子 {n} 次', type: 'stat', stat: 'harvested', n: [6, 10, 16], reward: 90 },
-  { id: 'd_fruit', text: '摘 {n} 个果子', type: 'stat', stat: 'fruits', n: [3, 6, 9], reward: 100 },
-  { id: 'd_req', text: '完成 {n} 个居民委托', type: 'stat', stat: 'reqs', n: [1, 2, 3], reward: 140 },
-  { id: 'd_talk', text: '和居民聊天 {n} 次', type: 'stat', stat: 'npc_talk', n: [3, 5, 8], reward: 60 },
-  { id: 'd_stage', text: '关卡模式过 {n} 关（可重打）', type: 'stat', stat: 'stage_clears', n: [1, 2, 3], reward: 150 },
-  { id: 'd_endless', text: '无尽模式坚持 {n} 秒', type: 'endless', n: [60, 90, 150], reward: 150 },
-  { id: 'd_wish', text: '对喷泉许愿 {n} 次', type: 'stat', stat: 'wishes', n: [2, 3, 5], reward: 50 },
-  { id: 'd_decor', text: '摆放 {n} 件家具', type: 'stat', stat: 'placed', n: [1, 2, 3], reward: 80 },
-];
-export const DAILY_CHEST = { need: 3, coins: 300, note: '做完当天 3 个订单可开' };
+// 兼容已有界面/任务聚合器的导入路径；内容唯一维护源在 shared/daily。
+export { DAILY_POOL, DAILY_CHEST } from '../shared/daily.js';
 export const SIGNIN = [
   { day: 1, coins: 100 }, { day: 2, coins: 150 }, { day: 3, item: 'seed', name: '星光玫瑰种子 ×2', coins: 0 },
   { day: 4, coins: 250 }, { day: 5, item: 'decor', name: '樱花树 ×1', coins: 0 }, { day: 6, coins: 400 },
@@ -34,7 +21,7 @@ export const MODIFIERS = {
     { id: 'gift', name: '礼盒季', tone: '#e9a520', desc: '每单都要配包装，丝带篮回充加快' },
   ],
   tailor: [
-    { id: 'mirror', name: '镜像谱面', tone: '#7fc4f5', desc: '粉蓝两条轨道对调' },
+    { id: 'mirror', name: '镜像谱面', tone: '#7fc4f5', desc: '四条轨道左右镜像' },
     { id: 'long', name: '长针脚日', tone: '#a58bea', desc: '长按音符翻倍，每个 +8 分' },
     { id: 'strict', name: '高定工坊', tone: '#f0679a', desc: '只有 Perfect 计分，但每个 Perfect 分数 ×1.6' },
   ],
