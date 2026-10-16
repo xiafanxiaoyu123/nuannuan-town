@@ -13,6 +13,7 @@ export function normalizeGraphicsSettings(settings = {}) {
     renderScale: RENDER_SCALES.includes(settings.renderScale) ? settings.renderScale : 1,
     antiAlias: ANTI_ALIAS_MODES.includes(settings.antiAlias) ? settings.antiAlias : 'auto',
     adaptiveQuality: settings.adaptiveQuality !== false,
+    showFps: settings.showFps === true || settings.showFps === 1,
   };
 }
 

@@ -207,6 +207,36 @@ async function childChecks() {
       assert.equal(cloud.data.live.fun.used.fortune, 1); assert.equal(cloud.data.coins, prior.coins);
       assert.equal(Object.hasOwn(cloud.data.live.fun.used, 'fortuneLv'), false);
     });
+    await group('FPS preference survives cloud round trips without altering legacy progress', async () => {
+      const snapshot = copy((await read()).body.data);
+      snapshot.settings = { ...(snapshot.settings || {}) }; delete snapshot.settings.showFps;
+      const legacy = await put(snapshot, revision); assert.equal(legacy.status, 200);
+      revision = legacy.body.revision;
+      assert.equal(Object.hasOwn((await read()).body.data.settings, 'showFps'), false);
+      for (const value of [true, false, 1, 0]) {
+        const before = (await read()).body;
+        const data = copy(before.data); data.settings.showFps = value;
+        const written = await put(data, revision); assert.equal(written.status, 200); revision = written.body.revision;
+        const cloud = (await read()).body;
+        assert.deepEqual(cloud.data, data); assert.equal(cloud.data.settings.showFps, value);
+        assert.equal(createHash('sha256').update(JSON.stringify(cloud.data)).digest('hex'), cloud.checksum);
+        const retry = await put(data, before.revision);
+        assert.equal(retry.status, 200); assert.equal(retry.body.unchanged, true); assert.equal(retry.body.revision, revision);
+        for (const name of ['coins', 'owned', 'outfit', 'placedIn', 'shops', 'seeds', 'crops', 'stats', 'live']) {
+          assert.deepEqual(cloud.data[name], snapshot[name], 'FPS preference changed gameplay field ' + name);
+        }
+      }
+      const before = (await read()).body;
+      for (const value of ['true', 'false', 2, -1, null, {}, []]) {
+        const invalid = copy(before.data); invalid.settings.showFps = value;
+        const rejected = await put(invalid, revision);
+        assert.equal(rejected.status, 400); assert.equal(rejected.body.code, 'SAVE_INVALID');
+        assert.deepEqual((await read()).body, before);
+      }
+      const stale = copy(before.data); stale.settings.showFps = true; stale.coins++;
+      assert.equal((await put(stale, revision - 1)).status, 409);
+      assert.deepEqual((await read()).body, before);
+    });
     await group('JSON roots are checked and checkout stays disabled throughout', async () => {
       for (const data of [null, [], 'string']) assert.equal((await call('/api/save', 'PUT', data, player)).status, 400);
       const status = await call('/api/billing/status'); assert.equal(status.status, 200);

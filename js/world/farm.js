@@ -247,25 +247,21 @@ export class Farm {
     save();
   }
 
-  interactable(px, pz) {
-    const rec = this.town.zone === 'home' ? this.nearest(px, pz, 1.7) : null;
-    if (!rec) { this.hl.visible = false; return null; }
+  buildPlotInter(rec) {
     const x = rec.obj.position.x, z = rec.obj.position.z, big = isBig(rec);
-    this.hl.visible = true;
-    this.hl.position.set(x, 0, z);
-    this.hlBase = big ? 1.5 : 1;
     const p = this.state(rec);
-    const it = { id: 'plot' + keyOf(rec.e), x, z, r: big ? 2.4 : 1.7, prio: 0.6 };
+    const it = { id: 'plot' + keyOf(rec.e), target: rec, targetState: p, x, z, r: big ? 2.4 : 1.7, prio: 0.6 };
     if (big) {
       if (!p) {
         const f = FRUIT[S.sapling] || FRUITS[0];
         it.label = `种下 · ${f.tree}苗 (${f.price})`;
         it.sub = '果树种下后不用重种，会一直结果';
+        it.action = 'plantTree';
         it.act = () => this.plantTree(rec);
       } else {
         const t = treeInfo(p), name = ['幼苗', '小树', '大树'][t.stage];
-        if (t.ripe) { it.label = `摘果子 · ${t.f.name} ×${t.n}`; it.act = () => this.pickFruit(rec); }
-        else if (t.thirsty) { it.label = '浇水 · 长得更快'; it.sub = t.stage === 0 ? `${t.f.tree}${name} · ${t.remain} 秒后长成小树` : `${t.f.tree}（${name}）· ${t.remain} 秒后结果`; it.act = () => this.water(rec); }
+        if (t.ripe) { it.label = `摘果子 · ${t.f.name} ×${t.n}`; it.action = 'pickFruit'; it.act = () => this.pickFruit(rec); }
+        else if (t.thirsty) { it.label = '浇水 · 长得更快'; it.sub = t.stage === 0 ? `${t.f.tree}${name} · ${t.remain} 秒后长成小树` : `${t.f.tree}（${name}）· ${t.remain} 秒后结果`; it.action = 'water'; it.act = () => this.water(rec); }
         else { it.label = t.stage === 0 ? `${t.f.tree}${name} · ${t.remain} 秒后长成小树` : `${t.f.tree}（${name}）· ${t.remain} 秒后结果`; it.act = null; }
       }
       return it;
@@ -275,19 +271,23 @@ export class Farm {
       const inSeason = c.season && c.season === this.town.seasons?.current;
       it.label = `播种 · ${c.name} (${S.seeds[c.id] > 0 ? '免费种子 ×' + S.seeds[c.id] : c.seed})`;
       it.sub = (inSeason ? '【当季加速】' : '') + c.tip;
+      it.action = 'plant';
       it.act = () => this.plant(rec);
     } else {
       const st = plotStage(p), c = CROP[p.crop];
       if (st >= 3) {
         it.label = `收获 · ${p.shiny ? '闪耀' : ''}${c.name}${(c.yield || 1) > 1 ? ' ×' + c.yield : ''}`;
+        it.action = 'harvest';
         it.act = () => this.harvest(rec);
       } else if (!p.watered) {
         it.label = '浇水 · 加速生长';
         it.sub = `${c.name} 还需 ${plotRemain(p)} 秒`;
+        it.action = 'water';
         it.act = () => this.water(rec);
       } else if (!p.fertilized && fertilizerCount(S) > 0) {
         it.label = `撒有机花肥 (剩 ${fertilizerCount(S)} 袋)`;
         it.sub = `加速成熟并提高闪耀金星产出率 · 还需 ${plotRemain(p)} 秒`;
+        it.action = 'fertilize';
         it.act = () => this.fertilize(rec);
       } else {
         it.label = `${p.fertilized ? '已施肥 · ' : ''}${c.name} 生长中 · 还需 ${plotRemain(p)} 秒`;
@@ -295,6 +295,40 @@ export class Farm {
       }
     }
     return it;
+  }
+
+  interactable(px, pz) {
+    const rec = this.town.zone === 'home' ? this.nearest(px, pz, 1.7) : null;
+    if (!rec) { this.hl.visible = false; return null; }
+    const x = rec.obj.position.x, z = rec.obj.position.z, big = isBig(rec);
+    this.hl.visible = true;
+    this.hl.position.set(x, 0, z);
+    this.hlBase = big ? 1.5 : 1;
+    return this.buildPlotInter(rec);
+  }
+
+  interactables(px, pz) {
+    const primary = this.interactable(px, pz);
+    if (!primary || this.town.zone !== 'home') return primary ? [primary] : [];
+    const out = [primary];
+    const seenLabels = new Set([primary.label]);
+    const extra = [];
+    for (const r of this.recs()) {
+      const id = 'plot' + keyOf(r.e);
+      if (id === primary.id) continue;
+      const distance = Math.hypot(r.obj.position.x - px, r.obj.position.z - pz);
+      const d = distance - (isBig(r) ? 0.6 : 0);
+      if (distance < (isBig(r) ? 2.4 : 1.7)) extra.push({ r, d });
+    }
+    extra.sort((a, b) => a.d - b.d);
+    for (const { r } of extra) {
+      const it = this.buildPlotInter(r);
+      if (!it.act || seenLabels.has(it.label)) continue;
+      seenLabels.add(it.label);
+      out.push(it);
+      if (out.length >= 3) break;
+    }
+    return out;
   }
 
   fertilize(rec) {
@@ -316,8 +350,9 @@ export class Farm {
   }
 
   plant(rec) {
-    if (isBig(rec) || this.state(rec)) return;
+    if (!rec?.obj?.position || !rec.e || isBig(rec) || this.state(rec)) return false;
     const c = CROP[S.seed];
+    if (!c) return false;
     if (S.seeds[c.id] > 0) {
       S.seeds[c.id]--;
       save();
@@ -359,6 +394,7 @@ export class Farm {
     return true;
   }
   plantTree(rec) {
+    if (!rec?.obj?.position || !rec.e || !isBig(rec) || this.state(rec)) return false;
     const f = FRUIT[S.sapling] || FRUITS[0];
     if (!spend(f.price)) return;
     const pos = rec.obj.position;
@@ -415,7 +451,9 @@ export class Farm {
     stat('watered');
   }
   harvest(rec) {
+    if (!rec?.obj?.position || !rec.e) return false;
     const p = this.state(rec), pos = rec.obj.position;
+    if (!p || p.tree || !CROP[p.crop] || plotStage(p) < 3) return false;
     const c = CROP[p.crop], chance = outfitFx(S.outfit, 'sun');
     const aura = this.fieldAura(rec);
     const inSeason = c.season && c.season === this.town.seasons?.current;
@@ -444,9 +482,13 @@ export class Farm {
     if (giantId) bus.emit('giantCrop', giantId);
     this.refresh(rec, true);
     stat('harvested');
+    return true;
   }
   pickFruit(rec) {
-    const p = this.state(rec), pos = rec.obj.position, t = treeInfo(p);
+    if (!rec?.obj?.position || !rec.e) return false;
+    const p = this.state(rec), pos = rec.obj.position;
+    if (!p?.tree || !FRUIT[p.tree]) return false;
+    const t = treeInfo(p);
     if (!t.ripe) return;
     S.crops[p.tree] = (S.crops[p.tree] || 0) + t.n;
     bus.emit('found', 'crop', p.tree, t.n);

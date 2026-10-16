@@ -54,6 +54,22 @@ export function settingsPanel() {
   const renderSeg = () => seg.replaceChildren(...[['high', '精致'], ['mid', '均衡'], ['low', '省电']].map(([k, n]) =>
     h('button', { class: app.quality === k ? 'on' : '', 'data-quality': k, onclick: click(() => { S.settings.quality = k; S.settings.qualityExplicit = true; save(); app.applyQuality(); renderSeg(); }, 'tab') }, n)));
   renderSeg();
+  const fpsSeg = h('div', { class: 'seg' });
+  const fpsOptions = [[true, '显示 FPS'], [false, '隐藏']];
+  const fpsButtons = fpsOptions.map(([val, label]) =>
+      h('button', { type: 'button', 'data-show-fps-quick': String(val), onclick: click(() => {
+        S.settings.showFps = val;
+        save();
+        this.syncFpsVisibility?.();
+        renderFpsSeg();
+      }, 'tab') }, label));
+  const renderFpsSeg = () => fpsButtons.forEach((button, index) => {
+    const selected = !!S.settings.showFps === fpsOptions[index][0];
+    button.classList.toggle('on', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  });
+  fpsSeg.append(...fpsButtons);
+  renderFpsSeg();
   // 桌面浏览器也有 screen.orientation，不能据此显示“跟随手机”。
   // 原生桥和移动设备 UA 保留 fine 指针 Android / iPad 的方向设置。
   const canOrient = isMobileDevice();
@@ -90,6 +106,7 @@ export function settingsPanel() {
     h('label', {}, '背景音乐', range('music')),
     h('label', {}, '音效', range('sfx')),
     h('label', {}, '画面', seg),
+    h('label', {}, '帧率显示', fpsSeg),
     h('p', { class: 'fine', style: { marginTop: '0.5rem' } }, '精致：开启光影后期；均衡：关闭后期特效（手机默认）；省电：降低分辨率。主动选择精致会保留到下次启动，但会增加性能开销。帧率、清晰度和抗锯齿可在画面与性能里单独调整。模型细节与阴影精度在下次打开游戏时生效。'),
     canOrient && h('label', {}, '屏幕方向', oseg),
     h('div', { class: 'settings-links' },

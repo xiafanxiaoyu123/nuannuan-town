@@ -7,8 +7,17 @@ const path = require('node:path');
 const { suite } = require('./live_harness.js');
 
 suite('backend_save_ui', async q => {
+  const click=q.click;
+  q.click=async(selector,index=0)=>{
+    try { return await click(selector,index); }
+    catch(error) {
+      q.report.failedClick={selector,index,detail:await q.run(`const e=document.querySelectorAll(${JSON.stringify(selector)})[${index}];if(!e)return {missing:true};const b=e.getBoundingClientRect(),hit=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);return {box:{x:b.x,y:b.y,w:b.width,h:b.height},hitClass:hit?.className,hitTag:hit?.tagName,veils:[...document.querySelectorAll('.veil')].map(v=>v.className)};`)};
+      throw new Error(error.message+'：'+selector);
+    }
+  };
   const openTransfer = async () => {
     await q.run('closePanels();');
+    await q.wait('!document.querySelector(".veil")');
     await q.click('[aria-label="更多"]');
     await q.click('.more-grid [aria-label="设置"]');
     await q.click('[data-settings-open="transfer"]');
@@ -104,6 +113,7 @@ suite('backend_save_ui', async q => {
     `);
     await q.shot(label+'_welcome_claimed');
     await q.click('.daily-modal .x');
+    await q.wait('!document.querySelector(".veil")');
     await q.run('focusFrame();engine.frame();'); await q.sleep(120);
     await q.click('.prompt button');
     await q.check(label+' 实际互动切换主题且模型颜色同步',`
@@ -118,7 +128,16 @@ suite('backend_save_ui', async q => {
     await q.check(label+' 实际施肥只消耗一袋并保留玩法加速',`
       eq(st.S.stats.fertilizer,7,'只扣一袋');assert(st.S.farm['3,9'].fertilized,'田地已施肥');
       assert(st.S.farm['3,9'].dur<600000&&st.S.farm['3,9'].dur>0,'成熟时间缩短');
-      assert(!ui.promptBtn.textContent.includes('撒有机花肥'),'已施肥不再提示重复消耗');sf.validateSaveData(st.serializeState());return important();
+      const promptVisible=ui.prompt.classList.contains('on')&&getComputedStyle(ui.prompt).visibility!=='hidden'&&+getComputedStyle(ui.prompt).opacity>0;
+      assert(!promptVisible||ui.promptBtn.disabled||!ui.promptBtn.textContent.includes('撒有机花肥'),'施肥动画期间不能展示可再次消耗的按钮');
+      sf.validateSaveData(st.serializeState());return {progress:important(),lock:t.lock,promptVisible};
+    `);
+    // Interactions are hidden during the real action lock. A hidden node may
+    // retain its previous text; wait for natural frames instead of clearing lock.
+    await q.wait('t.lock<=0&&ui.prompt.classList.contains("on")&&ui.promptBtn.disabled');
+    await q.check(label+' 施肥动画结束后同一田地提示刷新且不会再扣花肥',`
+      assert(ui.promptBtn.textContent.includes('已施肥')&&!ui.promptBtn.textContent.includes('撒有机花肥'),'动画结束后显示已施肥状态');
+      eq(st.S.stats.fertilizer,7,'动画及提示刷新不重复扣费');assert(st.S.farm['3,9'].fertilized,'原田地施肥标记保留');return important();
     `);
     await q.shot(label+'_fertilized');
     const snapshot=await q.run('st.flushSave();return important();');

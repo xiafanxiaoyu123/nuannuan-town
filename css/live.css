@@ -468,8 +468,8 @@ img.ava { object-fit: cover; background: color-mix(in srgb, var(--c, #ffc2d6) 30
   .pbtn,
   .photo-exit,
   .momosw,
-  .nowpill.town { min-height: 2.8rem !important; }
-  .seg button { height: 2.8rem !important; }
+  .nowpill.town { min-height: max(44px, 2.8rem) !important; }
+  .seg button { height: max(44px, 2.8rem) !important; }
   .quest .qx { width: 2.8rem !important; height: 2.8rem !important; min-width: 2.8rem !important; }
   .nowpill.town, .momosw { height: 2.8rem !important; }
   .settings input[type="range"] { height: 2.8rem !important; }
@@ -581,4 +581,407 @@ img.ava { object-fit: cover; background: color-mix(in srgb, var(--c, #ffc2d6) 30
     min-width: 0;
     box-sizing: border-box;
   }
+}
+
+/* HUD uses measured content sizes: long labels and accessibility settings do not
+   depend on a guessed number of rows. Nearby actions remain above the ground. */
+:root {
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --ease-smooth: cubic-bezier(.22, 1, .36, 1);
+  --hud-edge-t: max(.85rem, calc(env(safe-area-inset-top, 0px) + .45rem));
+  --hud-edge-l: max(.95rem, calc(env(safe-area-inset-left, 0px) + .45rem));
+  --hud-edge-r: max(.95rem, calc(env(safe-area-inset-right, 0px) + .45rem));
+}
+.hud-tl {
+  top: var(--hud-edge-t) !important; left: var(--hud-edge-l) !important;
+  margin-left: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
+  max-width: min(56vw, calc(100vw - var(--hud-edge-l) - var(--hud-edge-r) - var(--hud-right-width, 18rem) - 12px));
+}
+.hud-tl .nowrow { position: static !important; display: flex; left: auto; top: auto; order: 4; max-width: 100%; }
+.hud-tl .nowpill { max-width: 100%; box-sizing: border-box; }
+.hud-tl .festbar { order: 5; }
+.hud-tr {
+  top: var(--hud-edge-t) !important; right: var(--hud-edge-r) !important; margin-right: 0;
+  display: grid; grid-template-columns: repeat(6, minmax(44px, 3.35rem));
+  width: max-content; gap: .35rem; align-items: start; justify-items: center;
+}
+.hud-tr .ibtn { width: 100%; min-width: 44px; min-height: 44px; gap: .18rem; }
+.hud-tr .ibtn > span:first-child { width: max(44px, 3rem); height: max(44px, 3rem); }
+.pill.fps-pill {
+  order: 3; min-height: 44px; padding: .4rem .65rem; gap: .35rem; border: 0;
+  background: var(--cream); box-shadow: var(--shadow-s), inset 0 0 0 .14rem #fff;
+  font: 800 .96rem var(--font-n); color: var(--ink); font-variant-numeric: tabular-nums;
+  cursor: pointer; pointer-events: auto;
+}
+.pill.fps-pill.hide { display: none !important; }
+.pill.fps-pill .num { min-width: 3ch; text-align: right; line-height: 1; }
+.pill.fps-pill small { font: 800 .64rem var(--font-b); color: var(--ink2); }
+.fps-dot { width: .56rem; height: .56rem; border-radius: 50%; flex: none; background: #44c786; box-shadow: 0 0 0 .16rem #44c78633; }
+.fps-dot.warn { background: #f5a623; box-shadow: 0 0 0 .16rem #f5a62333; }
+.fps-dot.low { background: #ef5b6c; box-shadow: 0 0 0 .16rem #ef5b6c33; }
+.fps-dot.unknown { background: #b6aab1; box-shadow: none; }
+.quest, .questtab {
+  left: var(--hud-edge-l) !important;
+  top: calc(var(--hud-edge-t) + var(--hud-left-height, 5rem) + 12px) !important;
+  bottom: auto !important; margin: 0; width: min(17rem, calc(50vw - 1.5rem));
+}
+.questtab { width: auto; min-height: 44px; }
+.reqs, .quest.hide ~ .reqs {
+  left: var(--hud-edge-l) !important;
+  top: calc(var(--hud-edge-t) + var(--hud-left-height, 5rem) + var(--hud-quest-height, 0px) + 20px) !important;
+  bottom: auto !important; margin: 0; width: min(17rem, calc(50vw - 1.5rem));
+}
+.reqline { min-height: 44px; box-sizing: border-box; }
+.momosw {
+  top: calc(var(--hud-edge-t) + var(--hud-right-height, 5rem) + 12px) !important;
+  right: calc(var(--hud-edge-r) + max(var(--hud-shot-width, 52px), 44px) + 10px) !important;
+  left: auto !important; margin: 0; min-height: 44px; height: auto !important;
+}
+.reapbtn {
+  top: calc(var(--hud-edge-t) + var(--hud-right-height, 5rem) + max(var(--hud-momo-height, 44px), var(--hud-shot-height, 52px)) + 22px) !important;
+  right: var(--hud-edge-r) !important; left: auto !important; margin: 0; min-height: 44px; height: auto;
+}
+.shotbtn, #ui.controls-touch .shotbtn, #ui.controls-touch[data-move-side="right"] .shotbtn {
+  top: calc(var(--hud-edge-t) + var(--hud-right-height, 5rem) + 12px) !important;
+  right: var(--hud-edge-r) !important; left: auto !important; bottom: auto !important;
+  margin: 0; min-width: 44px; min-height: 44px;
+}
+.prompt { bottom: max(24px, env(safe-area-inset-bottom, 0px)); max-width: min(92vw, 46rem); z-index: 6; }
+.prompt .prompt-list { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; max-width: 100%; }
+.prompt .prompt-extra { display: contents; }
+.prompt .prompt-extra.hide { display: none !important; }
+.prompt button.prompt-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .45rem;
+  min-height: 44px; height: auto; padding: .55rem .85rem; border-radius: 99rem;
+  background: var(--cream); box-shadow: 0 .24rem 0 #f0d6d8, var(--shadow), inset 0 0 0 .14rem #fff;
+  font: 1rem var(--font-d); color: var(--ink); line-height: 1.3;
+  max-width: min(88vw, 24rem); white-space: normal; box-sizing: border-box;
+}
+.prompt button.prompt-btn .prompt-txt { min-width: 0; overflow-wrap: anywhere; }
+.prompt button.prompt-btn .prompt-tag { font: 700 .76rem var(--font-b); color: var(--pink2); }
+.prompt button.prompt-btn.secondary { background: linear-gradient(#fffdf9, #fff2f6); }
+.prompt button:disabled { color: var(--ink2); cursor: default; }
+.prompt .kbd.alt { background: #fff3f7; color: #b45d82; animation: none; }
+.hud:has(.tray.on) .prompt { bottom: calc(6.9rem + var(--hud-seed-height, 7rem) + 12px); }
+#ui.controls-touch .prompt {
+  left: auto; right: max(var(--joy-edge, 20px), env(safe-area-inset-right, 0px));
+  bottom: max(var(--joy-bottom, 24px), env(safe-area-inset-bottom, 0px));
+  width: min(18rem, calc(100vw - var(--joy-size, 108px) - var(--joy-edge, 20px) * 2 - 14px));
+  transform: none; align-items: stretch;
+}
+#ui.controls-touch[data-move-side="right"] .prompt { left: max(var(--joy-edge, 20px), env(safe-area-inset-left, 0px)); right: auto; }
+#ui.controls-touch .prompt .prompt-list { flex-direction: column; align-items: stretch; width: 100%; }
+#ui.controls-touch .prompt button.prompt-btn { width: 100%; min-height: 44px; max-width: 100%; padding: .5rem .65rem; text-align: left; justify-content: flex-start; font-size: .92rem; }
+#ui.controls-touch .tray.on {
+  left: var(--joy-edge, 20px); right: auto; bottom: calc(var(--joy-bottom, 24px) + var(--joy-size, 108px) + 12px);
+  transform: none; max-width: calc(var(--joy-size, 108px) + 12px);
+}
+#ui.controls-touch[data-move-side="right"] .tray.on { left: auto; right: var(--joy-edge, 20px); }
+#ui.controls-touch .tray.on.open {
+  left: var(--joy-edge, 20px); right: var(--joy-edge, 20px); width: auto; max-width: none;
+  bottom: calc(var(--joy-bottom, 24px) + max(var(--joy-size, 108px), var(--hud-prompt-height, 0px)) + 12px);
+  display: flex; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; max-height: 120px;
+  box-sizing: border-box; touch-action: pan-x; overscroll-behavior-x: contain;
+}
+#ui.controls-touch .tray.on.open .slot { flex: 0 0 76px; min-width: 76px; }
+#ui.controls-touch .tray.on.open .traylab { flex: none; align-self: center; }
+.ghud .gquit.btn { position: absolute; min-height: 44px !important; }
+.gmomo-skill { min-height: 44px; top: max(4.1rem, calc(var(--hud-edge-t) + 52px)); }
+.ghud.tailor .tailor-pause { min-height: 44px; top: max(5rem, calc(var(--hud-edge-t) + 52px)); }
+.modal > .x { min-width: 44px; min-height: 44px; }
+#ui.controls-touch .hud:has(.tray.on.open) :is(.quest, .questtab, .reqs) { visibility: hidden; pointer-events: none; }
+@media (pointer: coarse) {
+  .momosw, .nowpill.town { min-height: 44px !important; }
+  .quest .qx { min-width: 44px !important; width: 44px !important; height: 44px !important; }
+}
+@media (max-aspect-ratio: 1/1) {
+  .hud-tr { grid-template-columns: repeat(4, 44px); gap: 3px 2px; }
+  .hud-tr .ibtn { font-size: .66rem; gap: 2px; }
+  .hud-tr .ibtn > span:first-child { width: 44px; height: 44px; border-radius: .9rem; }
+  .hud-tl { gap: .3rem; }
+  .hud-tl .me { padding: .28rem .6rem .28rem .25rem; gap: .35rem; }
+  .hud-tl .me-ava { width: 2.65rem; height: 2.65rem; }
+  .hud-tl .me b { font-size: 1rem; }
+  .hud-tl .me span { font-size: .65rem; }
+  .hud-tl .pill { padding: .3rem .55rem; height: auto; min-height: 34px; font-size: .92rem; }
+  .hud-tl .pill.fps-pill { min-height: 44px; }
+  .hud-tl .pill img { width: 1.55rem; height: 1.55rem; }
+  .hud-tl .nowpill { min-height: 44px; font-size: .7rem; }
+  .momosw span { display: none !important; }
+}
+@media (max-height: 560px) and (orientation: landscape) {
+  .hud-tr { grid-template-columns: repeat(6, 44px); gap: .25rem; }
+  .hud-tr .ibtn { font-size: .66rem; }
+  .hud-tr .ibtn > span:first-child { width: 44px; height: 44px; }
+  .reapbtn { top: calc(var(--hud-edge-t) + var(--hud-right-height, 5rem) + 12px) !important; right: calc(var(--hud-edge-r) + max(var(--hud-shot-width, 52px), 44px) + max(var(--hud-momo-width, 82px), 82px) + 20px) !important; }
+  #ui.controls-touch .prompt { width: min(40rem, calc(100vw - var(--joy-size, 108px) - var(--joy-edge, 20px) * 2 - 24px)); }
+  #ui.controls-touch .prompt .prompt-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #ui.controls-touch .tray.on:not(.open) { left: calc(var(--joy-edge, 20px) + var(--joy-size, 108px) + 12px); bottom: var(--joy-bottom, 24px); }
+  #ui.controls-touch[data-move-side="right"] .tray.on:not(.open) { left: auto; right: calc(var(--joy-edge, 20px) + var(--joy-size, 108px) + 12px); }
+  #ui.controls-touch .hud:has(.tray.on.open) :is(.quest, .questtab, .reqs) { visibility: hidden; pointer-events: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   7. 全页面同类按钮统一且流畅的交互动画体系 (Unified Button Micro-Interactions)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* A类：主次胶囊按钮 (.btn, .pbtn, .prompt-btn, .gmomo-skill, .tailor-pause, .momosw, .reapbtn, .nowpill, .fps-pill, .giant-carry-stow) */
+.btn,
+.pbtn,
+.prompt button.prompt-btn,
+.gmomo-skill,
+.tailor-pause,
+.momosw,
+.reapbtn,
+.nowpill,
+.pill.fps-pill,
+.giant-carry-stow {
+  transition:
+    transform 0.22s var(--ease-spring),
+    box-shadow 0.2s var(--ease-smooth),
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    filter 0.18s ease,
+    opacity 0.18s ease;
+}
+.momosw,
+.reapbtn,
+.giant-carry-stow,
+.tailor-pause {
+  position: absolute;
+}
+.gmomo-skill {
+  position: fixed;
+}
+@media (hover: hover) {
+  .btn:not(:disabled):hover,
+  .pbtn:not(.off):not(.ghost):hover,
+  .prompt button.prompt-btn:not(:disabled):hover,
+  .gmomo-skill:not(:disabled):hover,
+  .tailor-pause:not(:disabled):hover,
+  .momosw:hover,
+  .reapbtn:hover,
+  .nowpill:hover,
+  .pill.fps-pill:hover {
+    transform: translateY(-0.14rem) scale(1.02);
+    filter: brightness(1.03) saturate(1.04);
+  }
+  .giant-carry-stow:hover {
+    transform: translate(-50%, -0.14rem) scale(1.02);
+    filter: brightness(1.03);
+  }
+}
+.btn:not(:disabled):active,
+.pbtn:not(.off):not(.ghost):active,
+.prompt button.prompt-btn:not(:disabled):active,
+.gmomo-skill:not(:disabled):active,
+.tailor-pause:not(:disabled):active,
+.momosw:active,
+.reapbtn:active,
+.nowpill:active,
+.pill.fps-pill:active {
+  transform: translateY(0.14rem) scale(0.95) !important;
+  transition-duration: 0.08s;
+}
+.giant-carry-stow:active {
+  transform: translate(-50%, 0.14rem) scale(0.95) !important;
+  transition-duration: 0.08s;
+}
+
+/* B类：图标动作按钮 (.ibtn, .shotbtn, .chestbtn, .questtab, .pshutter) */
+.ibtn,
+.shotbtn,
+.chestbtn,
+.questtab,
+.pshutter {
+  transition:
+    transform 0.24s var(--ease-spring),
+    box-shadow 0.2s var(--ease-smooth),
+    filter 0.18s ease;
+}
+.ibtn > span:first-child,
+.shotbtn img,
+.chestbtn img {
+  transition:
+    transform 0.24s var(--ease-spring),
+    box-shadow 0.2s var(--ease-smooth),
+    filter 0.2s ease;
+}
+@media (hover: hover) {
+  .ibtn:hover > span:first-child {
+    transform: translateY(-0.18rem) scale(1.06) rotate(-4deg);
+    box-shadow: 0 0.34rem 0 #ebcad8, var(--shadow), inset 0 0 0 0.15rem #fff;
+  }
+  .shotbtn:hover,
+  .chestbtn:hover,
+  .questtab:hover {
+    transform: translateY(-0.16rem) scale(1.04);
+  }
+  .pshutter:hover {
+    transform: scale(1.05);
+  }
+}
+.ibtn:active > span:first-child {
+  transform: translateY(0.16rem) scale(0.92) !important;
+  box-shadow: 0 0.06rem 0 #f0d6d8 !important;
+  transition-duration: 0.08s;
+}
+.shotbtn:active,
+.chestbtn:active,
+.questtab:active,
+.pshutter:active {
+  transform: translateY(0.12rem) scale(0.93) !important;
+  transition-duration: 0.08s;
+}
+
+/* C类：卡片与网格槽位按钮 (.slot, .item, .bigcard, .sp-card, .sday, .perk, .bk-item, .mgen, .oven, .bread-slot, .photo-pose-option, .arch-list button, .cn-opt) */
+.slot,
+.item,
+.bigcard,
+.sp-card,
+.sday,
+.perk,
+.bk-item,
+.mgen,
+.oven,
+.bread-slot,
+.photo-pose-option,
+.arch-list button,
+.cn-opt {
+  transition:
+    transform 0.22s var(--ease-spring),
+    box-shadow 0.22s var(--ease-smooth),
+    background-color 0.18s ease,
+    border-color 0.18s ease;
+}
+@media (hover: hover) {
+  .slot:not(:disabled):hover,
+  .item:hover,
+  .sp-card:not(.got):hover,
+  .sday:not(.got):hover,
+  .bk-item:not(.unk):hover,
+  .mgen:hover,
+  .oven:hover,
+  .bread-slot.ready:hover,
+  .photo-pose-option:not(:disabled):hover,
+  .arch-list button:hover,
+  .cn-opt.has:hover {
+    transform: translateY(-0.22rem) scale(1.02);
+  }
+  .bigcard:hover {
+    transform: translateY(-0.32rem) scale(1.015);
+  }
+}
+.slot:not(:disabled):active,
+.item:active,
+.bigcard:active,
+.sp-card:active,
+.sday:active,
+.perk:active,
+.mgen:active,
+.oven:active,
+.bread-slot.ready:active,
+.photo-pose-option:not(:disabled):active,
+.arch-list button:active,
+.cn-opt:active {
+  transform: translateY(0.08rem) scale(0.95) !important;
+  transition-duration: 0.08s;
+}
+
+/* D类：标签页、分段开关与筛选胶囊 (.tabs button, .seg button, .dtabs button, .decor-categories button, .wfilter-chip, .bk-fbtn, .wsubjects button, .decor-owned-toggle, .stp) */
+.tabs button,
+.seg button,
+.dtabs button,
+.decor-categories button,
+.wardrobe .wfilter-chip,
+.bk-fbtn,
+.wardrobe .wsubjects button,
+.decor-owned-toggle,
+.stp {
+  transition:
+    transform 0.2s var(--ease-spring),
+    background-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s var(--ease-smooth),
+    border-color 0.18s ease;
+}
+@media (hover: hover) {
+  .tabs button:not(:disabled):hover,
+  .seg button:not(:disabled):hover,
+  .dtabs button:not(:disabled):hover,
+  .decor-categories button:not(:disabled):hover,
+  .wardrobe .wfilter-chip:hover,
+  .bk-fbtn:hover,
+  .wardrobe .wsubjects button:hover,
+  .decor-owned-toggle:hover,
+  .stp:not(:disabled):hover {
+    transform: translateY(-0.08rem);
+  }
+}
+.tabs button:not(:disabled):active,
+.seg button:not(:disabled):active,
+.dtabs button:not(:disabled):active,
+.decor-categories button:not(:disabled):active,
+.wardrobe .wfilter-chip:active,
+.bk-fbtn:active,
+.wardrobe .wsubjects button:active,
+.decor-owned-toggle:active,
+.stp:not(:disabled):active {
+  transform: scale(0.94) !important;
+  transition-duration: 0.07s;
+}
+.tabs button.on,
+.seg button.on,
+.dtabs button.on,
+.decor-categories button[aria-pressed="true"],
+.wardrobe .wfilter-chip.on,
+.bk-fbtn.on,
+.wardrobe .wsubjects button.on,
+.decor-owned-toggle[aria-pressed="true"] {
+  animation: chipSelectPop 0.24s var(--ease-spring);
+}
+@keyframes chipSelectPop {
+  0% {
+    transform: scale(0.93);
+  }
+  65% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* E类：圆形关闭与折叠按钮 (.modal .x, .qx, .camx, .dfx) */
+.modal .x,
+.qx,
+.camx,
+.dfx {
+  transition:
+    transform 0.25s var(--ease-spring),
+    background-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+@media (hover: hover) {
+  .modal .x:hover,
+  .qx:hover,
+  .camx:hover,
+  .dfx:hover {
+    transform: rotate(90deg) scale(1.08);
+    background: #ffdbe7;
+    color: var(--pink2);
+  }
+}
+.modal .x:active,
+.qx:active,
+.camx:active,
+.dfx:active {
+  transform: rotate(90deg) scale(0.88) !important;
+  transition-duration: 0.08s;
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  #ui button, #ui button::before, #ui button::after { transition: none !important; animation: none !important; }
 }

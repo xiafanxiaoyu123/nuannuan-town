@@ -26,6 +26,8 @@ const suites = {
   'qa:scene': 'tools/qa/scene_performance_checks.cjs',
   'qa:decor-fit': 'tools/qa/decor_fit_checks.cjs',
   'qa:ui-presentation': 'tools/qa/ui_presentation_checks.cjs',
+  'qa:ui3-interaction': 'tools/qa/ui3_interaction_logic_checks.cjs',
+  'qa:ui3-save': 'tools/qa/ui3_save_flags_checks.cjs',
 };
 let args;
 if (command === 'dev' || command === 'dev:workbench' || suites[command]) {

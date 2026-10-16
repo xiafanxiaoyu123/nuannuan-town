@@ -1,6 +1,6 @@
 {
   "name": "nikki-block-town-desktop",
-  "version": "2.1.15",
+  "version": "3.0.1",
   "private": true,
   "description": "暖暖的方块小镇 · 桌面版（Electron）",
   "main": "main.js",

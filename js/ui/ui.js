@@ -97,7 +97,8 @@ class UI {
       bus.on('decorMode', (on) => { joy.classList.toggle('hidden', !!on); end(); });
     }
     setInterval(() => this.refreshReap(), 1000);
-    for (const event of ['harvestLookChanged', 'collection', 'stateReplaced']) bus.on(event, () => this.refreshReap());
+    for (const event of ['harvestLookChanged', 'collection', 'stateReplaced']) bus.on(event, () => { this.refreshReap(); this.syncFpsVisibility(); });
+    bus.on('reset', () => this.syncFpsVisibility());
     // 任何一类任务有变化都重画任务栏；同一帧里的多次变化合并成一次
     let questQueued = false;
     const queueQuest = () => { if (questQueued) return; questQueued = true; queueMicrotask(() => { questQueued = false; this.refreshQuest(); }); };
@@ -117,6 +118,7 @@ class UI {
     bus.on('partitionPreview', () => this.refreshDecorPreview());
     bus.on('decorCamera', () => this.refreshDecorCamera());
     this.refreshAll();
+    this.syncFpsVisibility();
   }
 
   // 游戏 HUD、任务指引、触屏控制显示与种子栏。由 UI 显式转发，this 始终是原来的 ui 单例。
@@ -138,6 +140,8 @@ class UI {
   updateGuide() { return hud.updateGuide.apply(this, arguments); }
   setClock(t, night) { return hud.setClock.apply(this, arguments); }
   setPrompt(p) { return hud.setPrompt.apply(this, arguments); }
+  updateFpsReadout() { return hud.updateFpsReadout.apply(this, arguments); }
+  syncFpsVisibility() { return hud.syncFpsVisibility.apply(this, arguments); }
   setBedMode(mode) { return hud.setBedMode.apply(this, arguments); }
   buildSeeds() { return hud.buildSeeds.apply(this, arguments); }
   tapSeed(i, tree) { return hud.tapSeed.apply(this, arguments); }

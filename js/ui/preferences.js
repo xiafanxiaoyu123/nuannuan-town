@@ -87,11 +87,12 @@ export function performancePanel(ui) {
   const aaNames = { off: '关闭', native: '系统抗锯齿', fxaa: 'FXAA', msaa2: '2× MSAA', msaa4: '4× MSAA' };
   const renderCurrent = () => {
     const fpsText = app.fpsCap === 0 ? '无限制（跟随屏幕刷新）' : app.fpsCap + ' 帧';
-    current.textContent = `当前渲染：${app.width && app.height ? Math.round(app.width * app.pixelRatio) + ' × ' + Math.round(app.height * app.pixelRatio) : '准备中'} 像素 · ${aaNames[app.aa?.mode] || '自动'}${app.aa?.fallback ? '（设备限制，已自动降级）' : ''}。帧率上限 ${fpsText}，${app.perf?.dynFps ? '小镇静止或打开菜单时仍降到 30 帧。' : '实际帧率取决于设备和当前画面。'}${app.autoNoShadow ? '掉帧保护已临时关闭阴影。' : ''}`;
+    const liveFps = Number.isFinite(app.fpsAvg) && app.fpsAvg > 0 ? Math.round(app.fpsAvg) : '—';
+    current.textContent = `当前实时帧率：${liveFps} FPS · 渲染：${app.width && app.height ? Math.round(app.width * app.pixelRatio) + ' × ' + Math.round(app.height * app.pixelRatio) : '准备中'} 像素 · ${aaNames[app.aa?.mode] || '自动'}${app.aa?.fallback ? '（设备限制，已自动降级）' : ''}。帧率上限 ${fpsText}，${app.perf?.dynFps ? '小镇静止或打开菜单时仍降到 30 帧。' : '实际帧率取决于设备和当前画面。'}${app.autoNoShadow ? '掉帧保护已临时关闭阴影。' : ''}`;
   };
   const select = (key, title, options, attr) => {
     const group = optionGroup(title, options, () => key === 'fpsLimit' ? effectiveFpsLimit(S.settings, mobileDevice) : normalizeGraphicsSettings(S.settings)[key],
-      id => { S.settings[key] = id; save(); app.applyQuality(); renderCurrent(); }, attr);
+      id => { S.settings[key] = id; save(); if (key !== 'showFps') app.applyQuality(); ui?.syncFpsVisibility?.(); renderCurrent(); }, attr);
     graphicsGroups.push(group); body.append(group.row);
   };
   const graphicsGroups = [];
@@ -99,6 +100,8 @@ export function performancePanel(ui) {
   if (!mobileDevice) fpsOptions.push(['unlimited', '无限制']);
   select('fpsLimit', '帧率上限', fpsOptions, 'data-fps-limit');
   body.append(h('p', { class: 'fine graphics-hint' }, '默认自动：均衡 / 精致上限 60 帧，省电上限 30 帧。90 / 120 帧需手动选择，并需要高刷新率屏幕与系统支持；设置上限不保证达到该帧率。' + (!mobileDevice ? '电脑“无限制”取消游戏内限帧，仍跟随屏幕刷新和系统垂直同步。' : '') + '高帧率可能增加耗电和发热。'));
+  select('showFps', '实时帧率显示', [[true, '显示'], [false, '隐藏']], 'data-show-fps');
+  body.append(h('p', { class: 'fine graphics-hint' }, '开启后在左上角状态栏常驻显示实时帧率（FPS）与流畅度色标，也可按快捷键 F3 快速切换。'));
   select('renderScale', '渲染清晰度', [[0.75, '75%'], [1, '100%'], [1.25, '125%'], [1.5, '150%']], 'data-render-scale');
   body.append(h('p', { class: 'fine graphics-hint' }, '100% 沿用当前画质的默认分辨率。更高档位让 3D 画面更清晰，也增加绘制像素；不改变文字大小。'));
   select('antiAlias', '抗锯齿', [['auto', '自动'], ['off', '关闭'], ['fxaa', 'FXAA'], ['msaa2', '2×'], ['msaa4', '4×']], 'data-anti-alias');
@@ -106,8 +109,8 @@ export function performancePanel(ui) {
   select('adaptiveQuality', '掉帧保护', [[true, '开启'], [false, '关闭']], 'data-adaptive-quality');
   body.append(h('p', { class: 'fine graphics-hint' }, '开启后，持续掉帧会临时降低清晰度或阴影；仅自动帧率模式可继续降低帧率上限。关闭后保留所选画面设置，不改变游戏计时。'), current);
   body.append(h('button', { class: 'btn alt sm', 'data-reset-graphics': '', onclick: () => {
-    for (const key of ['fpsLimit', 'renderScale', 'antiAlias', 'adaptiveQuality']) delete S.settings[key];
-    save(); app.applyQuality(); graphicsGroups.forEach(group => group.render()); renderCurrent(); ui.toast('画面选项已恢复默认');
+    for (const key of ['fpsLimit', 'showFps', 'renderScale', 'antiAlias', 'adaptiveQuality']) delete S.settings[key];
+    save(); app.applyQuality(); ui?.syncFpsVisibility?.(); graphicsGroups.forEach(group => group.render()); renderCurrent(); ui.toast('画面选项已恢复默认');
   } }, '恢复默认画面选项'));
   const status = h('p', { class: 'res-note', 'aria-live': 'polite' }), actions = h('div', { class: 'row', style: { flexWrap: 'wrap' } });
   const reportText = h('textarea', { readOnly: true, 'aria-label': '性能记录文本', 'data-performance-text': '',

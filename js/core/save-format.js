@@ -311,7 +311,7 @@ export function validateSaveData(d, options = {}) {
       optional(s, key, (v, a) => { if (!values.includes(v)) fail(a, '选项无效'); }, at + '.' + key);
     }
     for (const [key, min, max] of [['joySize', 80, 200], ['joyEdge', 12, 120], ['joyBottom', 12, 180], ['cameraSensitivity', .3, 3], ['textScale', 1, 1.5], ['buttonScale', 1, 1.5]]) optional(s, key, (v, a) => num(v, a, min, max, false), at + '.' + key);
-    fields(s, ['pauseCreativeTime', 'qualityExplicit', 'adaptiveQuality', 'autoTutorials'], flag, at);
+    fields(s, ['pauseCreativeTime', 'qualityExplicit', 'adaptiveQuality', 'autoTutorials', 'showFps'], flag, at);
     optional(s, 'tutorialSeen', (seen, a) => {
       for(const [id, version] of Object.entries(obj(seen, a))) num(version, a + '.' + id);
     }, at + '.tutorialSeen');

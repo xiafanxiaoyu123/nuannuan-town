@@ -26,6 +26,7 @@ QA_NAMES = {
     "dependency_refactor_checks.cjs", "town_module_checks.cjs", "decor_module_checks.cjs",
     "scene_performance_checks.cjs", "decor_fit_checks.cjs", "ui_presentation_checks.cjs",
     "decor_drag_checks.cjs", "town_static_props_checks.cjs",
+    "ui3_interaction_logic_checks.cjs", "ui3_save_flags_checks.cjs",
 }
 
 

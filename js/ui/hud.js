@@ -42,10 +42,21 @@ export function buildHUD() {
   this.rankEl = h('span', {}, '');
   this.avaEl = h('img', { class: 'me-ava', alt: '暖暖' });
   this.clockEl = h('div', { class: 'clock' }, h('i'), h('span', {}, '白天'));
+  this.fpsNumEl = h('span', { class: 'num' }, '—');
+  this.fpsDotEl = h('i', { class: 'fps-dot unknown' });
+  this.fpsPill = h('button', {
+    type: 'button',
+    class: 'pill fps-pill' + (S.settings?.showFps ? '' : ' hide'),
+    'data-fps-pill': '',
+    title: '实时帧率（点击打开设置 · 按 F3 快速切换）',
+    'aria-label': '实时帧率显示',
+    onclick: click(() => this.settingsPanel(), 'tab'),
+  }, this.fpsDotEl, this.fpsNumEl, h('small', {}, 'FPS'));
   this.quest = h('div', { class: 'quest card', onclick: () => { audio.init(); audio.sfx('click'); taskPanel(g); } });
-  this.promptBtn = h('button', { onclick: () => { audio.init(); g.town.interact(); } });
+  this.promptBtn = h('button', { class: 'prompt-btn primary', onclick: () => { audio.init(); g.town.interact(); } });
   this.promptSub = h('small', { class: 'hide' });
-  this.prompt = h('div', { class: 'prompt' }, this.promptSub, this.promptBtn);
+  this.promptExtra = h('div', { class: 'prompt-extra hide', 'aria-label': '其他可交互目标' });
+  this.prompt = h('div', { class: 'prompt' }, this.promptSub, h('div', { class: 'prompt-list' }, this.promptBtn, this.promptExtra));
   this.bedBar = h('div', { class: 'bedbar', 'aria-live': 'polite' });
   this.giantCarryBtn = h('button', { class: 'giant-carry-stow hide', 'aria-label': '收起巨大作物', onclick: click(() => g.town.farm.stowCarry()) }, '收起巨大作物');
   this.seedbar = h('div', { class: 'tray card' });
@@ -57,7 +68,8 @@ export function buildHUD() {
     h('div', { class: 'hud-tl' },
       h('div', { class: 'me' }, this.avaEl, h('div', {}, h('b', {}, '暖暖'), this.rankEl)),
       this.coinPill,
-      h('div', { class: 'pill beauty', title: '家园美化度' }, svg('heart'), this.beautyEl)),
+      h('div', { class: 'pill beauty', title: '家园美化度' }, svg('heart'), this.beautyEl),
+      this.fpsPill),
     h('div', { class: 'hud-tr' },
       this.clockEl,
       (this.achBtn = ib('trophy', '成就', () => this.achPanel())),
@@ -86,6 +98,24 @@ export function buildHUD() {
       h('button', { class: 'camclose btn alt sm', onclick: click(() => { this.camBar.classList.remove('on'); this.camBar.classList.add('dismissed'); }, 'tab'), 'aria-label': '关闭自由视角提示' }, '关闭提示'),
       h('button', { class: 'camx', onclick: click(() => { S.settings.camMin = !S.settings.camMin; save(); this.camBar.classList.toggle('min', !!S.settings.camMin); }, 'tab'), 'aria-label': '收起或展开提示' }, svg('close')))));
   this.mailBtn.append(h('i', { class: 'dot' }));
+  let fpsTickAt = 0;
+  app.hooks?.push(() => {
+    if (!S.settings?.showFps) return;
+    const now = performance.now();
+    if (now - fpsTickAt < 250) return;
+    fpsTickAt = now;
+    this.updateFpsReadout();
+  });
+  window.addEventListener?.('keydown', (e) => {
+    if (e.code === 'F3' && !e.repeat && !e.defaultPrevented && !e.isComposing && !e.ctrlKey && !e.metaKey && !e.altKey &&
+        !e.target?.closest?.('input, textarea, select, button, a, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="button"]')) {
+      e.preventDefault();
+      S.settings.showFps = !S.settings.showFps;
+      save();
+      this.syncFpsVisibility();
+      this.toast(S.settings.showFps ? '实时帧率显示已开启 (F3)' : '实时帧率显示已隐藏 (F3)', { life: 1800 });
+    }
+  });
   // 装修界面
   this.decorList = dragScroll(h('div', { class: 'list' }));
   this.decorInfo = h('div', {});
@@ -182,6 +212,39 @@ export function buildHUD() {
   this.root.append(this.hud, this.decorbar, this.decortop);
   this.buildSeeds();
   this.buildDecorList();
+  // Measure only when HUD content changes size; fixed offsets cannot follow
+  // longer labels, large text, four nearby actions or a wrapped toolbar.
+  const metrics = new Map(), watched = new Set();
+  const syncLayout = () => {
+    for (const [selector, key, axis] of [
+      ['.hud-tl', 'hud-left-height', 'height'], ['.hud-tr', 'hud-right-height', 'height'],
+      ['.hud-tr', 'hud-right-width', 'width'], ['.quest:not(.hide), .questtab.on', 'hud-quest-height', 'height'],
+      ['.prompt', 'hud-prompt-height', 'height'], ['.tray', 'hud-seed-height', 'height'],
+      ['.momosw', 'hud-momo-width', 'width'], ['.momosw', 'hud-momo-height', 'height'],
+      ['.shotbtn', 'hud-shot-width', 'width'], ['.shotbtn', 'hud-shot-height', 'height'],
+    ]) {
+      const element = this.hud.querySelector(selector);
+      if (!element) continue;
+      if (!watched.has(element)) { watched.add(element); resize?.observe(element); }
+      const value = Math.ceil(element.getBoundingClientRect()[axis]);
+      if (metrics.get(key) === value) continue;
+      metrics.set(key, value); this.hud.style.setProperty('--' + key, value + 'px');
+    }
+  };
+  // Updating a measured parent's variables inside ResizeObserver can resize a
+  // child again in that same delivery cycle. Coalesce changes into the next
+  // frame; no frame is scheduled when content sizes remain unchanged.
+  let layoutQueued = false;
+  const queueLayout = () => {
+    if (layoutQueued) return;
+    layoutQueued = true;
+    requestAnimationFrame(() => { layoutQueued = false; syncLayout(); });
+  };
+  const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(queueLayout) : null;
+  const children = new MutationObserver(queueLayout);
+  children.observe(this.hud, { childList: true });
+  window.addEventListener('resize', queueLayout, { passive: true });
+  syncLayout();
 }
 
 export function showHUD(on) {
@@ -366,11 +429,76 @@ export function setClock(t, night) {
 
 export function setPrompt(p) {
   this.prompt.classList.toggle('on', !!p);
-  if (!p) return;
+  if (!p) {
+    this.prompt.classList.remove('multi', 'dis');
+    if (this.promptExtra) {
+      this.promptExtra.classList.add('hide');
+      this.promptExtra.replaceChildren();
+    }
+    return;
+  }
+  const items = Array.isArray(p.items) && p.items.length > 1 ? p.items : null;
   this.prompt.classList.toggle('dis', !!p.disabled);
-  this.promptBtn.replaceChildren(h('span', { class: 'kbd' }, 'E'), p.label);
+  this.prompt.classList.toggle('multi', !!items);
+  this.promptBtn.disabled = !!p.disabled;
+  this.promptBtn.replaceChildren(
+    h('span', { class: 'kbd' }, 'E'),
+    h('span', { class: 'prompt-txt' }, p.label)
+  );
   this.promptSub.classList.toggle('hide', !p.sub);
   this.promptSub.textContent = p.sub || '';
+  if (this.promptExtra) {
+    if (!items) {
+      this.promptExtra.classList.add('hide');
+      this.promptExtra.replaceChildren();
+    } else {
+      this.promptExtra.classList.remove('hide');
+      this.promptExtra.replaceChildren(...items.slice(1).map((item, idx) => {
+        const keyHint = idx === 0 ? 'F' : String(idx + 2);
+        return h('button', {
+          type: 'button',
+          class: 'prompt-btn secondary' + (item.disabled ? ' dis' : ''),
+          disabled: !!item.disabled,
+          'data-prompt-index': String(idx + 1),
+          onclick: () => {
+            if (item.disabled) return;
+            audio.init();
+            audio.sfx('click');
+            if (typeof item.act === 'function') item.act();
+            else this.game.town.interact(idx + 1);
+          },
+        },
+        h('span', { class: 'kbd alt' }, keyHint),
+        h('span', { class: 'prompt-txt' },
+          item.label,
+          item.sub ? h('em', { class: 'prompt-tag' }, ` · ${item.sub}`) : null
+        ));
+      }));
+    }
+  }
+}
+
+export function updateFpsReadout() {
+  if (!this.fpsPill) return;
+  const on = !!S.settings?.showFps;
+  this.fpsPill.classList.toggle('hide', !on);
+  if (!on) return;
+  const raw = app.fpsAvg;
+  const cap = app.capNow || app.fpsCap || 60;
+  const fps = Number.isFinite(raw) && raw > 0 ? Math.round(raw) : '—';
+  if (this._shownFps !== fps) {
+    this._shownFps = fps;
+    this.fpsNumEl.textContent = String(fps);
+  }
+  const state = fps === '—' ? 'unknown' : fps >= Math.min(50, cap * 0.85) ? 'good' : fps >= 30 ? 'warn' : 'low';
+  if (this._fpsState !== state) {
+    this._fpsState = state;
+    this.fpsDotEl.className = 'fps-dot ' + state;
+  }
+}
+
+export function syncFpsVisibility() {
+  this.updateFpsReadout();
 }
 
 export function setBedMode(mode) {
