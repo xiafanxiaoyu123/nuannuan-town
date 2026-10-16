@@ -100,6 +100,37 @@
 .bk-foot { display: flex; align-items: center; gap: 1rem; margin-top: 0.8rem; } .bk-foot .ach-prog { flex: 1; }
 .grush-pill { padding: 0.25rem 0.8rem; border-radius: 99rem; background: linear-gradient(90deg, #ff8fb1, #ffc94d); color: #fff; font-family: var(--font-d); font-size: 0.88rem; box-shadow: var(--shadow-s); animation: bump 0.8s var(--ease-pop) infinite; }
 .grush-pill.hide { display: none; }
+/* 应援按钮单独占据顶栏下方的右侧空位，避免给左侧信息列增加高度。
+   显式恢复 pointer-events；HUD 容器本身不接管游戏画布的触摸。 */
+.gmomo-skill {
+  position: fixed; top: 4.1rem; right: max(6.3rem, calc(env(safe-area-inset-right, 0px) + 5.2rem));
+  display: flex; align-items: center; justify-content: center; gap: .35rem;
+  min-width: 9.3rem; min-height: 44px; padding: .45rem .7rem; overflow: hidden;
+  border-radius: 1.2rem; background: var(--cream); color: #78536b;
+  box-shadow: inset 0 0 0 2px #f6d2df, 0 3px 0 #d5b9c4;
+  font: 700 .82rem var(--font-b); white-space: nowrap; pointer-events: auto;
+  isolation: isolate; touch-action: manipulation;
+}
+.gmomo-skill > i { position: absolute; inset: 0; z-index: -1; background: #ffe0b0; transform-origin: left; }
+.gmomo-skill > b { font-size: 1.1rem; line-height: 1; }
+.gmomo-skill.ready { color: #7a4d00; box-shadow: inset 0 0 0 2px #eab448, 0 3px 0 #d5a252; }
+.gmomo-skill.ready > i { background: linear-gradient(90deg, #fff2bb, #ffd58c); }
+.gmomo-skill:disabled { cursor: default; }
+.gmomo-skill:focus-visible { outline: 3px solid var(--pink2); outline-offset: 3px; }
+.gmomo-skill:not(:disabled):active { transform: translateY(2px); }
+.gfortune { white-space: nowrap; }
+.ggoal-stars { color: #d69a18; letter-spacing: .02em; }
+.ggoal.full { background: #fff4cc; box-shadow: inset 0 0 0 .14rem #edc164, var(--shadow-s); }
+/* 三项加成保留读数，紧凑排列，不把信息列延长到角色和送布区。 */
+.gcombo .gbonus { padding: .18rem .55rem; font-size: .7rem; }
+.gcombo .gbonus b { font-size: .84rem; }
+.gcombo:has(.gmomo-skill) { display: grid; grid-template-columns: max-content max-content; justify-items: start; gap: .1rem .35rem; }
+.gcombo:has(.gmomo-skill) > * { grid-column: 1 / -1; }
+.gcombo:has(.gmomo-skill) > .gmastery { grid-column: 1; }
+.gcombo:has(.gmomo-skill) > .gfortune { grid-column: 2; }
+@media (max-height: 560px) and (orientation: landscape) {
+  .gmomo-skill { top: 4.6rem; min-width: 9.5rem; }
+}
 .gtray .tray-slot { cursor: pointer; pointer-events: auto; padding: 0; border: 0; }
 .gtray .tray-slot:disabled { cursor: default; }
 .bread-slot.ready { cursor: pointer; pointer-events: auto; }

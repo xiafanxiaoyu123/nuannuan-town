@@ -1,5 +1,5 @@
 // 裁缝铺的实体工作台。场景、音符和触摸面共用这些世界坐标，不能再各自拟合屏幕。
-import { THREE, box, cbox, cyl, torus, group, mat, mergeStatic } from '../core/kit.js';
+import { THREE, box, cbox, cyl, frustum, torus, group, mat, mergeStatic } from '../core/kit.js';
 import { Character, Momo, outfitToLook } from '../models/character.js';
 import { buildRoom, roomLights, wallWindow, shelf } from './common.js';
 import { S } from '../core/state.js';
@@ -112,6 +112,19 @@ export function buildTailorStage(g) {
 
   g.nikki = new Character(outfitToLook(S.outfit)); g.nikki.setPose('work');
   g.nikki.root.position.set(-4.65, 0, 1.25); g.nikki.root.rotation.y = Math.PI / 2; g.nikki.root.scale.setScalar(1.45); sc.add(g.nikki.root);
+  // 3D 礼服假人模台：随缝制进度逐段拼装上衣、裙摆、腰封蝴蝶结与蕾丝花边
+  const mq = g.mannequin = group(-4.65, 0, -3.5);
+  mq.add(cyl(0.42, 0.48, 0.12, '#c79b84', 0, 0, 0, { seg: 16 }));
+  mq.add(cyl(0.06, 0.06, 1.65, '#d9b994', 0, 0.12, 0, { seg: 12 }));
+  mq.add(cyl(0.24, 0.2, 0.68, '#fff6ea', 0, 1.38, 0, { seg: 16 }));
+  mq.add(cyl(0.08, 0.08, 0.14, '#c79b84', 0, 2.06, 0, { seg: 12 }));
+  const mqBodice = box(0.56, 0.46, 0.34, '#ff9fbd', 0, 1.46, 0, { r: 0.08 });
+  const mqSkirt = frustum(0.32, 0.72, 0.68, '#ffb6ce', 0, 0.82, 0, { sz: 0.72 });
+  const mqBow = group(0, 1.42, 0.2, cbox(0.28, 0.14, 0.08, '#fff5f8', 0, 0, 0, { r: 0.03 }), cbox(0.1, 0.1, 0.1, '#ff6b9d', 0, 0, 0.02, { r: 0.02 }));
+  const mqLace = cyl(0.74, 0.76, 0.1, '#fffdf8', 0, 0.78, 0, { seg: 20 });
+  g.mannequinParts = [mqBodice, mqSkirt, mqBow, mqLace];
+  for (const part of g.mannequinParts) { part.visible = false; mq.add(part); }
+  sc.add(mq);
   // 大喵和成衣架退到工作台后侧，不占四条送布路线。
   g.momo = new Momo(); g.momo.root.position.set(4.8, 0, -2.9); g.momo.root.rotation.y = -0.45; g.momo.root.scale.setScalar(1.6); sc.add(g.momo.root);
   g.momoBaseY = 0;
@@ -183,6 +196,7 @@ export function fitTailorCamera(g, width, height) {
   // 为桌侧留出真实站位和看见脚部的视线，不能只把角色中心塞进画面。
   const companionX = 3.475 * sx + (portrait ? 0.85 : 1.25);
   g.nikki.root.position.set(-companionX, 0, -1.8 * sz); g.nikki.root.rotation.y = 0.45;
+  if (g.mannequin) { g.mannequin.position.set(-companionX, 0, -3.7 * sz); g.mannequin.rotation.y = 0.35; }
   g.momo.root.position.set(companionX, 0, -3.5 * sz); g.momo.root.rotation.y = -0.3;
   g.basket.position.set(companionX, 0, -0.1 * sz);
   g.workstation.updateMatrixWorld(true);

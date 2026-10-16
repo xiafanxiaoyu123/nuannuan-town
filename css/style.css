@@ -1216,3 +1216,92 @@ html, body, #ui, #ui * { touch-action: manipulation; }
 @media (pointer: coarse) {
   .modal > .x, .camx, .dfx { min-width: 44px; min-height: 44px; }
 }
+
+/* —— V2 五店小游戏深度升级、钢琴曲谱架、拍照明信片框与智能角标 —— */
+.ghud.rush-on::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 2.4rem rgba(255, 185, 90, .38);
+  z-index: -1;
+}
+.gfoods .slot.special { box-shadow: inset 0 0 0 .15rem #ff85b3; background: #fff7fa; }
+.gfoods .special-tag {
+  position: absolute; top: -.35rem; right: -.25rem;
+  padding: .06rem .36rem; border-radius: 99rem;
+  background: linear-gradient(135deg, #ff85b3, #ffb347); color: #fff;
+  font-size: .56rem; font-weight: 800; box-shadow: 0 .1rem .25rem rgba(240, 103, 154, .3);
+}
+.gtray .tray-slot { position: relative; }
+.gtray .tray-slot.latte { box-shadow: inset 0 0 0 .14rem #ffd76a; background: #fffbe8; }
+.gtray .latte-tag {
+  position: absolute; right: .1rem; top: .05rem;
+  font-size: .72rem; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,.2));
+}
+.gbar.merge .mside { display: flex; flex-direction: column; gap: .35rem; align-items: stretch; justify-content: center; }
+.gbar.merge .msort-btn { min-height: 2rem; padding: 0 .55rem; font-size: .72rem; white-space: nowrap; }
+.tailor-note.gold {
+  box-shadow: 0 0 0 .16rem #fff, 0 0 .9rem #ffd76a, 0 .25rem 0 #d89614 !important;
+  filter: brightness(1.08) saturate(1.15);
+}
+.fishbar { position: relative; }
+.fish-trait {
+  position: absolute; top: -1.55rem; left: 50%; transform: translateX(-50%);
+  padding: .12rem .55rem; border-radius: 99rem;
+  background: rgba(255, 252, 245, .95); color: #5b4252;
+  box-shadow: 0 .12rem .35rem rgba(91, 66, 82, .18), inset 0 0 0 .1rem #edd5df;
+  font-size: .66rem; font-weight: 800; white-space: nowrap; pointer-events: none;
+}
+.fish-trait.king { background: linear-gradient(135deg, #fff6cc, #ffd76a); color: #7a4d00; box-shadow: 0 .14rem .4rem rgba(233, 165, 32, .35); }
+.bake-glaze-btn { margin: .1rem auto; padding: .15rem .5rem !important; min-height: 1.7rem !important; font-size: .65rem !important; white-space: nowrap; }
+.bread-slot.glazed { background: linear-gradient(135deg, #fff6fa, #fffbe8); box-shadow: inset 0 0 0 .14rem #ff9fbd; }
+
+/* 小屋钢琴：曲谱架与跟弹高亮 */
+.piano-sheet { margin-bottom: .55rem; padding: .5rem .65rem; border-radius: .95rem; background: rgba(255, 252, 247, .92); box-shadow: inset 0 0 0 .1rem #edd5df; }
+.piano-sheet-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .4rem; margin-bottom: .4rem; }
+.piano-song-tabs, .piano-sheet-tools { display: flex; flex-wrap: wrap; gap: .3rem; }
+.piano-song-tabs .btn.on { background: linear-gradient(180deg, #ff9fbd, #f37ca3); color: #fff; }
+.piano-sheet-notes { display: flex; flex-wrap: wrap; gap: .26rem; align-items: center; }
+.sheet-note {
+  display: inline-flex; align-items: baseline; gap: .12rem;
+  padding: .14rem .42rem; border-radius: .5rem;
+  background: #f7f0f4; color: #7a5d6e; font-size: .74rem; font-weight: 700;
+  transition: transform .15s, background .15s;
+}
+.sheet-note small { font-size: .6rem; opacity: .75; }
+.sheet-note.done { opacity: .45; background: #e8f5ee; color: #438461; }
+.sheet-note.cur { background: linear-gradient(180deg, #fff3b8, #ffd76a); color: #7a4d00; transform: scale(1.08); box-shadow: 0 .12rem .3rem rgba(233, 165, 32, .3); }
+.piano-key.guide-next {
+  box-shadow: 0 0 0 .16rem #ffd76a, 0 .22rem .55rem rgba(233, 165, 32, .38) !important;
+  background: linear-gradient(180deg, #fffdf4, #fff0b8) !important;
+}
+
+/* 拍照明信片相框与种子高价角标 */
+.photo-postcard-stamp {
+  display: none;
+  position: absolute; right: 1.4rem; bottom: 6.8rem;
+  padding: .45rem .85rem; border-radius: .85rem;
+  background: rgba(255, 250, 244, .88); border: .12rem dashed #f08cae;
+  color: #6d465b; text-align: right; pointer-events: none;
+  box-shadow: 0 .2rem .6rem rgba(91, 66, 82, .16);
+  transform: rotate(-2deg);
+}
+.photo-postcard-stamp b { display: block; font-family: var(--font-d); font-size: .95rem; color: #e25b88; }
+.photo-postcard-stamp small { font-size: .62rem; font-weight: 800; letter-spacing: .06em; opacity: .8; }
+.photo-frame.postcard-on {
+  box-shadow: inset 0 0 0 .55rem rgba(255, 250, 244, .85), inset 0 0 0 .7rem rgba(244, 143, 177, .55);
+  border-radius: 1.1rem;
+}
+.photo-frame.postcard-on .photo-postcard-stamp { display: block; }
+.seedbar .slot { position: relative; }
+.seed-badge {
+  position: absolute; top: -.32rem; right: -.22rem;
+  padding: .05rem .34rem; border-radius: 99rem;
+  background: linear-gradient(135deg, #ff9a4a, #f0679a); color: #fff;
+  font-size: .56rem; font-weight: 800; line-height: 1.2;
+  box-shadow: 0 .1rem .25rem rgba(240, 103, 154, .28); pointer-events: none;
+}
+.seed-badge.hide { display: none; }
+.wardrobe .wleft { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; }
+

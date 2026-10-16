@@ -49,10 +49,21 @@ export class BakeryGame extends MiniGame {
       this.ovenMeshes.push({ g, fire, holder });
     }
     sc.add(box(9.6, 1.1, 1.6, '#fff4e0', 0, 0, -0.6, { r: 0.1 }), box(9.8, 0.14, 1.8, '#f6a56b', 0, 1.1, -0.6, { r: 0.06 }));
+    // 台面装饰：面粉袋、擀面杖与糖霜裱花袋
+    const tools = group(-3.9, 1.17, -0.55);
+    tools.add(
+      cbox(0.46, 0.52, 0.36, '#fffdf7', 0, 0.26, 0, { r: 0.12 }),
+      cbox(0.38, 0.08, 0.28, '#f6a56b', 0, 0.38, 0, { r: 0.03 }),
+      cbox(0.65, 0.09, 0.09, '#d89b6a', 0.52, 0.05, 0.18, { r: 0.04, ry: 0.35 }),
+      cbox(0.22, 0.32, 0.22, '#ff9fbd', 0.42, 0.16, -0.18, { r: 0.08, rz: -0.25 }),
+    );
+    sc.add(tools);
     this.displayRoot = group(0, 1.25, -0.1); sc.add(this.displayRoot);
     this.nikki = new Character(outfitToLook(this.outfit));
     this.nikki.root.position.set(0.9, 0, -2.4); this.nikki.root.scale.setScalar(1.3); sc.add(this.nikki.root);
     this.momo = new Momo(); this.momo.root.position.set(3.4, 0, -2.2); sc.add(this.momo.root);
+    this.glazeCd = 0;
+    this.glazedCount = 0;
   }
   onEnter() { super.onEnter(); }
   mount() {
@@ -63,8 +74,9 @@ export class BakeryGame extends MiniGame {
       h('span', { class: 'key' }, i + 1), h('img', { src: breadIco(b.id, 0), alt: '' }), h('b', {}, b.name), h('span', { class: 'price' }, '售价 ' + b.price)));
     this.displayEls = h('div', { class: 'bread-slots' });
     this.displayCount = h('b', {}, '0/4');
+    this.glazeBtn = h('button', { type: 'button', class: 'btn alt sm bake-glaze-btn', onclick: () => this.glazeBread(), title: '为展示架上的面包撒上香甜糖霜，售价+30%并补救普通火候 (快捷键 R)' }, '✨撒糖霜 (R)');
     this.controls = h('div', { class: 'bakery-controls' },
-      h('div', { class: 'card bake-shelf' }, h('div', { class: 'bakery-label' }, '展示架 ', this.displayCount, h('small', {}, '点×回收')), this.displayEls),
+      h('div', { class: 'card bake-shelf' }, h('div', { class: 'bakery-label' }, '展示架 ', this.displayCount, this.glazeBtn, h('small', {}, '点面包快交 · ×回收')), this.displayEls),
       h('div', { class: 'gbar card bakebar' }, h('div', { class: 'ovens' }, ...this.slotEls), h('div', { class: 'sep' }), h('div', { class: 'gfoods' }, ...this.doughEls)));
     this.bubbles = h('div', { class: 'bakery-orders', style: { position: 'absolute', inset: '0', pointerEvents: 'none' } });
     this.mountHUD([this.bubbles, this.controls]);
@@ -76,6 +88,7 @@ export class BakeryGame extends MiniGame {
       if (m) this.put(Number(m[1]) - 1);
       const slot = ['KeyQ', 'KeyW', 'KeyE'].indexOf(e.code);
       if (slot >= 0) this.serve(slot);
+      if (e.code === 'KeyR') this.glazeBread();
       if (e.code === 'Space') {
         e.preventDefault();
         const i = this.ovens.findIndex((o) => o && (o.k >= BURN || (this.display.length < DISPLAY_MAX && o.k >= this.good[0])));
@@ -88,7 +101,7 @@ export class BakeryGame extends MiniGame {
     const i = this.ovens.findIndex((o) => !o);
     if (i < 0) { audio.sfx('error'); return false; }
     const b = this.menu[mi];
-    this.ovens[i] = { b, t: 0, k: 0, need: b.bake / this.pressure * (this.modifier?.id === 'hotoven' ? 0.7 : 1) };
+    this.ovens[i] = { b, t: 0, k: 0, fanned: 0, need: b.bake / this.pressure * (this.modifier?.id === 'hotoven' ? 0.7 : 1) };
     this.ovenMeshes[i].fire.visible = true;
     this.updateOven(i);
     this.nikki.setPose('work'); this.poseT = 0.3;
@@ -99,23 +112,62 @@ export class BakeryGame extends MiniGame {
     const o = this.ovens[i];
     if (!this.playing || !o) return false;
     const om = this.ovenMeshes[i], p = new THREE.Vector3(om.g.position.x, 2.2, om.g.position.z + 1.2);
-    if (o.k < this.good[0]) { audio.sfx('error'); this.floatAt(p, '还没熟', 'bad'); return false; }
+    if (o.k < this.good[0]) {
+      // 点击烘烤中的烤炉可「鼓风助燃」（每炉最多 2 次），加速升温至出炉线前
+      if ((o.fanned || 0) < 2 && o.k < this.good[0] - 0.08) {
+        o.fanned = (o.fanned || 0) + 1;
+        o.k = Math.min(this.good[0] - 0.02, o.k + 0.15);
+        o.t = o.need * o.k;
+        this.updateOven(i);
+        audio.sfx('whoosh');
+        this.floatAt(p, '🔥鼓风助燃!', 'good');
+        fx.sparkle(this.scene, p, 4, ['#ffb347', '#ffe27a']);
+        return false;
+      }
+      audio.sfx('error'); this.floatAt(p, '还没熟', 'bad'); return false;
+    }
     const burnt = o.k >= BURN, perfect = !burnt && o.k <= this.good[1];
     if (!burnt && this.display.length >= DISPLAY_MAX) { audio.sfx('error'); this.floatAt(p, '展示架满了，先交付订单', 'bad'); return false; }
     if (burnt) {
       this.burnt++; this.setCombo(0); this.loseLife(); audio.sfx('fail'); this.floatAt(p, '烤焦了…', 'bad');
     } else {
-      this.display.push({ id: o.b.id, value: Math.round(o.b.price * (perfect ? 1.3 : 0.8)), perfect });
+      this.display.push({ id: o.b.id, value: Math.round(o.b.price * (perfect ? 1.3 : 0.8)), perfect, hotT: 6.5, glazed: false });
       this.baked++; stat('bread_baked');
       if (perfect) { this.perfect++; stat('bread_perfect'); }
       this.renderDisplay();
       audio.sfx(perfect ? 'perfect' : 'serve');
-      this.floatAt(p, perfect ? '火候刚好！已上架' : '已放进展示架', 'good');
+      this.floatAt(p, perfect ? '🔥火候刚好！趁热上架' : '已放进展示架', 'good');
       fx.sparkle(this.scene, p, perfect ? 10 : 5, [o.b.color, '#ffffff', '#fff3a8']);
       this.nikki.setPose('cheer'); this.poseT = 0.5;
     }
     this.clear(i);
     return true;
+  }
+  glazeBread() {
+    if (!this.playing || this.glazeCd > 0) return false;
+    const item = this.display.find((x) => x && !x.glazed);
+    if (!item) { audio.sfx('error'); return false; }
+    item.glazed = true;
+    if (!item.perfect) {
+      item.perfect = true;
+      const b = BREADS.find((x) => x.id === item.id);
+      if (b) item.value = Math.round(b.price * 1.3);
+    }
+    this.glazeCd = 4.5;
+    this.glazedCount = (this.glazedCount || 0) + 1;
+    this.renderDisplay();
+    this.syncGlazeBtn();
+    audio.sfx('perfect');
+    const p = new THREE.Vector3(0, 1.8, -0.1);
+    this.floatAt(p, '✨香甜糖霜 +30%!', 'good');
+    fx.sparkle(this.scene, p, 8, ['#ff9fbd', '#ffe27a', '#ffffff']);
+    return true;
+  }
+  syncGlazeBtn() {
+    if (!this.glazeBtn) return;
+    const can = this.playing && this.glazeCd <= 0 && this.display.some((x) => x && !x.glazed);
+    this.glazeBtn.disabled = !can;
+    this.glazeBtn.textContent = this.glazeCd > 0 ? `✨糖霜 ${Math.ceil(this.glazeCd)}s` : '✨撒糖霜 (R)';
   }
   clear(i) {
     this.ovens[i] = null;
@@ -137,23 +189,38 @@ export class BakeryGame extends MiniGame {
     if (state === 'good') audio.sfx('pop', 4);
   }
   renderDisplay() {
-    this.displayCount.textContent = this.display.length + '/' + DISPLAY_MAX;
-    this.displayEls.replaceChildren(...Array.from({ length: DISPLAY_MAX }, (_, i) => {
-      const item = this.display[i];
-      if (!item) return h('div', { class: 'bread-slot empty' }, '空位');
-      const b = BREADS.find((x) => x.id === item.id);
-      const slotEl = h('div', { class: 'bread-slot' + (item.perfect ? ' perfect' : ''), 'data-slot': i, onclick: (e) => {
-        if (e.target.closest('.bread-discard')) return;
-        // 点击展示架面包可自动交付给首位匹配的等待客人（A1 快捷交付）
-        const targetIdx = this.customers.findIndex((c) => c && c.state === 'wait' && c.order.includes(item.id) && this.match(c.order));
-        if (targetIdx >= 0) this.serve(targetIdx);
-      } }, h('img', { src: breadIco(item.id), alt: '' }),
-        h('span', {}, h('b', {}, b.name), h('small', {}, item.perfect ? '完美火候' : '普通火候')),
-        h('button', { class: 'bread-discard', onclick: (e) => { e.stopPropagation(); this.discard(i); }, 'aria-label': `回收第${i + 1}份面包`, title: '回收这份面包，不计营业额' }, '×'));
-      return slotEl;
-    }));
-    while (this.displayRoot.children.length) this.displayRoot.remove(this.displayRoot.children[0]);
-    this.display.forEach((item, i) => { const m = bread(item.id); m.position.set((i - 1.5) * 1.6, 0, 0); m.scale.setScalar(0.75); this.displayRoot.add(m); });
+    if (this.displayCount) this.displayCount.textContent = this.display.length + '/' + DISPLAY_MAX;
+    if (this.displayEls) {
+      this.displayEls.replaceChildren(...Array.from({ length: DISPLAY_MAX }, (_, i) => {
+        const item = this.display[i];
+        if (!item) return h('div', { class: 'bread-slot empty' }, '空位');
+        const b = BREADS.find((x) => x.id === item.id) || { name: item.id };
+        const isHot = (item.hotT || 0) > 0;
+        const subText = (item.glazed ? '✨糖霜 · ' : '') + (isHot ? '🔥趁热 · ' : '') + (item.perfect ? '完美火候' : '普通火候');
+        const slotEl = h('div', { class: 'bread-slot' + (item.perfect ? ' perfect' : '') + (item.glazed ? ' glazed' : ''), 'data-slot': i, onclick: (e) => {
+          if (e.target.closest('.bread-discard')) return;
+          // 点击展示架面包可自动交付给首位匹配的等待客人（A1 快捷交付）
+          const targetIdx = this.customers.findIndex((c) => c && c.state === 'wait' && c.order.includes(item.id) && this.match(c.order));
+          if (targetIdx >= 0) this.serve(targetIdx);
+        } }, h('img', { src: breadIco(item.id), alt: '' }),
+          h('span', {}, h('b', {}, b.name), h('small', {}, subText)),
+          h('button', { class: 'bread-discard', onclick: (e) => { e.stopPropagation(); this.discard(i); }, 'aria-label': `回收第${i + 1}份面包`, title: '回收这份面包，不计营业额' }, '×'));
+        return slotEl;
+      }));
+    }
+    if (this.displayRoot) {
+      while (this.displayRoot.children.length) this.displayRoot.remove(this.displayRoot.children[0]);
+      this.display.forEach((item, i) => {
+        const m = bread(item.id);
+        m.position.set((i - 1.5) * 1.6, 0, 0);
+        m.scale.setScalar(item.glazed ? 0.82 : 0.75);
+        if (item.glazed) {
+          m.add(cbox(0.32, 0.06, 0.22, '#ff9fbd', 0, 0.26, 0, { r: 0.03 }));
+        }
+        this.displayRoot.add(m);
+      });
+    }
+    this.syncGlazeBtn();
     this.syncReady();
     this.fitControls?.();
   }
@@ -202,15 +269,43 @@ export class BakeryGame extends MiniGame {
     if (!this.playing || !c || c.state !== 'wait') return false;
     const indices = this.match(c.order);
     if (!indices) { audio.sfx('error'); return false; }
-    const baseEarn = indices.reduce((n, i) => n + this.display[i].value, 0) + Math.min(this.combo, 8);
+    let anyHot = false, anyGlazed = false;
+    const baseEarn = indices.reduce((n, i) => {
+      const item = this.display[i];
+      const hotMul = (item.hotT || 0) > 0 ? 1.2 : 1;
+      const glazeMul = item.glazed ? 1.3 : 1;
+      if (hotMul > 1) anyHot = true;
+      if (glazeMul > 1) anyGlazed = true;
+      return n + Math.round(item.value * hotMul * glazeMul);
+    }, 0) + Math.min(this.combo, 8);
     const earn = Math.round(baseEarn * (c.vip ? 1.3 : 1));
     for (const i of [...indices].sort((a, b) => b - a)) this.display.splice(i, 1);
     this.addScore(earn); this.setCombo(this.combo + 1); this.served++;
     this.leave(c); c.ch.setPose('cheer');
     this.renderDisplay(); audio.sfx('serve');
     const p = c.ch.root.position;
-    this.floatAt(new THREE.Vector3(p.x, 2.8, p.z), '+' + earn, 'coin');
+    const bonusTag = anyGlazed ? ' ✨糖霜' : anyHot ? ' 🔥趁热' : '';
+    this.floatAt(new THREE.Vector3(p.x, 2.8, p.z), `+${earn}${bonusTag}`, 'coin');
     fx.hearts(this.scene, new THREE.Vector3(p.x, 2.5, p.z), 4);
+    return true;
+  }
+  canMomoSkill() {
+    const target = (this.good[0] + this.good[1]) / 2;
+    return this.ovens.some((o) => o && o.k < BURN && Math.abs(o.k - target) > 0.001)
+      || this.customers.some((c) => c?.state === 'wait' && c.patience < c.max);
+  }
+  onMomoSkill() {
+    if (!this.playing || !this.canMomoSkill()) return false;
+    // 只帮助已有面包，不凭空生成库存，也不把烤焦面包变回可出售物。
+    for (let i = 0; i < this.ovens.length; i++) {
+      const o = this.ovens[i];
+      if (!o || o.k >= BURN) continue;
+      o.k = (this.good[0] + this.good[1]) / 2;
+      o.t = o.need * o.k;
+      this.updateOven(i);
+    }
+    for (const c of this.customers) if (c?.state === 'wait') c.patience = Math.min(c.max, c.patience + c.max * 0.35);
+    this.floatAt(new THREE.Vector3(0, 3, -2.4), '🐾 大喵控温：完美火候 + 耐心恢复！', 'good');
     return true;
   }
   onFinish() {
@@ -226,6 +321,18 @@ export class BakeryGame extends MiniGame {
     if (this.poseT > 0 && (this.poseT -= dt) <= 0 && this.playing) this.nikki.setPose('idle');
     this.nikki.update(dt); this.momo.update(dt);
     if (this.playing) {
+      if (this.glazeCd > 0) {
+        this.glazeCd = Math.max(0, this.glazeCd - dt);
+        if (this.glazeCd === 0) this.syncGlazeBtn();
+      }
+      let hotExpired = false;
+      for (const item of this.display) {
+        if (item && item.hotT > 0) {
+          item.hotT = Math.max(0, item.hotT - dt);
+          if (item.hotT === 0) hotExpired = true;
+        }
+      }
+      if (hotExpired) this.renderDisplay();
       for (let i = 0; i < this.ovens.length; i++) {
         const o = this.ovens[i]; if (!o) continue;
         o.t += dt; o.k = o.t / o.need; this.updateOven(i);
@@ -264,6 +371,6 @@ export class BakeryGame extends MiniGame {
     });
   }
   resultLines() {
-    return [['营业额', this.score], ['交付订单', `${this.served} 单`], ['出炉面包', `${this.baked} 个`], ['火候刚好', `${this.perfect} 个`], ['烤焦 / 流失', `${this.burnt} / ${this.lost}`], ['未售出', `${this.display.length} 个`]];
+    return [['营业额', this.score], ['交付订单', `${this.served} 单`], ['出炉面包', `${this.baked} 个`], ['火候刚好 / 糖霜', `${this.perfect} / ${this.glazedCount || 0} 个`], ['烤焦 / 流失', `${this.burnt} / ${this.lost}`], ['未售出', `${this.display.length} 个`]];
   }
 }

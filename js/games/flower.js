@@ -8,7 +8,7 @@ import { S, bus } from '../core/state.js';
 import { app } from '../core/app.js';
 import { audio } from '../core/audio.js';
 import { fx } from '../core/fx.js';
-import { h, rand, randInt, pick, angleLerp, clamp } from '../core/util.js';
+import { h, rand, randInt, pick, popIn, tween, angleLerp, clamp } from '../core/util.js';
 import { mergeIco } from '../core/icons.js';
 
 const COLS = 6, ROWS = 4;
@@ -34,6 +34,7 @@ export class FlowerGame extends MiniGame {
     };
     if (this.modifier?.id === 'gift') this.gens.ribbon.rate *= 0.6;
     this.delivered = 0;
+    this.critMerges = 0;
     this.best = 1;
     this.npcI = randInt(0, 5);
     this.orderT = 0.2;
@@ -76,11 +77,13 @@ export class FlowerGame extends MiniGame {
       }
       sc.add(g);
     });
-    // 工作台
+    // 工作台与 3D 实时花艺陈列区
     sc.add(box(5.4, 1.0, 1.4, '#fffaf3', 1.4, 0, -0.4, { r: 0.12 }));
     sc.add(box(5.7, 0.14, 1.7, '#8fd9a8', 1.4, 1.0, -0.4, { r: 0.06 }));
     for (let i = 0; i < 5; i++) sc.add(cbox(0.5, 0.6, 0.06, i % 2 ? '#c9ecd2' : '#e6f7ea', -0.6 + i * 1.0, 0.5, 0.31, { r: 0.12 }));
     this.topY = 1.14;
+    this.tableItems = group(0.8, this.topY, -0.35);
+    sc.add(this.tableItems);
     this.nikki = new Character(outfitToLook(S.outfit));
     this.nikki.root.position.set(0.9, 0, -1.5);
     this.nikki.root.rotation.y = -0.35;
@@ -92,6 +95,38 @@ export class FlowerGame extends MiniGame {
     this.momo.root.scale.setScalar(1.15);
     sc.add(this.momo.root);
     this.customers = [null, null, null];
+  }
+
+  syncTableModels() {
+    if (!this.tableItems) return;
+    while (this.tableItems.children.length) {
+      const ch = this.tableItems.children[0];
+      this.tableItems.remove(ch);
+      disposeSceneResources(ch);
+    }
+    const topItems = this.cells
+      .filter((it) => it && !it.weed && it.lv >= 2)
+      .sort((a, b) => b.lv - a.lv)
+      .slice(0, 4);
+    topItems.forEach((it, idx) => {
+      const slotG = group(-1.2 + idx * 0.78, 0, (idx % 2) * 0.16 - 0.08);
+      if (it.t === 'ribbon') {
+        slotG.add(cbox(0.32, 0.24, 0.32, '#ffd0de', 0, 0.12, 0, { r: 0.04 }));
+        slotG.add(cbox(0.36, 0.06, 0.1, '#ff7aa5', 0, 0.25, 0, { r: 0.02 }));
+      } else {
+        const count = it.lv >= 5 ? 5 : it.lv >= 4 ? 3 : 1;
+        if (it.lv >= 4) slotG.add(cyl(0.2, 0.14, 0.24, it.lv >= 5 ? '#e8b982' : '#ffd8e6', 0, 0, 0, { seg: 12 }));
+        for (let k = 0; k < count; k++) {
+          const fm = flowerModel(it.t);
+          const ang = (k / count) * Math.PI * 2;
+          const rad = count > 1 ? 0.1 : 0;
+          fm.position.set(Math.cos(ang) * rad, it.lv >= 4 ? 0.12 : 0, Math.sin(ang) * rad);
+          fm.scale.setScalar(0.85 + it.lv * 0.12);
+          slotG.add(fm);
+        }
+      }
+      this.tableItems.add(slotG);
+    });
   }
 
   mount() {
@@ -113,8 +148,12 @@ export class FlowerGame extends MiniGame {
         this.syncReady();
       }
     } }, '拖到这里', h('br'), '回收');
+    const sortBtn = h('button', { type: 'button', class: 'btn alt sm msort-btn', onclick: () => this.sortBoard(), title: '按花色与等级整理棋盘 (Z)' }, '✨整理 (Z)');
     this.bubbles = h('div', { class: 'gorders', style: { position: 'absolute', inset: '0', pointerEvents: 'none' } });
-    this.barEl = h('div', { class: 'gbar card merge' }, h('div', { class: 'mgens' }, gen('flower', mergeIco('rose', 1), '空格'), gen('ribbon', mergeIco('ribbon', 1), 'R')), this.board, this.bin);
+    this.barEl = h('div', { class: 'gbar card merge' },
+      h('div', { class: 'mgens' }, gen('flower', mergeIco('rose', 1), '空格'), gen('ribbon', mergeIco('ribbon', 1), 'R')),
+      this.board,
+      h('div', { class: 'mside' }, sortBtn, this.bin));
     this.mountHUD([this.bubbles, this.barEl]);
     fitToScreen(this.barEl, this.abort.signal, 0.52);
     this.renderPips();
@@ -123,6 +162,22 @@ export class FlowerGame extends MiniGame {
       this.selectedCell = null;
       this.cellEls.forEach((c) => c.classList.remove('match', 'lift'));
     };
+    // 双击已完成花材可直接向匹配的客人交单
+    this.on(this.board, 'dblclick', (e) => {
+      const el = e.target.closest('.mcell');
+      if (!el || !this.playing) return;
+      const cellIdx = Number(el.dataset.i);
+      const it = this.cells[cellIdx];
+      if (!it || it.weed) return;
+      for (let slot = 0; slot < this.customers.length; slot++) {
+        const c = this.customers[slot];
+        if (c && c.state === 'wait' && c.o.items.some((req) => same(it, req)) && this.match(c.o)) {
+          this.clearSelection();
+          this.deliver(slot);
+          return;
+        }
+      }
+    });
     // 拖拽与点选双模合成（A5）
     let drag = null;
     // 无论拖拽怎样结束（松手、被系统手势打断、暂停、退出），都把跟手的图标清干净
@@ -202,9 +257,47 @@ export class FlowerGame extends MiniGame {
       if (e.repeat) return;
       if (e.code === 'Space') { e.preventDefault(); this.spawn(false, 'flower'); }
       if (e.code === 'KeyR') this.spawn(false, 'ribbon');
+      if (e.code === 'KeyZ') this.sortBoard();
       if (e.code === 'Escape') this.clearSelection();
     });
   }
+
+  sortBoard() {
+    if (!this.playing) return;
+    this.cancelDrag?.();
+    this.clearSelection();
+    const movableIdx = [];
+    const items = [];
+    this.cells.forEach((it, idx) => {
+      if (!it || !it.weed) {
+        movableIdx.push(idx);
+        if (it) items.push(it);
+      }
+    });
+    items.sort((a, b) => {
+      if (chain(a.t) !== chain(b.t)) return chain(a.t) === 'flower' ? -1 : 1;
+      if (a.t !== b.t) return a.t.localeCompare(b.t);
+      return b.lv - a.lv;
+    });
+    movableIdx.forEach((cellIdx, k) => {
+      this.cells[cellIdx] = items[k] || null;
+      this.renderCell(cellIdx, !!items[k]);
+    });
+    // 高亮第一组可合成的同级花材提示
+    for (let i = 0; i < this.cells.length; i++) {
+      const a = this.cells[i];
+      if (!a || a.weed || a.lv >= MAXLV[chain(a.t)]) continue;
+      const j = this.cells.findIndex((b, idx) => idx > i && same(b, a));
+      if (j >= 0) {
+        this.cellEls[i].classList.add('match');
+        this.cellEls[j].classList.add('match');
+        break;
+      }
+    }
+    audio.sfx('tab');
+    this.syncReady();
+  }
+
   renderPips() {
     for (const g of Object.values(this.gens)) {
       g.pips.replaceChildren(...Array.from({ length: g.max }, (_, i) => h('i', { class: i < g.n ? 'on' : '' })));
@@ -253,15 +346,21 @@ export class FlowerGame extends MiniGame {
       this.cells[from] = null;
       audio.sfx('tab');
     } else if (same(b, a) && a.lv < MAXLV[chain(a.t)]) {
-      this.cells[to] = { t: a.t, lv: a.lv + 1 };
+      const maxLv = MAXLV[chain(a.t)];
+      const critChance = this.elapsed < (this.rushUntil || 0) ? 0.25 : 0.14;
+      const isCrit = a.lv + 1 < maxLv && Math.random() < critChance;
+      const nextLv = isCrit ? Math.min(maxLv, a.lv + 2) : a.lv + 1;
+      this.cells[to] = { t: a.t, lv: nextLv };
       this.cells[from] = null;
-      this.best = Math.max(this.best, a.lv + 1);
-      if (a.t !== 'ribbon' && a.lv + 1 >= 4) bus.emit('found', 'flower', a.t + ':' + (a.lv + 1));
-      this.addScore(a.lv);
-      audio.sfx('pop', 2 + a.lv * 1.5);
-      if (a.lv + 1 >= 4) audio.sfx('good');
+      this.best = Math.max(this.best, nextLv);
+      if (isCrit) this.critMerges++;
+      if (a.t !== 'ribbon' && nextLv >= 4) bus.emit('found', 'flower', a.t + ':' + nextLv);
+      this.addScore(a.lv + (isCrit ? nextLv * 2 : 0));
+      audio.sfx('pop', 2 + nextLv * 1.5);
+      if (nextLv >= 4 || isCrit) audio.sfx('good');
       const r = this.cellEls[to].getBoundingClientRect();
-      this.float2(r.left + r.width / 2, r.top, nameOf(this.cells[to]));
+      this.float2(r.left + r.width / 2, r.top, isCrit ? `✨晨露跳级! ${nameOf(this.cells[to])}` : nameOf(this.cells[to]));
+      if (isCrit) fx.sparkle(this.scene, new THREE.Vector3(1.2, this.topY + 0.5, -0.35), 8, ['#ffd76a', '#9fe0c5', '#ffffff']);
       // 合成会清掉相邻的杂草
       const x = to % COLS, y = Math.floor(to / COLS);
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
@@ -329,6 +428,7 @@ export class FlowerGame extends MiniGame {
   }
   syncReady() {
     for (const c of this.customers) if (c && c.el) c.el.classList.toggle('ready', !!this.match(c.o));
+    this.syncTableModels();
   }
   deliver(slot) {
     const c = this.customers[slot];
@@ -346,6 +446,12 @@ export class FlowerGame extends MiniGame {
     const earn = c.o.reward + Math.min(this.combo, 8) * 2;
     this.addScore(earn);
     this.setCombo(this.combo + 1);
+    // 每次成功交付订单回充花种篮与丝带篮能量，形成越合越爽的正反馈循环
+    this.gens.flower.n = Math.min(this.gens.flower.max, this.gens.flower.n + 2);
+    if (c.o.items.some((it) => it.t === 'ribbon')) {
+      this.gens.ribbon.n = Math.min(this.gens.ribbon.max, this.gens.ribbon.n + 1);
+    }
+    this.renderPips();
     this.delivered++;
     audio.sfx('serve');
     const p = c.ch.root.position;
@@ -361,6 +467,25 @@ export class FlowerGame extends MiniGame {
     this.poseT = 0.6;
     this.syncReady();
   }
+  canMomoSkill() {
+    return this.cells.some((it) => it?.weed) || Object.values(this.gens).some((g) => g.n < g.max)
+      || this.customers.some((c) => c?.state === 'wait' && c.pat < c.patMax);
+  }
+  onMomoSkill() {
+    if (!this.playing || !this.canMomoSkill()) return false;
+    this.cancelDrag();
+    for (let i = 0; i < this.cells.length; i++) if (this.cells[i]?.weed) {
+      this.cells[i] = null;
+      this.weeded = (this.weeded || 0) + 1;
+      this.renderCell(i);
+    }
+    for (const g of Object.values(this.gens)) { g.n = g.max; g.cd = 0; }
+    for (const c of this.customers) if (c?.state === 'wait' && Number.isFinite(c.patMax)) c.pat = Math.min(c.patMax, c.pat + c.patMax * 0.35);
+    this.renderPips();
+    this.syncReady();
+    this.floatAt(new THREE.Vector3(0, 3, -2), '🐾 大喵园艺：清理杂草 + 花篮补满！', 'good');
+    return true;
+  }
   onFinish() {
     this.nikki.setPose('cheer');
     this.poseT = 9;
@@ -368,7 +493,9 @@ export class FlowerGame extends MiniGame {
     this.cancelDrag();
   }
   resultLines() {
-    return [['营业额', this.score], ['交付订单', `${this.delivered} 单`], ['最高合成', `Lv.${this.best}`], ['清理杂草', `${this.weeded || 0} 格`]];
+    const res = [['营业额', this.score], ['交付订单', `${this.delivered} 单`], ['最高合成', `Lv.${this.best}`], ['清理杂草', `${this.weeded || 0} 格`]];
+    if (this.critMerges > 0) res.push(['晨露跳级', `${this.critMerges} 次`]);
+    return res;
   }
 
   tick(dt) {

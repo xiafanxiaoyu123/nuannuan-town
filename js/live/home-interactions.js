@@ -11,6 +11,7 @@ import { canSleep, sleepUntilMorning } from '../ui/calendar.js';
 import { openPiano } from './piano.js';
 import { YARD_LEVEL_HEIGHT, yardLevel, yardSurfaceAt, yardFootprint } from '../world/yard-building.js';
 import { PHOTO_THEMES, photoThemeIndex } from '../shared/save-compat.js';
+import { ensureDailyFun, dailyFunKey } from '../shared/momo-fortune.js';
 
 const RADIUS = 0.36;
 const SEATS = {
@@ -307,9 +308,36 @@ export function installHomeInteractions(game, ui) {
     const body = h('div', { class: 'home-kitchen', style: { maxHeight: 'calc(100dvh - 8rem)', overflowY: 'auto', width: 'min(36rem, 90vw)' } });
     const itemName = (id) => CROP[id]?.name || FRUIT[id]?.name || id;
     const render = () => {
+      const totalCooked = Object.values(S.live?.kitchen || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+      const hostedToday = !!(S.live?.fun?.day === dailyFunKey(S) && S.live?.fun?.used?.teaParty);
+      const canHost = totalCooked > 0 && !hostedToday;
+      const teaBanner = h('div', { class: 'dl-task' + (canHost ? ' ready' : ''), style: { marginBottom: '0.65rem', background: 'linear-gradient(135deg, #fff6ea, #ffeef5)' } },
+        h('div', { class: 'tx' },
+          h('b', {}, '🍵 摆盘下午茶 · 招待大喵与邻里'),
+          h('span', { class: 'dl-sub' }, totalCooked > 0
+            ? `已累计烹制 ${totalCooked} 道私房茶点 · 每天可摆盘招待一次邻里`
+            : '先烹制任意一道田园茶点，即可摆盘招待大喵与邻里！')),
+        h('button', {
+          class: 'btn sm ' + (canHost ? 'gold' : 'alt'),
+          disabled: !canHost,
+          onclick: (e) => {
+            if (totalCooked <= 0) return;
+            const { fun } = ensureDailyFun(S);
+            if (fun.used.teaParty) return;
+            fun.used.teaParty = 1;
+            addCoins(80, 'kitchen');
+            save();
+            audio.sfx('fanfare');
+            const rect = e.currentTarget.getBoundingClientRect();
+            ui.flyCoins(rect.left + rect.width / 2, rect.top, 6);
+            ui.toast('🍵 下午茶招待圆满成功！大喵与邻居们送来回礼 +80 噗灵', { kind: 'live-reward', icon: coinIco() });
+            render();
+          },
+        }, hostedToday ? '今日已招待' : canHost ? '摆盘招待 +80' : '需先烹制料理'));
       body.replaceChildren(
         h('h2', {}, '田园私房料理台'),
-        h('p', { class: 'fine', style: { marginBottom: '0.8rem' } }, '用后院收获的新鲜作物与果实烹制暖心茶点，比直接出售原料赚得更多噗灵！'),
+        h('p', { class: 'fine', style: { marginBottom: '0.6rem' } }, '用后院收获的新鲜作物与果实烹制暖心茶点，比直接出售原料赚得更多噗灵！'),
+        teaBanner,
         h('div', { class: 'dl-list' }, RECIPES.map((r) => {
           const canCook = r.cost.every(([id, need]) => (S.crops[id] || 0) >= need);
           return h('div', { class: 'dl-task' + (canCook ? ' ready' : '') },

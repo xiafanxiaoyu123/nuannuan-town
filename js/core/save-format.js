@@ -9,6 +9,7 @@ import { BUILD_LOT } from '../world/build-constants.js';
 import { PAID_PHOTO_POSE_IDS } from '../live/photo-poses.js';
 import { MOMO_CLOAK_IDS } from '../models/momo-cloaks.js';
 import { prepareCompatibleSave, photoThemeIndex } from '../shared/save-compat.js';
+import { FORTUNE_LEVELS } from '../shared/momo-fortune.js';
 
 export const SAVE_FILE_FORMAT = 'nikki-block-town-save';
 export const SAVE_FILE_VERSION = 1;
@@ -194,7 +195,13 @@ function validateLive(l, interior) {
       if (value.some(id => !PAID_PHOTO_POSE_IDS.includes(id)) || new Set(value).size !== value.length) fail(at, '含有无效或重复的拍照姿势');
     }, 'live.photo.poses');
   }
-  if (l.fun) { fields(l.fun, ['day'], str, 'live.fun'); fields(l.fun, ['capsule'], num, 'live.fun'); optional(l.fun, 'used', obj, 'live.fun.used'); }
+  if (l.fun) {
+    fields(l.fun, ['day'], str, 'live.fun'); fields(l.fun, ['capsule'], num, 'live.fun');
+    optional(l.fun, 'used', (used, at) => {
+      obj(used, at); optional(used, 'momoPet', flag, at + '.momoPet');
+      optional(used, 'fortuneLv', (value, key) => { if (value !== null && !FORTUNE_LEVELS.includes(value)) fail(key, '吉签等级无效'); }, at + '.fortuneLv');
+    }, 'live.fun.used');
+  }
   if (l.residents) {
     const r = l.residents, at = 'live.residents'; fields(r, ['day', 'performed'], str, at); optional(r, 'base', numberMap, at + '.base');
     if (r.tasks !== undefined) for (const [id, t] of Object.entries(obj(r.tasks, at + '.tasks'))) { const a = at + '.tasks.' + id; obj(t, a); numberMap(t.base, a + '.base'); fields(t, ['claimed'], flag, a); }

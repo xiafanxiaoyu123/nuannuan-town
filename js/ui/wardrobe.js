@@ -2,7 +2,7 @@
 import { THREE, cbox, box, cyl, frustum, group, mat, glow } from '../core/kit.js';
 import { Character, Momo, outfitToLook } from '../models/character.js';
 import { SHOPS, CLOTHES, CLOTH, CATS, STYLES, SETS, DEFAULT_OUTFIT } from '../data.js';
-import { S, bus, spend, stat, save, styleBonus } from '../core/state.js';
+import { S, bus, spend, addCoins, stat, save, styleBonus } from '../core/state.js';
 import { app } from '../core/app.js';
 import { audio } from '../core/audio.js';
 import { fx } from '../core/fx.js';
@@ -12,6 +12,7 @@ import { MOMO_CLOAKS, MOMO_CLOAK_IDS, momoCloak, normalizeMomoCloak, normalizeMo
 import { ui, svg, priceTag } from './ui.js';
 import { setEffectChip } from '../live/panels.js';
 import { live } from '../live/api.js';
+import { ensureDailyFun, dailyFunKey } from '../shared/momo-fortune.js';
 
 export class Wardrobe {
   constructor(game) {
@@ -162,12 +163,16 @@ export class Wardrobe {
     this.toolsButton = h('button', { class: 'wtools-toggle', 'aria-expanded': 'false', 'aria-controls': 'wardrobe-tools', onclick: () => this.toggleTools() }, svg('hanger'), h('span', {}, '搭配工具'));
     this.toolsEl = h('section', { id: 'wardrobe-tools', class: 'wtools', hidden: true, 'aria-label': '搭配工具' },
       h('div', { class: 'wtools-head' }, h('h3', {}, '搭配工具'), h('button', { class: 'wtools-close', 'aria-label': '返回服饰列表', onclick: () => this.toggleTools(false) }, '返回列表')),
-      h('button', { class: 'btn sm wwork', onclick: () => { audio.sfx('click'); this.workPanel(); } }, svg('hanger'), '上班方案'),
+      h('div', { class: 'row', style: { gap: '0.45rem', flexWrap: 'wrap' } },
+        h('button', { class: 'btn sm wwork', onclick: () => { audio.sfx('click'); this.workPanel(); } }, svg('hanger'), '上班方案'),
+        h('button', { class: 'btn gold sm', onclick: () => { audio.sfx('click'); this.contestPanel(); } }, '✨ 今日主题搭配赛')),
       this.detailEl, this.setFxEl, this.bonusBar, this.styleEl);
     this.styleFilter = 'all';
     this.filterBar = h('div', { class: 'wfilters', 'aria-label': '风格与拥有状态筛选' });
     this.el = h('div', { class: 'wardrobe' },
-      h('div', { class: 'wleft' }, h('button', { class: 'btn alt', onclick: () => { audio.sfx('click'); this.game.closeWardrobe(); } }, svg('back'), shop ? '离开小屋' : '换好了')),
+      h('div', { class: 'wleft' },
+        h('button', { class: 'btn alt', onclick: () => { audio.sfx('click'); this.game.closeWardrobe(); } }, svg('back'), shop ? '离开小屋' : '换好了'),
+        h('button', { class: 'btn gold sm wcontest-btn', onclick: () => { audio.sfx('click'); this.contestPanel(); } }, '✨ 今日搭配赛')),
       this.hint,
       h('div', { class: 'panel card' },
         h('div', { class: 'head' },
@@ -420,6 +425,109 @@ export class Wardrobe {
     render();
     this.workModal?.close(true);
     const modal = ui.modal(body, { ribbon: '穿搭预设', cls: 'live-modal', onClose: () => { if (this.workModal === modal) this.workModal = null; } });
+    this.workModal = modal;
+    return modal;
+  }
+
+  // 今日主题搭配赛：每天轮换一个穿搭主题，评审当前搭配并可登台走秀领奖
+  contestPanel() {
+    if (!this.canEditOutfit()) return false;
+    const THEMES = [
+      { id: 'tea', title: '蜜糖午后茶话会', desc: '微风拂过露天茶座，穿上最甜美可爱的裙装与大喵赴约吧！', main: 'sweet', sub: 'fresh' },
+      { id: 'forest', title: '晨露森林漫步', desc: '踏过挂满露珠的林间小径，清新自然的装扮最衬今日晨光。', main: 'fresh', sub: 'warm' },
+      { id: 'gala', title: '星光剧院晚宴', desc: '小镇音乐厅点亮水晶灯，用典雅华丽的礼服成为全场焦点。', main: 'elegant', sub: 'sweet' },
+      { id: 'harbor', title: '海风码头假日', desc: '海鸥掠过波光粼粼的栈桥，利落飒爽的出行穿搭正合适！', main: 'cool', sub: 'fresh' },
+      { id: 'bakery', title: '麦香烘焙工坊', desc: '空气里满是黄油与烤面包的暖香，换上温暖舒适的日常装吧。', main: 'warm', sub: 'sweet' },
+    ];
+    const CATS5 = ['hair', 'dress', 'shoes', 'acc', 'back'];
+    const theme = THEMES[Math.abs(S.gday || 0) % THEMES.length];
+    const mainSt = STYLES[theme.main], subSt = STYLES[theme.sub];
+    const body = h('div', { class: 'workp contest-panel' });
+
+    const scoreCurrent = () => {
+      let pts = 0, mainCnt = 0, subCnt = 0;
+      const sets = {};
+      for (const k of CATS5) {
+        const id = S.owned.includes(this.preview[k]) ? this.preview[k] : S.outfit[k];
+        const c = CLOTH[id];
+        if (!c || c.acc === 'none' || c.back === 'none') continue;
+        if (c.set) sets[c.set] = (sets[c.set] || 0) + 1;
+        if (c.style === theme.main) { pts += 20; mainCnt++; }
+        else if (c.style === theme.sub) { pts += 13; subCnt++; }
+        else pts += 7;
+      }
+      const maxSet = Math.max(0, ...Object.values(sets));
+      if (maxSet >= 5) pts += 18;
+      else if (maxSet >= 3) pts += 10;
+      if (S.momoCloak && S.momoCloak !== 'classic') pts += 12;
+      else pts += 6;
+      const rank = pts >= 85 ? 'S' : pts >= 60 ? 'A' : 'B';
+      const reward = rank === 'S' ? 120 : rank === 'A' ? 85 : 55;
+      return { pts: Math.min(120, pts), mainCnt, subCnt, maxSet, rank, reward };
+    };
+
+    const autoThemeWear = () => {
+      if (!this.canEditOutfit()) return;
+      const owned = CLOTHES.filter((c) => S.owned.includes(c.id));
+      for (const k of CATS5) {
+        const candidates = owned.filter((c) => c.cat === k && c.acc !== 'none' && c.back !== 'none');
+        const pick = candidates.find((c) => c.style === theme.main) || candidates.find((c) => c.style === theme.sub) || candidates[0];
+        if (pick) {
+          this.preview[k] = pick.id;
+          S.outfit[k] = pick.id;
+        }
+      }
+      save();
+      this.char.setLook(outfitToLook(this.preview));
+      this.twirl();
+      audio.sfx('equip');
+      this.renderGrid();
+      this.renderFoot();
+      this.renderStyles();
+      render();
+    };
+
+    const render = () => {
+      const sc = scoreCurrent();
+      const claimed = !!(S.live?.fun?.day === dailyFunKey(S) && S.live?.fun?.used?.styleContest);
+      body.replaceChildren(
+        h('div', { class: 'tk-head' },
+          h('h2', {}, `✨ 今日主题：${theme.title}`),
+          h('p', {}, theme.desc),
+          h('div', { class: 'row', style: { gap: '0.45rem', marginTop: '0.45rem', flexWrap: 'wrap' } },
+            h('span', { class: 'tag', style: { '--c': mainSt.color } }, `主推风格：${mainSt.name}`),
+            h('span', { class: 'tag', style: { '--c': subSt.color } }, `次选加分：${subSt.name}`))),
+        h('div', { class: 'work-row on', style: { marginTop: '0.65rem' } },
+          h('div', { class: 'work-top' },
+            h('b', {}, `当前搭配评级：${sc.rank} 级（${sc.pts} 分）`),
+            h('em', { class: 'has' }, `今日评审奖金 +${sc.reward} 噗灵`)),
+          h('p', { class: 'work-none', style: { margin: '0.35rem 0' } },
+            `符合「${mainSt.name}」${sc.mainCnt} 件 · 「${subSt.name}」${sc.subCnt} 件${sc.maxSet >= 3 ? ` · 套装共鸣 ${sc.maxSet} 件` : ''} · 达到 85 分可获最高 S 级大奖（120 噗灵）`),
+          h('div', { class: 'work-btns' },
+            h('button', { class: 'btn alt sm', onclick: autoThemeWear }, '💡 一键按主题配装'),
+            h('button', {
+              class: 'btn gold sm',
+              disabled: claimed,
+              onclick: () => {
+                if (!this.canEditOutfit()) return;
+                const { fun } = ensureDailyFun(S);
+                if (fun.used.styleContest) return;
+                fun.used.styleContest = 1;
+                addCoins(sc.reward, 'fun');
+                save();
+                this.workModal?.close(true);
+                this.twirl();
+                audio.sfx('fanfare');
+                fx.confetti(this.scene, new THREE.Vector3(0, 2.6, 0.5), 38);
+                fx.sparkle(this.scene, new THREE.Vector3(0, 1.9, 0.6), 12, ['#ffd76a', '#ff9fbd', '#ffffff']);
+                ui.toast(`✨ 搭配赛 ${sc.rank} 级走秀圆满成功！获得评审奖金 +${sc.reward} 噗灵`, { icon: coinIco(), kind: 'live-reward' });
+              },
+            }, claimed ? '今日已领奖（可继续试装）' : `✨ 登台走秀领奖 (+${sc.reward})`))),
+      );
+    };
+    render();
+    this.workModal?.close(true);
+    const modal = ui.modal(body, { ribbon: '今日搭配赛', cls: 'live-modal', onClose: () => { if (this.workModal === modal) this.workModal = null; } });
     this.workModal = modal;
     return modal;
   }

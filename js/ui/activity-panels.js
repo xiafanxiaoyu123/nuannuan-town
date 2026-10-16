@@ -98,16 +98,22 @@ export function shopPanel(id) {
   // 两种营业模式：关卡（选一关）和无尽
   let pick = Math.min(MAX_STAGE, (st.stage || 0) + 1);
   const modes = () => {
-    const cleared = st.stage || 0, stars = (st.stars || {})[pick] || 0;
+    const cleared = st.stage || 0, maxUnlocked = Math.min(MAX_STAGE, cleared + 1), stars = (st.stars || {})[pick] || 0;
+    const unstarred = Array.from({ length: cleared }, (_, i) => i + 1).find((s) => ((st.stars || {})[s] || 0) < 3);
     const box = h('div', { class: 'modes' });
-    const step = (d) => click(() => { pick = Math.max(1, Math.min(Math.min(MAX_STAGE, cleared + 1), pick + d)); box.replaceWith(modes()); }, 'tab');
+    const jumpTo = (target) => click(() => { pick = Math.max(1, Math.min(maxUnlocked, target)); box.replaceWith(modes()); }, 'tab');
+    const step = (d) => jumpTo(pick + d);
     box.append(
       h('div', { class: 'mode lvmode' },
         h('h4', {}, '关卡模式', h('em', {}, `已过 ${cleared} / ${MAX_STAGE} 关`)),
         h('div', { class: 'stagepick' },
           h('button', { class: 'stp', disabled: pick <= 1, onclick: step(-1), 'aria-label': '上一关' }, '‹'),
           h('div', {}, h('b', {}, `第 ${pick} 关`), h('span', { class: 'ministars' }, [0, 1, 2].map((i) => svg('star', i < stars ? '' : 'off')))),
-          h('button', { class: 'stp', disabled: pick >= Math.min(MAX_STAGE, cleared + 1), onclick: step(1), 'aria-label': '下一关' }, '›')),
+          h('button', { class: 'stp', disabled: pick >= maxUnlocked, onclick: step(1), 'aria-label': '下一关' }, '›')),
+        maxUnlocked > 2 && h('div', { class: 'row', style: { gap: '0.35rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '0.35rem' } },
+          pick !== 1 && h('button', { type: 'button', class: 'btn alt sm', onclick: jumpTo(1) }, '第1关'),
+          unstarred && unstarred !== pick && h('button', { type: 'button', class: 'btn alt sm', onclick: jumpTo(unstarred) }, `补星·第${unstarred}关`),
+          pick !== maxUnlocked && h('button', { type: 'button', class: 'btn alt sm', onclick: jumpTo(maxUnlocked) }, `最新·第${maxUnlocked}关`)),
         h('button', { class: 'btn', onclick: click(() => { m.close(true); g.startGame(id, { mode: 'level', stage: pick }); }) }, svg('play'), pick <= cleared ? '重打这一关' : '开始营业')),
       h('div', { class: 'mode endmode' },
         h('h4', {}, '无尽模式', h('em', {}, '不限时 · 失误扣爱心')),
@@ -220,6 +226,7 @@ export function recyclePanel() {
     const crops = Object.entries(S.crops).filter(([, n]) => n > 0);
     const spare = Object.entries(S.decor).filter(([id, n]) => n > 0 && DECO[id]);
     const total = crops.reduce((s, [id, n]) => s + price(id) * n, 0);
+    const keep2Total = crops.reduce((s, [id, n]) => s + price(id) * Math.max(0, n - 2), 0);
     const left = Math.ceil((300000 - (Date.now() % 300000)) / 1000);
     return h('div', { class: 'recycle' },
       h('h2', {}, '回收小铺'),
@@ -229,8 +236,27 @@ export function recyclePanel() {
         h('img', { src: cropIco(id) }), h('b', {}, `${CROP[id].name} ×${n}`), id === hot && h('span', { class: 'tag', style: { '--c': '#f0a53a' } }, '高价'), h('span', { class: 'sp' }),
         h('button', { class: 'btn sm ' + (id === hot ? 'gold' : 'alt'), onclick: (e) => sellOne(id, e) }, '卖出 ', priceTag(price(id) * n)))))
         : h('p', { class: 'empty' }, '还没有作物。去菜地收获一些再来吧。'),
-      crops.length ? h('div', { class: 'row rsell' },
+      crops.length ? h('div', { class: 'row rsell', style: { flexWrap: 'wrap' } },
         S.crops[hot] > 0 && h('button', { class: 'btn gold', onclick: (e) => sellOne(hot, e) }, `只卖高价的${CROP[hot].name} `, priceTag(price(hot) * S.crops[hot])),
+        keep2Total > 0 && h('button', { class: 'btn alt', onclick: (e) => {
+          if (refreshQuote()) return;
+          let earned = 0, soldCnt = 0;
+          for (const [id, n] of crops) {
+            const sellN = Math.max(0, n - 2);
+            if (!sellN) continue;
+            S.crops[id] = n - sellN;
+            earned += price(id) * sellN;
+            soldCnt += sellN;
+          }
+          if (!earned) return;
+          addCoins(earned, 'sell');
+          stat('sold', soldCnt);
+          audio.sfx('coin');
+          const b = e.currentTarget.getBoundingClientRect();
+          this.flyCoins(b.left + b.width / 2, b.top, Math.min(10, 3 + soldCnt));
+          this.toast(`已保留每种 2 份料理/委托备用，售出其余作物 +${fmt(earned)} 噗灵`, { icon: coinIco() });
+          rer();
+        } }, '保留每种2个，卖出其余 ', priceTag(keep2Total)),
         h('button', { class: 'btn ' + (S.crops[hot] > 0 ? 'alt' : 'gold'), onclick: () => { if (refreshQuote()) return; g.sellCrops(); rer(); } }, '全部卖出 ', priceTag(total))) : null,
       h('h3', {}, '闲置家具（半价回收）'),
       spare.length ? h('div', { class: 'rlist' }, spare.map(([id, n]) => h('div', { class: 'rrow' },

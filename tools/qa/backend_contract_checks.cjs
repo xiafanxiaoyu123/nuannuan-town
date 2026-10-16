@@ -18,6 +18,7 @@ async function childChecks() {
   const { handleApi } = require('../../server/auth-api');
   const { DEFAULT_OUTFIT } = require('../../js/shared/clothing.js');
   const { validateSaveData } = require('../../js/core/save-format.js');
+  const { gameDate } = require('../../js/shared/calendar.js');
   const checks = [];
   const server = http.createServer((req, res) => Promise.resolve(handleApi(req, res)).catch(error => {
     res.writeHead(500).end(JSON.stringify({ error: error.message }));
@@ -177,6 +178,34 @@ async function childChecks() {
       const saved = await put(data, revision); assert.equal(saved.status, 200); revision++;
       const cloud = (await read()).body;
       assert.equal(cloud.data.v, 1); assert.equal(cloud.data.legacyNote.preserved, true); validateSaveData(cloud.data, { allowLegacyBuilding: true });
+    });
+    await group('daily support and all fortune levels survive real cloud writes and reject corrupt replacements', async () => {
+      const prior = (await read()).body.data;
+      for (const fortuneLv of ['大吉', '中吉', '小吉', '吉', '末吉']) {
+        const data = copy(prior);
+        data.live = { ...(data.live || {}), fun: { day: gameDate(data.gday).key, capsule: 2,
+          used: { momoPet: 1, fortune: 1, fortuneLv, music: 1, futureFunExtension: { preserved: true } } } };
+        const beforeRevision = revision;
+        const saved = await put(data, revision); assert.equal(saved.status, 200); revision++;
+        const cloud = (await read()).body;
+        assert.equal(cloud.revision, revision); assert.deepEqual(cloud.data.live.fun, data.live.fun);
+        assert.equal(cloud.data.coins, prior.coins); assert.deepEqual(cloud.data.placedIn, prior.placedIn);
+        assert.deepEqual(cloud.data.seeds, prior.seeds); assert.deepEqual(cloud.data.stats, prior.stats);
+        const replay = await put(data, beforeRevision);
+        assert.equal(replay.status, 200); assert.equal(replay.body.unchanged, true); assert.equal(replay.body.revision, revision);
+      }
+      const before = (await read()).body;
+      for (const patch of [{ momoPet: 2 }, { momoPet: 'yes' }, { fortuneLv: '特大吉' }, { fortuneLv: {} }]) {
+        const data = copy(before.data); Object.assign(data.live.fun.used, patch);
+        const rejected = await put(data, revision);
+        assert.equal(rejected.status, 400); assert.equal(rejected.body.code, 'SAVE_INVALID');
+        assert.deepEqual((await read()).body, before);
+      }
+      const legacy = copy(before.data); delete legacy.live.fun.used.fortuneLv;
+      assert.equal((await put(legacy, revision)).status, 200); revision++;
+      const cloud = (await read()).body;
+      assert.equal(cloud.data.live.fun.used.fortune, 1); assert.equal(cloud.data.coins, prior.coins);
+      assert.equal(Object.hasOwn(cloud.data.live.fun.used, 'fortuneLv'), false);
     });
     await group('JSON roots are checked and checkout stays disabled throughout', async () => {
       for (const data of [null, [], 'string']) assert.equal((await call('/api/save', 'PUT', data, player)).status, 400);

@@ -10,6 +10,15 @@ import { ui, svg } from '../ui/ui.js';
 import { coinIco } from '../core/icons.js';
 import { outfitFx } from '../live/effects.js';
 import { addFertilizer } from '../shared/save-compat.js';
+import { getDailySupport } from '../shared/momo-fortune.js';
+
+const MOMO_HINTS = {
+  cafe: '补满备货与黄金咖啡、收取柜台噗灵、恢复客人耐心',
+  bakery: '把现有未烤焦面包调至完美火候，并恢复客人耐心',
+  flower: '清理棋盘杂草、补满花种与丝带篮，并恢复客人耐心',
+  fish: '收线时让绿条对准鱼儿，并增加 35% 收线进度',
+  tailor: '自动缝好判定线附近最多四颗纽扣，包含长针脚',
+};
 
 // 把底部操作栏整体缩放到屏幕放得下：宽度不超出屏幕，高度不超过屏幕的 maxH
 // 用 zoom 而不是 transform：点击区域和看到的一致
@@ -126,6 +135,13 @@ export class MiniGame {
     this.paused = false;
     this.perks = {};
     this.tweens = new Set();
+    // 大喵应援技能与神社今日吉签加成
+    const support = getDailySupport(S);
+    this.momoEnergy = support.momoEnergy;
+    this.momoSkillsUsed = 0;
+    this.fortuneLv = support.fortuneLv;
+    this.fortuneBonus = support.fortuneBonus;
+    this.rareDropBonus = support.rareDropBonus;
     game.liveHooks?.onGameInit?.(this); // 子类准备菜单、棋盘之前固定本局规则
   }
   // 压力系数：关卡越靠后、无尽撑得越久，节奏越快（各小游戏拿它去除间隔、乘速度）
@@ -138,6 +154,7 @@ export class MiniGame {
     if (!this.playing) return false;
     this.onPause?.();
     this.paused = true;
+    this.syncMomoSkill();
     this.cancelDrag?.();
     audio.pauseMusic();
     this.hudEl.querySelector('.gquit').disabled = true;
@@ -147,6 +164,7 @@ export class MiniGame {
     if (!this.paused) return false;
     if (this.onResume?.(force) === false && !force) return false;
     this.paused = false;
+    this.syncMomoSkill();
     audio.resumeMusic();
     this.hudEl.querySelector('.gquit').disabled = false;
     return true;
@@ -215,26 +233,133 @@ export class MiniGame {
     const bn = (this.bonus = styleBonus(this.id, this.outfit)), sn = bn.style.name;
     this.bonusEl = h('div', { class: 'gbonus' + (bn.n ? ' on' : ''), style: { '--c': bn.style.color } }, `${sn}穿搭 `, h('b', {}, `+${bn.pct}%`));
     this.masteryEl = h('div', { class: 'gbonus on gmastery', style: { '--c': this.shop.color } }, `熟练 Lv.${this.masteryLv}`, this.masteryBonus > 0 ? h('b', {}, ` +${Math.round(this.masteryBonus * 100)}%`) : null);
+    this.fortuneEl = this.fortuneLv ? h('div', { class: 'gbonus on gfortune', style: { '--c': '#e9a520' } }, `⛩️${this.fortuneLv} `, h('b', {}, `+${Math.round(this.fortuneBonus * 100)}%`)) : null;
+    // 大喵应援主动技能按钮
+    this.momoSkillFill = h('i');
+    this.momoSkillText = h('span', {}, '大喵 0%');
+    this.momoSkillBtn = h('button', {
+      type: 'button',
+      class: 'gmomo-skill',
+      title: `${MOMO_HINTS[this.id]}；攒满后按 G 键或点击`,
+      onclick: () => this.triggerMomoSkill(),
+    }, this.momoSkillFill, h('b', {}, '🐾'), this.momoSkillText);
+    this.syncMomoSkill();
     this.bonusIntro = h('div', { class: 'gbonus-intro' + (bn.n ? ' on' : ''), style: { '--c': bn.style.color } },
       h('span', {}, `本店偏爱「${sn}」风格 · 工坊熟练 Lv.${this.masteryLv}`),
       h('b', {}, `穿搭加成 +${bn.pct}%`),
       h('em', {}, bn.n ? `身上有 ${bn.n} 件${sn}服饰 · 每件 +6%${bn.n < 5 ? '，还能更高' : '，已拉满'}` : `还没穿${sn}风格的服饰 · 每件能多赚 6%，最多 +30%`));
+    if (!this.endless) {
+      this.goalStarsEl = h('span', { class: 'ggoal-stars' }, '☆☆☆');
+      this.goalLabelEl = h('span', { class: 'ggoal-lbl' }, ' 1★目标 ');
+      this.goalNumEl = h('b', {}, fmt(this.starAt[0]));
+      this.goalEl = h('div', { class: 'ggoal' }, this.goalStarsEl, this.goalLabelEl, this.goalNumEl);
+    }
     this.hudEl = h('div', { class: 'ghud' },
-      h('div', { class: 'gcombo' }, h('div', { class: 'pill coin' }, h('img', { src: coinIco() }), this.scoreEl), this.comboEl, this.rushEl, this.bonusEl, this.masteryEl),
+      h('div', { class: 'gcombo' }, h('div', { class: 'pill coin' }, h('img', { src: coinIco() }), this.scoreEl), this.comboEl, this.rushEl, this.momoSkillBtn, this.bonusEl, this.masteryEl, this.fortuneEl),
       h('div', { class: 'gtop' }, h('div', { class: 'name', style: { '--c': this.shop.color } }, this.endless ? `${this.shop.name} · 无尽` : `${this.shop.name} · 第 ${this.stage} 关`), this.timerEl,
-        !this.endless && (this.goalEl = h('div', { class: 'ggoal' }, '目标 ', h('b', {}, fmt(this.starAt[0]))))),
+        !this.endless && this.goalEl),
       h('button', { class: 'btn alt sm gquit', onclick: () => { audio.sfx('click'); if (this.state === 'play') this.finish(); } }, '提前打烊'),
       ...extra, this.bonusIntro, this.countEl);
     ui.root.append(this.hudEl);
+    this.on(window, 'keydown', (e) => {
+      if (!e.repeat && e.code === 'KeyG' && this.playing) {
+        e.preventDefault();
+        this.triggerMomoSkill();
+      }
+    });
     const lh = this.game.liveHooks;
     lh && lh.onGameHUD && lh.onGameHUD(this);
+  }
+  syncMomoSkill() {
+    if (!this.momoSkillBtn) return;
+    const pct = Math.min(100, Math.max(0, Math.floor(this.momoEnergy || 0)));
+    const ready = pct >= 100;
+    const usable = ready && this.playing && !this._momoCasting && typeof this.onMomoSkill === 'function' && this.canMomoSkill();
+    const display = `${pct}:${!!this.playing}:${!!usable}`;
+    if (this._momoDisplay === display) return;
+    this._momoDisplay = display;
+    this.momoSkillFill.style.transform = `scaleX(${pct / 100})`;
+    this.momoSkillBtn.classList.toggle('ready', ready);
+    this.momoSkillBtn.disabled = !ready || !usable;
+    this.momoSkillText.textContent = ready ? (usable ? '大喵绝招 (G)' : '等待时机 (G)') : `大喵 ${pct}%`;
+    this.momoSkillBtn.setAttribute('aria-label', `大喵应援 ${pct}%：${MOMO_HINTS[this.id]}${ready && !usable ? '，等待可用时机' : ''}`);
+  }
+  canMomoSkill() { return false; }
+  addMomoEnergy(delta) {
+    // 绝招内的收取/自动缝制仍正常记分，但不能给自己再次充能。
+    if (!this.playing || this._momoCasting || !Number.isFinite(delta) || delta <= 0) return;
+    const wasReady = (this.momoEnergy || 0) >= 100;
+    this.momoEnergy = Math.min(100, (this.momoEnergy || 0) + delta);
+    this.syncMomoSkill();
+    if (!wasReady && this.momoEnergy >= 100) {
+      audio.sfx('pop', 5);
+    }
+  }
+  triggerMomoSkill() {
+    if (!this.playing || this._momoCasting || (this.momoEnergy || 0) < 100 || !this.canMomoSkill() || typeof this.onMomoSkill !== 'function') return false;
+    this._momoCasting = true;
+    let used;
+    try { used = this.onMomoSkill() === true; }
+    finally { this._momoCasting = false; }
+    if (!used) { this.syncMomoSkill(); return false; }
+    this.momoEnergy = 0;
+    this.momoSkillsUsed = (this.momoSkillsUsed || 0) + 1;
+    this.syncMomoSkill();
+    audio.sfx('fanfare');
+    if (this.momo?.root) {
+      this.stopMomoCheer();
+      const mp = new THREE.Vector3();
+      this.momo.root.getWorldPosition(mp);
+      fx.hearts(this.scene, mp.clone().add(new THREE.Vector3(0, 1.4, 0)), 6);
+      fx.sparkle(this.scene, mp.clone().add(new THREE.Vector3(0, 1.0, 0)), 12, ['#ffd76a', '#ff9fbd', '#ffffff']);
+      const y0 = this.momo.root.position.y;
+      this._momoHomeY = y0;
+      this._momoCheer = this.tween({ dur: 0.55, update: (k) => { if (this.momo?.root) this.momo.root.position.y = y0 + Math.sin(k * Math.PI) * 0.55; }, done: () => { if (this.momo?.root) this.momo.root.position.y = y0; this._momoCheer = null; } });
+    }
+    return true;
+  }
+  stopMomoCheer() {
+    if (!this._momoCheer) return;
+    this._momoCheer.stop();
+    this.tweens.delete(this._momoCheer);
+    this._momoCheer = null;
+    if (this.momo?.root) this.momo.root.position.y = this._momoHomeY;
+  }
+  syncGoalProgress() {
+    if (!this.goalEl || this.endless || !this.starAt?.length) return;
+    const s = this.starAt.filter((t) => this.score >= t).length;
+    if (this.goalStarsEl) {
+      this.goalStarsEl.textContent = '★'.repeat(s) + '☆'.repeat(Math.max(0, 3 - s));
+    }
+    if (s > (this._reachedStars || 0)) {
+      this._reachedStars = s;
+      if (this.playing) audio.sfx('good');
+    }
+    if (this.goalLabelEl && this.goalNumEl) {
+      if (s === 0) {
+        this.goalLabelEl.textContent = ' 1★目标 ';
+        this.goalNumEl.textContent = fmt(this.starAt[0]);
+      } else if (s === 1) {
+        this.goalLabelEl.textContent = ' 2★目标 ';
+        this.goalNumEl.textContent = fmt(this.starAt[1]);
+      } else if (s === 2) {
+        this.goalLabelEl.textContent = ' 3★目标 ';
+        this.goalNumEl.textContent = fmt(this.starAt[2]);
+      } else {
+        this.goalLabelEl.textContent = ' 完美达成 ';
+        this.goalNumEl.textContent = fmt(this.score);
+      }
+    }
+    this.goalEl.classList.toggle('done', s >= 1);
+    this.goalEl.classList.toggle('full', s >= 3);
   }
   addScore(n) {
     if (n > 0 && this.elapsed < (this.goldUntil || 0)) n *= 2;
     if (n > 0 && this.elapsed < (this.rushUntil || 0)) n *= 1.25;
     this.score = Math.max(0, this.score + Math.round(n));
     this.scoreEl.textContent = fmt(this.score);
-    if (this.goalEl) this.goalEl.classList.toggle('done', this.score >= this.starAt[0]);
+    if (n > 0) this.addMomoEnergy(Math.min(20, Math.max(7, Math.round(n * 0.45))));
+    this.syncGoalProgress();
     const pill = this.scoreEl.parentElement;
     pill.classList.remove('bump');
     void pill.offsetWidth;
@@ -250,11 +375,18 @@ export class MiniGame {
     if (n >= 6 && n % 6 === 0 && this.playing) {
       this.rushUntil = (this.elapsed || 0) + 8;
       if (this.rushEl) this.rushEl.classList.remove('hide');
+      if (this.nikki?.root) {
+        const np = new THREE.Vector3();
+        this.nikki.root.getWorldPosition(np);
+        fx.sparkle(this.scene, np.add(new THREE.Vector3(0, 1.5, 0)), 10, ['#ffd76a', '#ff9fbd', '#ffffff']);
+      }
       try { navigator.vibrate?.(15); } catch (_) { /* 忽略不支持设备 */ }
     } else if (n > 0 && n % 3 === 0) {
       try { navigator.vibrate?.(8); } catch (_) { /* 忽略不支持设备 */ }
     }
-    if (this.rushEl) this.rushEl.classList.toggle('hide', !(this.elapsed < (this.rushUntil || 0)));
+    const inRush = this.elapsed < (this.rushUntil || 0);
+    if (this.rushEl) this.rushEl.classList.toggle('hide', !inRush);
+    if (this.hudEl) this.hudEl.classList.toggle('rush-on', inRush);
     this.comboEl.textContent = `连击 ×${n}`;
     this.comboEl.classList.toggle('zero', n < 2);
     this.comboEl.classList.remove('pop');
@@ -277,6 +409,7 @@ export class MiniGame {
     this.countEl.replaceChildren(h('span', { class: 'go' }, '开店啦!'));
     audio.sfx('go');
     this.state = 'play';
+    this.syncMomoSkill();
     this.onStart && this.onStart();
     this.bonusIntro.classList.add('out');
     await wait(0.8);
@@ -309,6 +442,7 @@ export class MiniGame {
     ui.tutorials?.cancelView(this);
     this.resume(true);
     this.dead = true;
+    this.stopMomoCheer();
     this.resolve?.('exit');
     this.perkChoice?.cancel?.();
     this.cancelDrag?.();
@@ -338,8 +472,11 @@ export class MiniGame {
       if (this.time < 10 && Math.ceil(this.time) !== this._lastBeep) { this._lastBeep = Math.ceil(this.time); if (this.time < 5) audio.sfx('tick'); }
       if (this.time <= 0) this.finish();
     }
-    if (this.rushEl) this.rushEl.classList.toggle('hide', !(this.elapsed < (this.rushUntil || 0)));
+    const inRush = this.elapsed < (this.rushUntil || 0);
+    if (this.rushEl) this.rushEl.classList.toggle('hide', !inRush);
+    if (this.hudEl) this.hudEl.classList.toggle('rush-on', inRush);
     this.tick(dt, time);
+    this.syncMomoSkill();
     const lh = this.game.liveHooks;
     lh && lh.onGameTick && lh.onGameTick(this, dt);
   }
@@ -348,13 +485,15 @@ export class MiniGame {
   async finish() {
     if (this.state === 'over' || this.paused || this.dead) return;
     this.state = 'over';
+    this.stopMomoCheer();
+    this.syncMomoSkill();
     const endedAt = Date.now(); // 每日订单按打烊日期归属，不随结算面板停留到次日
     this.onFinish && this.onFinish();
     audio.sfx('bell');
     const st = S.shops[this.id];
     const bonus = this.bonus;
     const mult = shopMult(this.lv);
-    const setBonus = this.fx('bloom') + (this.shop.style === 'sweet' ? this.fx('far') : 0) + (this.masteryBonus || 0);
+    const setBonus = this.fx('bloom') + (this.shop.style === 'sweet' ? this.fx('far') : 0) + (this.masteryBonus || 0) + (this.fortuneBonus || 0);
     const total = Math.round(this.score * mult * (1 + bonus.pct / 100) * (1 + setBonus));
     const stars = this.starAt.filter((t) => this.score >= t).length;
     const record = total > st.best && st.plays > 0;
@@ -373,9 +512,10 @@ export class MiniGame {
       if (this.stage > (st.stage || 0)) { st.stage = this.stage; firstBonus = 30 + this.stage * 20; stat('stages'); }
       canNext = this.stage < MAX_STAGE;
     }
-    // 小游戏专属稀有掉落（F5）：二星以上或无尽坚持满60秒有概率掉落应季种子或有机花肥
+    // 小游戏专属稀有掉落（F5）：二星以上或无尽坚持满60秒有概率掉落应季种子或有机花肥（大吉签提升掉率）
     let rareDrop = null;
-    if ((stars >= 2 || (this.endless && this.elapsed >= 60)) && Math.random() < (stars >= 3 ? 0.55 : 0.3)) {
+    const dropChance = (stars >= 3 ? 0.55 : 0.3) + (this.rareDropBonus || 0);
+    if ((stars >= 2 || (this.endless && this.elapsed >= 60)) && Math.random() < dropChance) {
       const drops = {
         cafe: () => { addFertilizer(S); return '有机花肥 ×1'; },
         bakery: () => { S.seeds.wheat = (S.seeds.wheat || 0) + 1; bus.emit('seed', S.seed); return '金穗小麦种子 ×1'; },
@@ -407,6 +547,7 @@ export class MiniGame {
       }
     }
     if (this.masteryLv > 1) lines.push([`工坊熟练 Lv.${this.masteryLv}`, `+${Math.round(this.masteryBonus * 100)}%`]);
+    if (this.fortuneBonus > 0) lines.push([`今日吉签 (${this.fortuneLv})`, `+${Math.round(this.fortuneBonus * 100)}%`]);
     if (firstBonus) lines.push(['首次过关奖金', '+' + firstBonus]);
     if (rareDrop) lines.push(['工坊惊喜掉落', rareDrop]);
     const choice = await ui.resultPanel({ title: titles[stars], stars, record, lv: this.lv, mult, bonus, total: total + firstBonus, lines, ribbon: this.endless ? '无尽模式' : `第 ${this.stage} 关`, next: canNext });

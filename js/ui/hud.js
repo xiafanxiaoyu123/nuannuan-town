@@ -386,7 +386,7 @@ export function setBedMode(mode) {
 export function buildSeeds() {
   this.seedSlots = CROPS.map((c, i) =>
     h('button', { class: 'slot', title: `${c.name}：${c.grow} 秒成熟，售价 ${c.sell}`, onclick: () => this.tapSeed(i) },
-      h('span', { class: 'key' }, i + 1), h('img', { src: seedIco(c.id), alt: '' }), h('b', {}, c.name), priceTag(c.seed)));
+      h('span', { class: 'key' }, i + 1), h('span', { class: 'seed-badge hide' }), h('img', { src: seedIco(c.id), alt: '' }), h('b', {}, c.name), priceTag(c.seed)));
   this.treeSlots = FRUITS.map((f, i) =>
     h('button', { class: 'slot tslot', title: `${f.tree}：每轮 ${f.cycle} 秒结果，${f.name}售价 ${f.sell}`, onclick: () => this.tapSeed(i, true) },
       h('span', { class: 'key' }, i + 1), h('img', { src: cropIco(f.id), alt: '' }), h('b', {}, f.tree + '苗'), priceTag(f.price)));
@@ -401,10 +401,16 @@ export function tapSeed(i, tree) {
 }
 
 export function refreshSeeds() {
+  const hotId = typeof this.hotCrop === 'function' ? this.hotCrop() : null;
   this.seedSlots.forEach((el, i) => {
-    const c = CROPS[i], n = S.seeds[c.id] || 0;
+    const c = CROPS[i], n = S.seeds[c.id] || 0, isHot = c.id === hotId;
     el.classList.toggle('sel', c.id === S.seed);
     el.querySelector('.price').replaceWith(n > 0 ? h('span', { class: 'price' }, `免费 ×${n}`) : priceTag(c.seed));
+    const badge = el.querySelector('.seed-badge');
+    if (badge) {
+      badge.classList.toggle('hide', !isHot);
+      badge.textContent = isHot ? '🔥高价' : '';
+    }
   });
   this.treeSlots.forEach((el, i) => el.classList.toggle('sel', FRUITS[i].id === (S.sapling || 'apple')));
 }

@@ -8,13 +8,18 @@ import { audio } from '../core/audio.js';
 import { fx } from '../core/fx.js';
 import { h, rand, pick } from '../core/util.js';
 import { seedIco, decorIcon, coinIco } from '../core/icons.js';
-import { gameDayKey, gameDayNo } from '../core/gametime.js';
+import { gameDayNo } from '../core/gametime.js';
+import { ensureDailyFun, hasDailyMomoPet, markMomoPet, drawDailyFortune, dailyFunKey } from '../shared/momo-fortune.js';
+import { addFertilizer } from '../shared/save-compat.js';
 
-const dayKey = gameDayKey; // 每天一次的东西都按小镇的日子算
 function today() {
-  const f = S.live.fun, day = dayKey();
-  if (f.day !== day) { f.day = day; f.used = {}; f.capsule = 0; save(); }
-  return f;
+  const { fun, changed } = ensureDailyFun(S);
+  if (changed) save();
+  return fun;
+}
+function usedToday() {
+  const fun = S?.live?.fun;
+  return fun && fun.day === dailyFunKey(S) && fun.used ? fun.used : {};
 }
 const ns = { cast: false, receive: false };
 export const CAPSULE_PRICE = 30, CAPSULE_MAX = 5;
@@ -200,13 +205,6 @@ function bottle() {
 }
 
 // ————— 内容 —————
-const FORTUNES = [
-  ['大吉', '今天做什么都顺手，连大喵都抢不到你的可颂。'], ['大吉', '今天钓上来的鱼，会比昨天大一圈。'],
-  ['中吉', '穿上喜欢的那身出门，会有人夸你。'], ['中吉', '浇过水的田不会辜负你，下午去看看。'],
-  ['小吉', '路过喷泉记得许个愿，数到七会有回礼。'], ['小吉', '今天适合整理衣橱，旧衣服也能搭出新花样。'],
-  ['吉', '慢一点也没关系，花是一朵一朵开的。'], ['吉', '和居民多聊两句，他们总有话想告诉你。'],
-  ['末吉', '今天的幸运色是粉色——反正你每天都穿。'], ['末吉', '饿了就去咖啡屋，别空着肚子许愿。'],
-];
 const NOTES = [
   '「来自很远很远的海上：这里也有一座会发光的小镇。」', '「捡到这封信的人，祝你今天的鱼都很大。」', '「我把夏天装进瓶子里了，送给你一点。」',
   '「如果你也养了一只爱偷吃的猫，请替我摸摸它。」', '「听说对着喷泉许七次愿会有回礼，是真的吗？」', '「瓶子里是我种出来的第一颗种子，交给你啦。」',
@@ -244,6 +242,20 @@ export function installFun(game) {
   const town = game.town, ui = game.ui;
   const put = (obj, x, z, ry, r) => { obj.scale.setScalar(1.25); town.place(obj, x, z, ry); town.addCircle(x, z, r * 1.2, 'live'); return obj; };
   const here = (x, z, y = 1.2) => new THREE.Vector3(x, y, z);
+
+  // 随行大喵每天第一次摸摸，为之后每局提供少量初始应援值；附近其他操作优先。
+  town.inter.push({ id: 'momoPet', prio: -2.5,
+    get x() { return town.momo.root.position.x; }, get z() { return town.momo.root.position.z; },
+    get r() { return !town.photoOn && !town.decor.active && !town.homeInteractions?.bedState && !town.homeInteractions?.seated
+      && Math.abs(town.momo.root.position.y - town.pos.y) < 0.7 && !hasDailyMomoPet(S) ? 1.9 : 0; },
+    label: '摸摸大喵 · 为今天的工作打气', sub: '今天每局初始应援值 +35', act: () => {
+      if (town.frozen || town.lock > 0 || town.decor.active || town.photoOn || town.homeInteractions?.bedState || town.homeInteractions?.seated) return;
+      if (!markMomoPet(S)) return;
+      flushSave(); town.face(town.momo.root.position.x, town.momo.root.position.z); town.act('cheer', 0.7);
+      fx.hearts(town.scene, town.momo.root.position.clone().setY(1.3), 4); audio.sfx('pop');
+      ui.toast('大喵蹭了蹭你的手：今天每局开工应援值 +35！');
+    },
+  });
 
   // —— 扭蛋机 ——
   const C = { x: 26, z: -8 };
@@ -335,10 +347,9 @@ export function installFun(game) {
   const F = { x: -18, z: 8.4 };
   const ft = put(fortuneTube(), F.x, F.z, 0.35, 1.0);
   town.inter.push({ id: 'fortune', x: F.x + 0.5, z: F.z + 1.1, r: 1.9, label: () => (today().used.fortune ? '幸运签筒 · 看看今天的签' : '幸运签筒 · 抽今天的签'), act: () => {
-    const f = today(), source = S;
-    const i = (gameDayNo() * 7 + 3) % FORTUNES.length, [lv, text] = FORTUNES[i];
-    const first = !f.used.fortune;
-    if (first) { f.used.fortune = 1; addCoins(20, 'fun'); stat('fortunes'); flushSave(); }
+    const source = S, { first, level: lv, text } = drawDailyFortune(S);
+    if (first) { addCoins(20, 'fun'); stat('fortunes'); }
+    flushSave();
     ft.userData.sh = 1; town.act('work', 0.6); town.face(F.x, F.z);
     for (let k = 0; k < 4; k++) setTimeout(() => { if (S === source) audio.sfx('step'); }, k * 80);
     setTimeout(() => {
@@ -379,5 +390,141 @@ export function installFun(game) {
   bus.on('reset', placeBottle);
   // 小镇新的一天：瓶子重新漂来
   bus.on('newDay', placeBottle);
-  window.__fun = { C, M, B, F, placeBottle, spot: () => spot };
+
+  // —— 🦋 花丛扑彩蝶：每天在小镇花坛间翩翩起舞 ——
+  const BUTTERFLY_SPOTS = [[-9.5, -5.2], [11.2, -5.4], [-12.5, 6.2], [13.5, 6.4]];
+  const bfGroup = group();
+  const wingL = cbox(0.22, 0.03, 0.28, glow('#ff9fbd', '#ffc2d6', 0.45, 1.5), -0.11, 0, 0, { r: 0.01, ...ns });
+  const wingR = cbox(0.22, 0.03, 0.28, glow('#7fd3ee', '#bfe6ff', 0.45, 1.5), 0.11, 0, 0, { r: 0.01, ...ns });
+  const bfBody = cbox(0.05, 0.05, 0.24, '#5b4252', 0, 0, 0, { r: 0.02, ...ns });
+  bfGroup.add(wingL, wingR, bfBody);
+  bfGroup.scale.setScalar(1.25);
+  town.scene.add(bfGroup);
+  let bfSpot = BUTTERFLY_SPOTS[0];
+  const placeButterfly = () => {
+    town.inter = town.inter.filter((i) => i.id !== 'butterfly');
+    if (usedToday().butterfly) { bfGroup.visible = false; return; }
+    const ok = BUTTERFLY_SPOTS.filter(([x, z]) => !town.blocked(x, z, 0.4));
+    bfSpot = (ok.length ? ok : BUTTERFLY_SPOTS)[(gameDayNo() * 3 + 2) % (ok.length || BUTTERFLY_SPOTS.length)];
+    bfGroup.position.set(bfSpot[0], 0.95, bfSpot[1]);
+    bfGroup.visible = true;
+    town.inter.push({
+      id: 'butterfly', x: bfSpot[0], z: bfSpot[1], r: 1.85,
+      label: '🦋 花丛闪光彩蝶 · 轻轻扑蝶', sub: '收集晨露花粉与随机种子',
+      act: () => {
+        const g = today();
+        if (g.used.butterfly) return;
+        g.used.butterfly = 1;
+        const c = pick(CROPS.slice(0, 6));
+        S.seeds[c.id] = (S.seeds[c.id] || 0) + 1;
+        bus.emit('seed', S.seed);
+        addCoins(35, 'fun');
+        flushSave();
+        town.face(bfSpot[0], bfSpot[1]);
+        town.act('cheer', 0.75);
+        audio.sfx('sparkle');
+        fx.sparkle(town.scene, here(bfSpot[0], bfSpot[1], 1.1), 12, ['#ff9fbd', '#7fd3ee', '#ffe27a', '#ffffff']);
+        ui.toast(`🦋 彩蝶留下了晨露花礼：+35 噗灵 · ${c.name}种子 ×1`, { icon: seedIco(c.id), kind: 'live-reward' });
+        placeButterfly();
+      },
+    });
+  };
+  town.ticks.push((time) => {
+    if (!bfGroup.visible) return;
+    wingL.rotation.z = Math.sin(time * 16) * 0.55;
+    wingR.rotation.z = -Math.sin(time * 16) * 0.55;
+    bfGroup.position.x = bfSpot[0] + Math.cos(time * 1.8) * 0.35;
+    bfGroup.position.z = bfSpot[1] + Math.sin(time * 2.3) * 0.28;
+    bfGroup.position.y = 0.95 + Math.sin(time * 3.6) * 0.15;
+    bfGroup.rotation.y = -time * 1.8;
+  });
+  placeButterfly();
+  bus.on('reset', placeButterfly);
+  bus.on('newDay', placeButterfly);
+
+  // —— 🐚 海岸拾贝壳：每天在沙滩冲上岸的虹彩海螺 ——
+  const SHELL_SPOTS = [[-22, 20.3], [8, 20.4], [-10, 20.5], [24, 20.2]];
+  const shellGroup = group();
+  shellGroup.add(
+    cyl(0.22, 0.28, 0.05, '#fbeed8', 0, 0, 0, { seg: 12, cast: false }),
+    cbox(0.28, 0.16, 0.24, '#ffc2d6', 0, 0.06, 0, { r: 0.07 }),
+    cbox(0.18, 0.14, 0.16, '#c9b6f2', 0.08, 0.14, 0, { r: 0.05 }),
+    sph(0.06, glow('#ffffff', '#ffe27a', 0.6, 1.8), -0.04, 0.16, 0.04, ns),
+  );
+  shellGroup.scale.setScalar(1.35);
+  town.scene.add(shellGroup);
+  let shellSpot = SHELL_SPOTS[0];
+  const placeShell = () => {
+    town.inter = town.inter.filter((i) => i.id !== 'seashell');
+    if (usedToday().shell) { shellGroup.visible = false; return; }
+    const ok = SHELL_SPOTS.filter(([x, z]) => !town.blocked(x, z, 0.4));
+    shellSpot = (ok.length ? ok : SHELL_SPOTS)[(gameDayNo() * 7 + 3) % (ok.length || SHELL_SPOTS.length)];
+    shellGroup.position.set(shellSpot[0], 0.02, shellSpot[1]);
+    shellGroup.visible = true;
+    town.inter.push({
+      id: 'seashell', x: shellSpot[0], z: shellSpot[1], r: 1.75,
+      label: '🐚 岸边有虹彩海螺 · 捡起来', sub: '听听海浪带来的礼物',
+      act: () => {
+        const g = today();
+        if (g.used.shell) return;
+        g.used.shell = 1;
+        const isPearl = Math.random() < 0.3;
+        const coins = isPearl ? 85 : 45;
+        addCoins(coins, 'fun');
+        flushSave();
+        town.face(shellSpot[0], shellSpot[1]);
+        town.act('work', 0.6);
+        audio.sfx(isPearl ? 'fanfare' : 'success');
+        fx.sparkle(town.scene, here(shellSpot[0], shellSpot[1], 0.7), 10, ['#ffc2d6', '#c9b6f2', '#ffffff']);
+        ui.toast(isPearl ? `🐚 惊喜！海螺里藏着一颗星光珍珠 +${coins} 噗灵` : `🐚 捡到了漂亮的虹彩海螺 +${coins} 噗灵`, { icon: coinIco(), kind: 'live-reward' });
+        placeShell();
+      },
+    });
+  };
+  placeShell();
+  bus.on('reset', placeShell);
+  bus.on('newDay', placeShell);
+
+  // —— 🌠 海岸观星墩：每日星光许愿 ——
+  const W = { x: 6.2, z: 18.6 };
+  const wishStone = group();
+  wishStone.add(
+    cyl(0.45, 0.55, 0.35, '#e4dcd2', 0, 0, 0, { seg: 8 }),
+    cyl(0.32, 0.38, 0.42, '#f1e9df', 0, 0.35, 0, { seg: 8 }),
+    cbox(0.28, 0.28, 0.28, glow('#ffe27a', '#ff9fbd', 0.65, 2.0), 0, 0.95, 0, { r: 0.06, rx: 0.6, rz: 0.6 }),
+  );
+  put(wishStone, W.x, W.z, 0, 0.65);
+  town.ticks.push((time) => {
+    const star = wishStone.children[2];
+    if (star) {
+      star.position.y = 0.95 + Math.sin(time * 2.4) * 0.08;
+      star.rotation.y = time * 1.2;
+    }
+  });
+  town.inter.push({
+    id: 'starWish', x: W.x, z: W.z + 0.95, r: 1.85,
+    label: () => (usedToday().starWish ? '🌠 观星许愿石 · 今日已许愿' : '🌠 观星许愿石 · 对着流星许愿'),
+    sub: '每日一次星光赐福与有机花肥',
+    act: () => {
+      const g = today();
+      if (g.used.starWish) {
+        ui.toast('今天已经向星光许过愿啦，明天再来吧');
+        audio.sfx('tab');
+        return;
+      }
+      g.used.starWish = 1;
+      addCoins(50, 'fun');
+      addFertilizer(S, 1);
+      flushSave();
+      town.face(W.x, W.z);
+      town.act('cheer', 0.85);
+      audio.sfx('fanfare');
+      fx.confetti(town.scene, here(W.x, W.z, 2.2), 20);
+      fx.sparkle(town.scene, here(W.x, W.z, 1.5), 14, ['#ffe27a', '#ff9fbd', '#7fd3ee', '#ffffff']);
+      ui.toast('🌠 流星划过小镇夜空：获得 +50 噗灵与 1 袋有机花肥！', { icon: coinIco(), kind: 'live-reward' });
+      ui.refreshAll?.();
+    },
+  });
+
+  window.__fun = { C, M, B, F, W, placeBottle, placeButterfly, placeShell, spot: () => spot };
 }

@@ -4,7 +4,14 @@ import { Momo } from './character.js';
 import { cropModel } from './items.js';
 import { HOUSE_FURNITURE_BUILD } from './house-furniture.js';
 import { buildYardBuilding } from './yard-building.js';
-import { PHOTO_THEMES, photoThemeIndex } from '../shared/save-compat.js';
+
+const PHOTO_THEMES = [
+  { id: 'sunset', sky: '#bfe6ff', hill: '#98de9b', sun: '#ffe066' },
+  { id: 'sakura', sky: '#ffd6e5', hill: '#8fd9a8', sun: '#fff3b0' },
+  { id: 'starry', sky: '#3b4371', hill: '#5c7a99', sun: '#f6d365' },
+  { id: 'meadow', sky: '#ffe5b4', hill: '#e8a87c', sun: '#ff7f50' },
+];
+const photoThemeIndex = (v) => v === undefined ? 0 : (Number.isSafeInteger(v) && v >= 0 && v <= 20) ? v % PHOTO_THEMES.length : PHOTO_THEMES.findIndex(t => t.id === v);
 
 const TRUNK = '#b98b6b', WOOD = '#d2a67e', WOOD_D = '#b3855f', STONE = '#f1e9df', STONE_D = '#ddd2c5', WHITE = '#ffffff';
 const LEAF = '#8fd694', LEAF_L = '#a9e3a0', LEAF_D = '#72c58a';

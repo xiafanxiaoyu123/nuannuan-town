@@ -484,18 +484,32 @@ export const photo = {
     poseList.addEventListener('wheel', e => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { poseList.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
     const triBtn = b('', '', () => this.setFixed(!P.fixed));
     const gridBtn = b('', '九宫格', () => { P.grid = !P.grid; this.refreshUI(); });
+    const cardBtn = b('', '明信片框', () => { P.postcard = !P.postcard; this.refreshUI(); });
+    const lookBtn = b('', '👀看镜头', () => {
+      const town = game.town;
+      const camPos = town.camera.position;
+      const pYaw = Math.atan2(camPos.x - town.pos.x, camPos.z - town.pos.z);
+      town.faceTarget = pYaw;
+      town.player.root.rotation.y = pYaw;
+      if (town.momo?.root) {
+        const mPos = town.momo.root.position;
+        town.momo.root.rotation.y = Math.atan2(camPos.x - mPos.x, camPos.z - mPos.z);
+      }
+      ui.toast('暖暖与大喵已看向镜头 ✨');
+    });
     const filterBtn = b('', '滤镜·原色', () => { P.filterIdx = (P.filterIdx + 1) % PHOTO_FILTERS.length; this.refreshUI(); });
     const shutter = h('button', { class: 'pshutter', 'aria-label': '快门', onclick: (e) => { e.stopPropagation(); audio.init(); this.press(); } }, h('i'));
     const thumb = h('button', { class: 'photo-thumb', 'aria-label': '看刚拍的照片', onclick: (e) => { e.stopPropagation(); this.view(); } });
     const shots = h('span', { class: 'pbtn ghost num' }, `已拍 ${own.shots || 0}`);
-    const frameEl = h('div', { class: 'photo-frame' });
+    const stampEl = h('div', { class: 'photo-postcard-stamp' }, h('b', {}, '📮 暖暖的方块小镇'), h('small', {}, 'COZY BLOCK TOWN · 旅途留念'));
+    const frameEl = h('div', { class: 'photo-frame' }, stampEl);
     el = h('div', { class: 'photo-ui' }, pad, frameEl, count,
-      h('div', { class: 'photo-top' }, h('span', { class: 'photo-tip' }), gridBtn, filterBtn, shots),
+      h('div', { class: 'photo-top' }, h('span', { class: 'photo-tip' }), gridBtn, cardBtn, lookBtn, filterBtn, shots),
       h('button', { class: 'photo-exit', 'aria-label': '退出拍照', onclick: (e) => { e.stopPropagation(); audio.init(); this.exit(); } }, '✕ 退出'),
       own.stick ? h('label', { class: 'photo-zoomwrap' }, h('span', {}, '远'), zoom, h('span', {}, '近')) : null,
       thumb, posePanel,
       h('div', { class: 'photo-bar' }, modeBtn, poseBtn, shutter, own.tripod ? triBtn : h('span', { class: 'pbtn ghost' }, '支架未购买')));
-    Object.assign(el, { _count: count, _pad: pad, _frame: frameEl, _grid: gridBtn, _filter: filterBtn, _mode: modeBtn, _pose: poseBtn, _poseList: poseList, _poseNote: poseNote, _tri: triBtn, _tip: el.querySelector('.photo-tip'), _zoom: zoom, _zoomNow: zoomNow, _thumb: thumb, _shots: shots });
+    Object.assign(el, { _count: count, _pad: pad, _frame: frameEl, _grid: gridBtn, _card: cardBtn, _filter: filterBtn, _mode: modeBtn, _pose: poseBtn, _poseList: poseList, _poseNote: poseNote, _tri: triBtn, _tip: el.querySelector('.photo-tip'), _zoom: zoom, _zoomNow: zoomNow, _thumb: thumb, _shots: shots });
     ui.root.append(el);
     this.refreshUI();
   },
@@ -505,8 +519,12 @@ export const photo = {
     el._mode.textContent = P.mode === 'selfie' ? '自拍 → 拍别人' : '拍别人 → 自拍';
     el._mode.classList.toggle('off', fixed);
     el._mode.disabled = fixed;
-    if (el._frame) el._frame.classList.toggle('grid-on', !!P.grid);
+    if (el._frame) {
+      el._frame.classList.toggle('grid-on', !!P.grid);
+      el._frame.classList.toggle('postcard-on', !!P.postcard);
+    }
     if (el._grid) el._grid.setAttribute('aria-pressed', String(!!P.grid));
+    if (el._card) el._card.setAttribute('aria-pressed', String(!!P.postcard));
     const flt = PHOTO_FILTERS[P.filterIdx] || PHOTO_FILTERS[0];
     if (el._filter) el._filter.textContent = `滤镜·${flt.name}`;
     if (app.canvas?.style) app.canvas.style.filter = flt.css;

@@ -4,7 +4,7 @@ import { MiniGame } from './common.js';
 import { S } from '../core/state.js';
 import { audio } from '../core/audio.js';
 import { fx } from '../core/fx.js';
-import { h, tween, popIn, seeded } from '../core/util.js';
+import { h, popIn, seeded } from '../core/util.js';
 
 import { TAILOR_LANES, tailorKeyLane, fourLaneChart } from './tailor-lanes.js';
 
@@ -275,8 +275,10 @@ export class TailorGame extends MiniGame {
     this.t0 = audio.now() - at / rate;
     audio.setMusicRate(rate);
   }
-  get hitWindow() { return 0.27 * Math.pow(1.25, this.perks.wide || 0); }
-  get perfectWindow() { return 0.1 * Math.pow(1.25, this.perks.wide || 0) * (1 + this.fx('strings')); }
+  get hitWindow() { return this._hitWindow ?? (0.27 * Math.pow(1.25, this.perks.wide || 0)); }
+  set hitWindow(v) { this._hitWindow = v; }
+  get perfectWindow() { return this._perfectWindow ?? (0.1 * Math.pow(1.25, this.perks.wide || 0) * (1 + this.fx('strings'))); }
+  set perfectWindow(v) { this._perfectWindow = v; }
   makeChart() {
     const seed = Math.floor(Math.random() * 1e6);
     const tier = Math.min(3, Math.floor((this.lv - 1) * 0.6) + (this.endless ? 0 : Math.floor((this.stage - 1) / 4)));
@@ -304,12 +306,28 @@ export class TailorGame extends MiniGame {
     };
     const base = make(false); // 星级门槛始终取同种子的普通谱，不随特殊规则上调
     this.chart = fourLaneChart(this.modifier?.id === 'long' ? make(true) : base, this.modifier?.id === 'mirror');
+    this.chart.forEach((n, idx) => { if (idx > 0 && idx % 8 === 0) n.gold = true; });
     this.total = this.chart.length;
     this.maxScore = base.length * 5 + base.filter((n) => n.dur).length * 6;
     const sk = this.endless ? 0.25 : Math.min(1.3, 0.85 + (this.stage - 1) * 0.04);
     this.starAt = [0.3, 0.5, 0.66].map((r) => Math.round(this.maxScore * Math.min(0.96, r * sk)));
     if (this.goalEl) this.goalEl.lastChild.textContent = this.starAt[0];
+    this.syncGoalProgress?.();
     this.ci = 0;
+  }
+  syncMannequin() {
+    if (!this.mannequinParts) return;
+    const step = this.sewn % 14;
+    const thresholds = [3, 7, 10, 13];
+    this.mannequinParts.forEach((part, idx) => {
+      const show = step >= thresholds[idx];
+      if (show && !part.visible) {
+        part.visible = true;
+        popIn(part, 0.25);
+      } else if (!show) {
+        part.visible = false;
+      }
+    });
   }
   // 输入梯形来自真实布面投影；音符仍按原来的歌曲时钟线性前进。
   measureLanes() {
@@ -329,7 +347,7 @@ export class TailorGame extends MiniGame {
   }
   spawnNote(n) {
     const el = this.pool[n.lane].pop() || buttonNote();
-    el.className = 'tailor-note';
+    el.className = 'tailor-note' + (n.gold ? ' gold' : '');
     el.style.opacity = '';
     el.dataset.lane = n.lane;
     el.stageNote ||= createStageNote(this, n.lane);
@@ -373,24 +391,35 @@ export class TailorGame extends MiniGame {
     }
     if (!best) { audio.sfx('step'); return; }
     const perfect = bd < this.perfectWindow;
-    best.state = best.dur ? 'hold' : 'sewn';
-    if (best.dur) this.holding[lane] = best;
+    this.stitch(best, perfect);
+  }
+  // 普通点按与大喵辅助共用同一套计分和成衣规则，已处理的纽扣不能再次入账。
+  stitch(n, perfect) {
+    if (!this.playing || n.state !== 'fly') return false;
+    const lane = n.lane;
+    const now = this.songTime();
+    const diff = now - (n.time || now);
+    n.state = n.dur ? 'hold' : 'sewn';
+    if (n.dur) this.holding[lane] = n;
     this.sewn++;
     this.stats[perfect ? 'perfect' : 'good']++;
     this.setCombo(this.combo + 1);
     const points = (perfect ? 5 : 3) + Math.min(3 + this.fx('ballet'), Math.floor(this.combo / 10));
     this.addScore(this.modifier?.id === 'strict' ? (perfect ? points * 1.6 : 0) : points);
     audio.sfx(perfect ? 'perfect' : 'good');
-    this.judge(perfect ? 'Perfect!' : 'Good', perfect ? '#f0679a' : '#6fcf9f');
+    const judgeTxt = perfect ? (n.gold ? '✨Perfect!' : 'Perfect!') : (diff < 0 ? 'Good · 偏快' : 'Good · 偏慢');
+    this.judge(judgeTxt, n.gold && perfect ? '#ffd76a' : perfect ? '#f0679a' : '#6fcf9f');
     const p = this.stitchPoint(lane, 0.4);
-    fx.sparkle(this.scene, p, perfect ? 9 : 4, [LANE_COL[lane], '#ffffff', '#fff3a8']);
-    this.renderNote(best, t);
+    fx.sparkle(this.scene, p, n.gold ? 12 : perfect ? 9 : 4, [n.gold ? '#ffd76a' : LANE_COL[lane], '#ffffff', '#fff3a8']);
+    this.renderNote(n, now);
     const ring = this.rings[lane];
-    tween({ dur: 0.25, update: (k) => ring.scale.setScalar(1 + Math.sin(k * Math.PI) * 0.3) });
-    // 每缝 14 颗纽扣完成一件成衣
+    this.tween({ dur: 0.25, update: (k) => ring.scale.setScalar(1 + Math.sin(k * Math.PI) * 0.3) });
+    // 每缝 14 颗纽扣完成一件成衣，实时同步 3D 假人模台
     const per = 14;
     this.progFill.style.width = ((this.sewn % per) / per) * 100 + '%';
+    this.syncMannequin();
     if (this.sewn % per === 0) this.finishGarment();
+    return true;
   }
   // 长针脚：松手时没走完就断线
   release(lane) {
@@ -400,7 +429,7 @@ export class TailorGame extends MiniGame {
     this.endHold(n, this.songTime() >= n.time + n.dur - 0.22);
   }
   endHold(n, ok) {
-    if (!this.playing) return;
+    if (!this.playing || n.state !== 'hold' || this.holding[n.lane] !== n) return;
     this.holding[n.lane] = null;
     if (ok) {
       n.state = 'sewn';
@@ -427,9 +456,21 @@ export class TailorGame extends MiniGame {
     const cols = ['#ff9fbd', '#b9a4f2', '#9fe0c5', '#ffe27a', '#8fd0f5', '#ffc9a8'];
     const g = group(-3.9 + (i % 9) * 0.97, -0.05, 0.1);
     const c = cols[i % cols.length];
+    const styleIdx = i % 4;
     g.add(cbox(0.5, 0.05, 0.05, '#b3855f', 0, 0, 0, { r: 0.02 }));
     g.add(box(0.5, 0.42, 0.2, c, 0, -0.5, 0, { r: 0.07 }));
-    g.add(frustum(0.5, 0.86, 0.5, c, 0, -1.0, 0, { sz: 0.4 }));
+    if (styleIdx === 0) {
+      g.add(frustum(0.5, 0.86, 0.5, c, 0, -1.0, 0, { sz: 0.4 }));
+    } else if (styleIdx === 1) {
+      g.add(frustum(0.42, 0.68, 0.28, '#fff7fb', 0, -0.78, 0, { sz: 0.4 }));
+      g.add(frustum(0.55, 0.88, 0.3, c, 0, -1.06, 0, { sz: 0.4 }));
+    } else if (styleIdx === 2) {
+      g.add(box(0.44, 0.42, 0.18, c, 0, -0.88, 0, { r: 0.06 }));
+      g.add(frustum(0.36, 0.78, 0.28, '#fff5f8', 0, -1.16, 0, { sz: 0.38 }));
+    } else {
+      g.add(cbox(0.68, 0.22, 0.24, '#fff7fb', 0, -0.24, 0, { r: 0.06 }));
+      g.add(frustum(0.48, 0.82, 0.48, c, 0, -0.98, 0, { sz: 0.4 }));
+    }
     g.add(cbox(0.14, 0.1, 0.06, '#ffffff', 0, -0.2, 0.11, { r: 0.03 }));
     this.rack.add(g);
     popIn(g, 0.5);
@@ -456,22 +497,53 @@ export class TailorGame extends MiniGame {
     void this.bigCombo.offsetWidth;
     this.bigCombo.classList.add('pop');
   }
+  momoNotes() {
+    const t = this.songTime();
+    return this.notes.filter((n) => (n.state === 'hold' && this.holding[n.lane] === n)
+      || (n.state === 'fly' && !this.holding[n.lane] && n.time >= t - this.hitWindow && n.time <= t + 1))
+      .sort((a, b) => a.time - b.time).slice(0, 4);
+  }
+  canMomoSkill() {
+    if (!this.chart) return false;
+    const t = this.songTime();
+    return this.notes.some((n) => (n.state === 'hold' && this.holding[n.lane] === n)
+      || (n.state === 'fly' && !this.holding[n.lane] && n.time >= t - this.hitWindow && n.time <= t + 1));
+  }
+  onMomoSkill() {
+    if (!this.playing || !this.canMomoSkill()) return false;
+    for (const n of this.momoNotes()) {
+      if (n.state === 'fly') this.stitch(n, true);
+      if (n.state === 'hold') this.endHold(n, true);
+    }
+    this.judge('🐾 大喵巧手 · 自动缝制!', '#e9a520');
+    return true;
+  }
   onFinish() {
     this.clearInputs(false);
     this.pauseBtn.disabled = true;
     this.nikki.setPose('cheer');
+    const judgments = this.total + (this.chart ? this.chart.filter((n) => n.dur).length : 0);
+    const judged = this.stats.perfect + this.stats.good + this.stats.miss;
+    if (this.sewn >= 12 && judgments > 0 && judged === judgments && this.stats.miss === 0) {
+      const isAP = this.stats.good === 0;
+      this.fcBadge = isAP ? '👑 ALL PERFECT' : '✨ FULL COMBO';
+      this.addScore(isAP ? 35 : 20);
+      this.judge(isAP ? '👑 ALL PERFECT! +35' : '✨ FULL COMBO! +20', '#ffd76a');
+    }
     audio.stopMusic();
   }
   resultLines() {
     const all = this.total + (this.chart ? this.chart.filter((n) => n.dur).length : 0);
     const acc = all ? Math.round(((this.stats.perfect + this.stats.good * 0.6) / all) * 100) : 0;
-    return [['营业额', this.score], ['Perfect / Good / Miss', `${this.stats.perfect} / ${this.stats.good} / ${this.stats.miss}`], ['完成成衣', `${this.garments} 件 · 准确率 ${acc}%`], ['最高连击', '×' + (this.maxCombo || 0)]];
+    const res = [['营业额', this.score], ['Perfect / Good / Miss', `${this.stats.perfect} / ${this.stats.good} / ${this.stats.miss}`], ['完成成衣', `${this.garments} 件 · 准确率 ${acc}%`], ['最高连击', '×' + (this.maxCombo || 0)]];
+    if (this.fcBadge) res.push(['高光评级', this.fcBadge]);
+    return res;
   }
 
   tick(dt, time) {
     this.nikki.update(dt);
     this.momo.update(dt);
-    if (this.momoJump > 0) { this.momoJump -= dt; this.momo.root.position.y = this.momoBaseY + Math.abs(Math.sin(this.momoJump * 10)) * 0.5; }
+    if (this.momoJump > 0) { this.momoJump = Math.max(0, this.momoJump - dt); this.momo.root.position.y = this.momoBaseY + Math.abs(Math.sin(this.momoJump * 10)) * 0.5; }
     const st = this.state === 'play' && this.chart ? this.songTime() : null;
     const flow = st !== null ? st : time;
     const beat = st !== null ? (st / (this.stepDur * 2)) % 1 : 0;
