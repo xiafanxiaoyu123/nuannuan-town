@@ -273,6 +273,7 @@ class App {
   frame() {
     if (this.suspended) return;
     let dt = this.clock.getDelta();
+
     // 限帧：没到下一帧的时间就整帧跳过（不更新也不渲染），省下的就是电和热
     const cap = (this.capNow = this.desiredCap());
     if (cap > 0) {

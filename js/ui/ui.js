@@ -1,5 +1,5 @@
 // 界面层：HUD、提示、弹窗、标题画面
-import { h, fmt, tween, ease, clamp, dragScroll } from '../core/util.js';
+import { h, fmt, tween, ease, clamp, dragScroll ,lerp } from '../core/util.js';
 import { app } from '../core/app.js';
 import { audio } from '../core/audio.js';
 import { autosave, backupInfo, restoreBackup, checkAch, checkQuest, achReward, shopUpgradePrice, cropSellPrice, decorSellPrice } from '../core/state.js';
@@ -31,6 +31,7 @@ import { festivalDialogue } from '../live/festival-dialogue.js';
 import { account, accountSummary } from '../core/account.js';
 import { startMailMonitor } from '../core/mail-monitor.js';
 import { LOCAL_PLAY } from '../core/local-play-mode.js';
+
 
 export const SVG = {
   more: '<svg viewBox="0 0 24 24"><circle class="fill" cx="5" cy="12" r="1.8"/><circle class="fill" cx="12" cy="12" r="1.8"/><circle class="fill" cx="19" cy="12" r="1.8"/></svg>',
@@ -68,6 +69,9 @@ class UI {
   init(game) {
     this.game = game;
     game.ui = this;
+
+    
+
     this.root = document.getElementById('ui');
     this.irisEl = document.getElementById('iris');
     this.toasts = h('div', { class: 'toasts' });
@@ -187,6 +191,8 @@ class UI {
     el.classList.remove('closed');
     await new Promise((r) => setTimeout(r, 400));
   }
+  
+  
 
   // ——— HUD ———
   buildHUD() {
@@ -208,8 +214,17 @@ class UI {
       h('span', {}, h('span', { class: 'kbd' }, 'W'), h('span', { class: 'kbd' }, 'A'), h('span', { class: 'kbd' }, 'S'), h('span', { class: 'kbd' }, 'D'), ' 或点击地面移动'),
       h('span', {}, h('span', { class: 'kbd' }, 'E'), ' 互动'), h('span', {}, '滚轮缩放'));
     const ib = (icon, label, fn, extra = '') => h('button', { class: 'ibtn' + (extra ? ` ${extra}` : ''), onclick: click(fn), 'aria-label': label }, h('span', {}, svg(icon)), h('span', {}, label));
+    
+    this.fpsEl = h('div', { class: 'fps-counter' }, '-- FPS');
+    this.refreshFpsVisibility();
+  
+    this.root.append(this.fpsEl);
+    
     this.hud = h('div', { class: 'hud off' },
+
       h('div', { class: 'hud-tl' },
+
+
         h('div', { class: 'me' }, this.avaEl, h('div', {}, h('b', {}, '暖暖'), this.rankEl)),
         this.coinPill,
         h('div', { class: 'pill beauty', title: '家园美化度' }, svg('heart'), this.beautyEl)),
@@ -328,6 +343,13 @@ class UI {
     this.root.append(this.hud, this.decorbar, this.decortop);
     this.buildSeeds();
     this.buildDecorList();
+
+    //Fps Show Debug
+    app.hooks.push(() => {
+        this.fpsEl.fps = lerp( app.fpsAvg , (this.fpsEl.fps|| 0) , 0.8)
+        if (this.fpsEl) this.fpsEl.textContent = Math.round(this.fpsEl.fps) + ' FPS';
+    });
+    
   }
   showHUD(on) {
     this.hud.classList.toggle('off', !on);
@@ -990,6 +1012,11 @@ class UI {
           h('em', { class: 'dot' }), h('b', {}, '阶段奖励'), h('p', {}, '提升美化度，领取噗灵并解锁居民来访')))), { ribbon: '暖暖的家', cls: 'live-modal' });
   }
 
+  refreshFpsVisibility() {
+    //FPS计数器状态刷新（是否显示）
+    if (this.fpsEl) this.fpsEl.style.display = S.settings.showFps ? '' : 'none';
+  }
+
   settingsPanel() {
     const g = this.game;
     const seg = h('div', { class: 'seg' });
@@ -1029,6 +1056,17 @@ class UI {
     m = this.modal(h('div', { class: 'settings' },
       h('h2', {}, '设置'),
       tutorialPreferenceControl(),
+          ///TRM Debug Setting    Fps Display 
+         h('label', {}, '显示 FPS', h('button', {
+        class: 'btn alt sm',
+        onclick: click((e) => {
+          S.settings.showFps = !S.settings.showFps ;
+          save();
+          this.refreshFpsVisibility();
+          e.currentTarget.textContent = S.settings.showFps ? 'On' : 'Off';
+        })
+      }, S.settings.showFps  ? 'On' : 'Off')),
+
       h('label', {}, '背景音乐', range('music')),
       h('label', {}, '音效', range('sfx')),
       h('label', {}, '画面', seg),

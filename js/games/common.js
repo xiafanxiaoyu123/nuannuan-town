@@ -159,7 +159,7 @@ export class MiniGame {
         if (this.dead || !this.paused) break;
         this.countEl.replaceChildren(h('span', {}, t));
         audio.sfx('tick');
-        await wait(0.6);
+        await wait(0.1);
       }
       if (!this.dead) this.countEl.replaceChildren();
       this.resuming = null;

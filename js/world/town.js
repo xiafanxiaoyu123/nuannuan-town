@@ -631,6 +631,8 @@ export class Town {
 
   buildActors() {
     this.player = new Character(outfitToLook(S.outfit));
+    this.player.MoveSpeed = this.player.MoveSpeed * 1.25;
+
     this.pos = new THREE.Vector3(TOWN_HOUSE.x, 0, TOWN_HOUSE.z + 4.4);
     this.zone = 'town';
     this.player.root.position.copy(this.pos);
@@ -1147,7 +1149,7 @@ export class Town {
     const len = Math.hypot(mx, mz);
     if (len > 0) {
       mx /= len; mz /= len;
-      const sp = 5.6 * (1 + outfitFx(S.outfit, 'trip'));
+      const sp = pl.MoveSpeed * (1 + outfitFx(S.outfit, 'trip'));
       const ox = this.pos.x, oz = this.pos.z;
       if (this.zone === 'build') this.moveOnYard(mx * sp * dt, mz * sp * dt);
       else {

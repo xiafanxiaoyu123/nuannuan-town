@@ -1308,7 +1308,17 @@ export class Character {
     this.pose = 'idle';
     this.blinkT = rand(2, 4);
     this.setLook(look);
+    this.InitCharacter()
   }
+
+  InitCharacter = function (type) {
+    this.MoveSpeed = 5.6
+  }
+
+  UpdateMove = function(dt) {
+    
+  }
+
 
   setLook(look) {
     this.look = look;
