@@ -29,6 +29,8 @@
   scrollbar-width: thin;
 }
 #ui .modal > .ribbon { z-index: 1; max-width: calc(100% - 3.5rem); padding-left: 1rem; padding-right: 1rem; letter-spacing: .15em; }
-#ui .modal > .x { z-index: 2; }
+#ui .modal > .x { z-index: 2; touch-action: manipulation; }
 /* 商店已有内部高度上限，外框接管滚动后不再形成双重滚动条。 */
 #ui .shop-modal .shop { max-height: none; overflow: visible; }
+#ui .modal > .modal-body { -webkit-overflow-scrolling: touch; }
+

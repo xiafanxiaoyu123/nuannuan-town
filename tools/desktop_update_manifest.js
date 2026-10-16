@@ -127,3 +127,4 @@ if (fullOutputArg) {
 fs.mkdirSync(path.dirname(output), { recursive: true });
 fs.writeFileSync(output, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 console.log(JSON.stringify({ status: 'ok', output, fullOutput, version, fileCount: manifest.files.length, removedCount: manifest.remove.length, bytes: manifest.files.reduce((sum, file) => sum + file.size, 0), incremental: Boolean(baseRoot), directLinkMapping: Boolean(urlMap) }, null, 2));
+

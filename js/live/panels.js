@@ -5,7 +5,7 @@ import { S, beauty, bus } from '../core/state.js';
 import { svg } from '../ui/components/svg.js';
 import { priceTag } from '../ui/components/price-tag.js';
 import { coinIco, cropIco, fishIco, clothIcon, shopIcon, mergeIco } from '../core/icons.js';
-import { STYLES, CLOTHES } from '../data.js';
+import { STYLES, CLOTHES, CROPS } from '../data.js';
 import { RESIDENTS as NPCS } from './people.js';
 import { live } from './api.js';
 import { chestIco, breadIco, bakeryIco, siteIco } from './props.js';
@@ -38,18 +38,25 @@ const PICO = {
 const pico = (n) => h('i', { class: 'pico', html: PICO[n] || PICO.star });
 const fly = (e, n = 6) => { const r = e.currentTarget.getBoundingClientRect(); requireLivePanelUi().flyCoins(r.left + r.width / 2, r.top, n); };
 
-// ——— 每日订单 + 七日签到 ———
+// ——— 每日订单 + 七日签到 + 闪购橱窗 + 集市周常 ———
 export function dailyPanel() {
   const ui = requireLivePanelUi();
   const body = h('div', { class: 'daily' });
   let date;
   const render = () => {
-    const d = live.daily(), s = live.signin();
+    const d = live.daily(), s = live.signin(), w = live.welcome(), sp = live.spotlight(), mk = live.market();
+    const hc = CROPS[Math.floor(Date.now() / 300000) % CROPS.length];
     date = d.date;
     body.replaceChildren(
-      h('div', { class: 'dl-head' }, h('div', {}, h('h2', {}, '每日订单'), h('p', {}, `现实日期 ${d.date} · 设备本地零点换新`)),
+      h('div', { class: 'dl-head' }, h('div', {}, h('h2', {}, '每日订单'), h('p', {}, `现实日期 ${d.date} · 今日高价收购：${hc.name} (×1.5)`)),
         h('button', { class: 'chestbtn' + (d.chest.done >= d.chest.need && !d.chest.claimed ? ' ready' : '') + (d.chest.claimed ? ' open' : ''), onclick: click((e) => { const v = live.claimChest(); if (v) { fly(e, 10); ui.toast(`今日宝箱：+${v}`, { kind: 'live-reward', icon: coinIco() }); render(); } }) },
           h('img', { src: chestIco(d.chest.claimed), alt: '' }), h('span', {}, d.chest.claimed ? '已开启' : `${d.chest.done}/${d.chest.need}`))),
+      h('div', { class: 'dl-welcome' + (w.claimed ? ' got' : '') },
+        h('img', { src: seedIco(w.seedId || 'strawberry'), alt: '' }),
+        h('div', { class: 'tx' }, h('b', {}, '大喵今日迎宾补给'), h('span', {}, `免费领 ${w.coins} 噗灵 + ${w.seedName} + 有机花肥 ×1`)),
+        w.claimed
+          ? h('span', { class: 'ach-got' }, '今日已领')
+          : h('button', { class: 'btn sm gold', onclick: click((e) => { const res = live.claimWelcome(); if (res) { fly(e, 5); ui.toast(`大喵送来迎宾礼：+${res.coins} 噗灵、${res.seedName} 与花肥！`, { kind: 'live-reward' }); render(); } }) }, '拆开补给')),
       h('div', { class: 'dl-list' }, d.tasks.map((t) => h('div', { class: 'dl-task' + (t.claimed ? ' got' : t.done ? ' ready' : '') },
         h('div', { class: 'tx' }, h('b', {}, t.text), h('div', { class: 'ach-bar' }, h('i', { style: { width: Math.min(100, (t.cur / t.need) * 100) + '%' } }), h('span', { class: 'num' }, `${fmt(Math.min(t.cur, t.need))}/${fmt(t.need)}`))),
         t.claimed ? h('span', { class: 'ach-got' }, '已领取') : t.done
@@ -60,7 +67,25 @@ export function dailyPanel() {
         const state = r.day < s.day || (r.day === s.day && s.claimedToday) ? 'got' : r.day === s.day ? 'today' : '';
         return h('button', { class: 'sday ' + state + (r.big ? ' big' : ''), disabled: state !== 'today', onclick: click((e) => { const v = live.claimSignin(); if (v) { fly(e); ui.toast(`签到成功：${v.name || '+' + v.coins + ' 噗灵'}`, { kind: 'live-reward' }); render(); } }) },
           h('em', {}, `第 ${r.day} 天`), h('img', { src: r.item === 'seed' ? seedIco('rose') : r.item === 'decor' ? decorIcon('sakura') : r.item === 'cloth' ? clothIcon('a_seven') : coinIco(), alt: '' }), h('b', {}, r.name || fmt(r.coins)), state === 'got' && h('span', { class: 'tick' }, svg('check')));
-      })));
+      })),
+      h('h3', {}, '今日闪购橱窗', h('em', {}, '每日特惠 7.5~8 折 · 零点刷新')),
+      h('div', { class: 'dl-spotlight' }, sp.items.map((it, idx) => {
+        const ico = it.kind === 'cloth' ? clothIcon(it.id) : it.kind === 'decor' ? decorIcon(it.id) : seedIco(it.id);
+        return h('div', { class: 'sp-card' + (it.bought ? ' got' : '') },
+          h('span', { class: 'sp-tag' }, '今日特惠'),
+          h('img', { src: ico, alt: '' }),
+          h('b', {}, it.name),
+          h('small', {}, `原价 ${fmt(it.orig)}`),
+          it.bought
+            ? h('span', { class: 'ach-got' }, '已收入囊中')
+            : h('button', { class: 'btn sm', onclick: click(() => { const res = live.buySpotlight(idx); if (res) { ui.toast(`入手特惠「${res.name}」！`, { kind: 'live-reward' }); render(); } else { ui.toast('噗灵不足或已拥有该物品'); } }, 'buy') }, priceTag(it.price)));
+      })),
+      h('h3', {}, '小镇周末集市周常', h('em', {}, '完成周常目标领种子与庭院装饰')),
+      h('div', { class: 'dl-list' }, mk.orders.map((o) => h('div', { class: 'dl-task' + (o.claimed ? ' got' : o.done ? ' ready' : '') },
+        h('div', { class: 'tx' }, h('b', {}, o.title), h('span', { class: 'dl-sub' }, o.desc), h('div', { class: 'ach-bar' }, h('i', { style: { width: Math.min(100, (o.cur / o.need) * 100) + '%' } }), h('span', { class: 'num' }, `${fmt(Math.min(o.cur, o.need))}/${fmt(o.need)}`))),
+        o.claimed ? h('span', { class: 'ach-got' }, '已领取') : o.done
+          ? h('button', { class: 'btn gold sm', onclick: click((e) => { const v = live.claimMarket(o.id); if (v) { fly(e, 8); ui.toast(`集市周常完成：+${v.coins} 噗灵与补给礼！`, { kind: 'live-reward' }); render(); } }) }, '领取 ', priceTag(o.coins))
+          : h('span', { class: 'ach-rw' }, priceTag(o.coins))))));
   };
   render();
   // 弹窗停留到次日时自动换单、开放新签到；关闭后释放计时器
@@ -74,20 +99,26 @@ export function dailyPanel() {
 // ——— 图鉴 ———
 export function bookPanel() {
   const ui = requireLivePanelUi();
-  let cur = 'fish';
+  let cur = 'fish', filter = 'all';
   const body = h('div', { class: 'book' });
   const pic = (it) => (it.kind === 'fish' ? fishIco(it.id) : it.kind === 'crop' ? cropIco(it.id) : it.kind === 'flower' ? mergeIco(it.id.split(':')[0], Number(it.id.split(':')[1])) : it.kind === 'set' ? clothIcon((CLOTHES.find((c) => c.set === it.id && c.cat === 'dress') || CLOTHES[0]).id) : null);
   const render = () => {
     const tabs = live.book(), t = tabs.find((x) => x.id === cur), n = t.items.filter((i) => i.found).length, full = t.items.every((i) => i.found || i.optional);
+    const visibleItems = t.items.filter((it) => (filter === 'found' ? it.found : filter === 'unk' ? !it.found : true));
     body.replaceChildren(
-      h('div', { class: 'bk-head' }, h('h2', {}, '小镇图鉴'),
+      h('div', { class: 'bk-head' },
+        h('div', { class: 'bk-top' },
+          h('h2', {}, '小镇图鉴'),
+          h('div', { class: 'bk-filters' },
+            [['all', '全部'], ['found', '已点亮'], ['unk', '未点亮']].map(([id, label]) =>
+              h('button', { type: 'button', class: 'bk-fbtn' + (filter === id ? ' on' : ''), onclick: click(() => { filter = id; render(); }, 'tab') }, label)))),
         h('div', { class: 'tabs' }, tabs.map((x) => h('button', { class: x.id === cur ? 'on' : '', onclick: click(() => { cur = x.id; render(); }, 'tab') }, x.name, h('em', {}, `${x.items.filter((i) => i.found).length}/${x.items.length}`))))),
-      h('div', { class: 'bk-grid' }, t.items.map((it) => {
+      h('div', { class: 'bk-grid' }, visibleItems.length ? visibleItems.map((it) => {
         const src = pic(it), npc = it.kind === 'npc' && NPCS.find((p) => p.id === it.id);
         return h('div', { class: 'bk-item' + (it.found ? '' : ' unk'), title: it.found ? it.name : it.hint },
           h('img', { src: npc ? npcIco(npc.id) : src, alt: '' }),
           h('b', {}, it.found ? it.name : '？？？'), !it.found && h('span', {}, it.hint), it.optional && h('em', { class: 'bk-opt' }, '节日限定'));
-      })),
+      }) : [h('div', { class: 'bk-empty' }, filter === 'found' ? '本分类还没有点亮的图鉴条目，快去小镇探索吧！' : '太棒啦！本分类图鉴已全部点亮！')]),
       h('div', { class: 'bk-foot' }, h('div', { class: 'ach-prog' }, h('i', { style: { width: (n / t.items.length) * 100 + '%' } })),
         t.claimed ? h('span', { class: 'ach-got' }, '本页奖励已领取') : h('button', { class: 'btn gold sm', disabled: !full, onclick: click((e) => { const v = live.claimBook(cur); if (v) { fly(e, 10); render(); } }) }, full ? '领取本页奖励 ' : '集齐本页可领 ', priceTag(t.reward))));
   };

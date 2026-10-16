@@ -3,12 +3,12 @@
 import { THREE, cbox, box, cyl, group, textPlane, disposeSceneResources } from '../core/kit.js';
 import { Character, Momo, outfitToLook, randomNpcLook } from '../models/character.js';
 import { FLOWERS, flowerModel } from '../models/items.js';
-import { MiniGame, buildRoom, roomLights, wallWindow, shelf, plantPot, jar } from './common.js';
+import { MiniGame, buildRoom, roomLights, wallWindow, shelf, plantPot, jar, fitToScreen } from './common.js';
 import { S, bus } from '../core/state.js';
 import { app } from '../core/app.js';
 import { audio } from '../core/audio.js';
 import { fx } from '../core/fx.js';
-import { h, rand, randInt, pick, angleLerp } from '../core/util.js';
+import { h, rand, randInt, pick, angleLerp, clamp } from '../core/util.js';
 import { mergeIco } from '../core/icons.js';
 
 const COLS = 6, ROWS = 4;
@@ -103,31 +103,63 @@ export class FlowerGame extends MiniGame {
       g.btn = h('button', { class: 'mgen', onclick: () => this.spawn(false, id) }, h('span', { class: 'key' }, key), h('img', { src: icon, alt: '' }), h('b', {}, g.name), g.pips);
       return g.btn;
     };
-    this.bin = h('div', { class: 'mbin' }, '拖到这里', h('br'), '回收');
+    this.bin = h('div', { class: 'mbin', onclick: () => {
+      if (this.selectedCell !== null && this.cells[this.selectedCell] && !this.cells[this.selectedCell].weed) {
+        const idx = this.selectedCell;
+        this.clearSelection();
+        this.cells[idx] = null;
+        this.renderCell(idx);
+        audio.sfx('remove');
+        this.syncReady();
+      }
+    } }, '拖到这里', h('br'), '回收');
     this.bubbles = h('div', { class: 'gorders', style: { position: 'absolute', inset: '0', pointerEvents: 'none' } });
-    this.mountHUD([this.bubbles, h('div', { class: 'gbar card merge' }, h('div', { class: 'mgens' }, gen('flower', mergeIco('rose', 1), '空格'), gen('ribbon', mergeIco('ribbon', 1), 'R')), this.board, this.bin)]);
+    this.barEl = h('div', { class: 'gbar card merge' }, h('div', { class: 'mgens' }, gen('flower', mergeIco('rose', 1), '空格'), gen('ribbon', mergeIco('ribbon', 1), 'R')), this.board, this.bin);
+    this.mountHUD([this.bubbles, this.barEl]);
+    fitToScreen(this.barEl, this.abort.signal, 0.52);
     this.renderPips();
-    // 拖拽合成
+    this.selectedCell = null;
+    this.clearSelection = () => {
+      this.selectedCell = null;
+      this.cellEls.forEach((c) => c.classList.remove('match', 'lift'));
+    };
+    // 拖拽与点选双模合成（A5）
     let drag = null;
     // 无论拖拽怎样结束（松手、被系统手势打断、暂停、退出），都把跟手的图标清干净
     this.cancelDrag = () => {
       drag = null;
       document.querySelectorAll('.mghost').forEach((g) => g.remove());
-      this.cellEls.forEach((c) => c.classList.remove('match', 'lift'));
+      this.clearSelection();
     };
-    const move = (e) => { if (drag && e.pointerId === drag.pid) drag.ghost.style.transform = `translate(${e.clientX}px, ${e.clientY}px) translate(-50%, -60%) scale(1.15)`; };
+    const move = (e) => {
+      if (!drag || e.pointerId !== drag.pid) return;
+      if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) >= 8) drag.moved = true;
+      drag.ghost.style.transform = `translate(${e.clientX}px, ${e.clientY}px) translate(-50%, -60%) scale(1.15)`;
+    };
     this.on(this.board, 'pointerdown', (e) => {
       const el = e.target.closest('.mcell');
       if (!el || !this.playing) return;
       const i = Number(el.dataset.i);
       const it = this.cells[i];
-      if (!it || it.weed) return;
+      if (!it || it.weed) {
+        // 已选中格子时点空格可直接移过去，点杂草或空白则取消选中（A5）
+        if (this.selectedCell !== null && !it) {
+          const from = this.selectedCell;
+          this.clearSelection();
+          this.drop(from, i);
+          this.syncReady();
+        } else {
+          this.clearSelection();
+        }
+        return;
+      }
       e.preventDefault();
-      this.cancelDrag(); // 上一次拖拽没收到松手事件时，别把图标留在屏幕上
+      const prevSel = this.selectedCell;
+      document.querySelectorAll('.mghost').forEach((g) => g.remove());
       try { this.board.setPointerCapture(e.pointerId); } catch (err) { /* 老浏览器 */ }
       const ghost = h('img', { class: 'mghost', src: mergeIco(it.t, it.lv) });
       document.body.append(ghost);
-      drag = { i, ghost, pid: e.pointerId };
+      drag = { i, ghost, pid: e.pointerId, x0: e.clientX, y0: e.clientY, moved: false, prevSel };
       el.classList.add('lift');
       this.cellEls.forEach((c, k) => c.classList.toggle('match', k !== i && same(this.cells[k], it) && it.lv < MAXLV[chain(it.t)]));
       move(e);
@@ -137,10 +169,30 @@ export class FlowerGame extends MiniGame {
     this.on(window, 'blur', () => this.cancelDrag(), { whilePaused: true });
     this.on(window, 'pointerup', (e) => {
       if (!drag || e.pointerId !== drag.pid) return;
-      const { i } = drag;
-      this.cancelDrag();
+      const { i, moved, prevSel } = drag;
+      drag = null;
+      document.querySelectorAll('.mghost').forEach((g) => g.remove());
       const hit = document.elementFromPoint(e.clientX, e.clientY);
       const cell = hit && hit.closest('.mcell'), bub = hit && hit.closest('.bubble'), bin = hit && hit.closest('.mbin');
+      if (!moved && (!cell || Number(cell.dataset.i) === i)) {
+        // 轻点格子：若之前已选中另一格则直接合成/交换；若点同一格则取消选中；否则保持选中高亮（A5）
+        if (prevSel !== null && prevSel !== i && this.cells[prevSel]) {
+          this.clearSelection();
+          this.drop(prevSel, i);
+        } else if (prevSel === i) {
+          this.clearSelection();
+        } else {
+          this.selectedCell = i;
+          const it = this.cells[i];
+          this.cellEls.forEach((c, k) => {
+            c.classList.toggle('lift', k === i);
+            c.classList.toggle('match', k !== i && it && same(this.cells[k], it) && it.lv < MAXLV[chain(it.t)]);
+          });
+        }
+        this.syncReady();
+        return;
+      }
+      this.clearSelection();
       if (cell) this.drop(i, Number(cell.dataset.i));
       else if (bub && bub._slot !== undefined) this.deliver(bub._slot);
       else if (bin) { this.cells[i] = null; this.renderCell(i); audio.sfx('remove'); }
@@ -150,6 +202,7 @@ export class FlowerGame extends MiniGame {
       if (e.repeat) return;
       if (e.code === 'Space') { e.preventDefault(); this.spawn(false, 'flower'); }
       if (e.code === 'KeyR') this.spawn(false, 'ribbon');
+      if (e.code === 'Escape') this.clearSelection();
     });
   }
   renderPips() {
@@ -246,12 +299,14 @@ export class FlowerGame extends MiniGame {
     const items = [{ t: pick(this.types).id, lv }];
     // 一部分客人要"花 + 包装"两样
     if (this.modifier?.id === 'gift' || (prog >= 2 && Math.random() < 0.3)) items.push({ t: 'ribbon', lv: Math.random() < 0.6 || prog < 3 ? 2 : 3 });
-    const reward = Math.round(items.reduce((s, it) => s + REWARD[chain(it.t)][it.lv], 0) * (items.length > 1 ? 1.35 : 1) * (this.modifier?.id === 'wedding' ? 1.5 : 1));
-    this.customers[slot] = { ch, state: 'in', tx: SPOTS[slot], o: { items, reward } };
+    const vip = prog >= 2 && Math.random() < 0.2;
+    const reward = Math.round(items.reduce((s, it) => s + REWARD[chain(it.t)][it.lv], 0) * (items.length > 1 ? 1.35 : 1) * (this.modifier?.id === 'wedding' ? 1.5 : 1) * (vip ? 1.3 : 1));
+    this.customers[slot] = { ch, vip, state: 'in', tx: SPOTS[slot], o: { items, reward } };
   }
   showBubble(slot) {
     const c = this.customers[slot], o = c.o;
-    c.el = h('div', { class: 'bubble', onclick: () => this.deliver(slot) },
+    c.el = h('div', { class: 'bubble' + (c.vip ? ' vip' : ''), onclick: () => this.deliver(slot) },
+      c.vip && h('span', { class: 'viptag' }, '熟客 +30%'),
       h('div', { class: 'its' }, o.items.map((it) => h('img', { src: mergeIco(it.t, it.lv), alt: '', title: nameOf(it) }))),
       h('span', { class: 'rw' }, `${o.items.map(nameOf).join(' + ')} · +${o.reward}`));
     c.el._slot = slot;
@@ -367,8 +422,10 @@ export class FlowerGame extends MiniGame {
         c.ch.root.rotation.y = angleLerp(c.ch.root.rotation.y, 0.5, 1 - Math.exp(-8 * dt));
         if (c.el) {
           const sp = app.project(new THREE.Vector3(p.x, 2.6, p.z), this.camera);
-          c.el.style.left = sp.x + 'px';
-          c.el.style.top = sp.y + 'px';
+          const half = (c.el.offsetWidth || 96) / 2 + 10;
+          const barTop = this.barEl?.getBoundingClientRect().top || (app.height - 170);
+          c.el.style.left = clamp(sp.x, half, app.width - half) + 'px';
+          c.el.style.top = Math.max((c.el.offsetHeight || 56) + 64, Math.min(sp.y, barTop - 10)) + 'px';
         }
       }
       c.ch.update(dt);

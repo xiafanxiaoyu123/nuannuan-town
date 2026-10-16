@@ -164,6 +164,8 @@ export class Wardrobe {
       h('div', { class: 'wtools-head' }, h('h3', {}, '搭配工具'), h('button', { class: 'wtools-close', 'aria-label': '返回服饰列表', onclick: () => this.toggleTools(false) }, '返回列表')),
       h('button', { class: 'btn sm wwork', onclick: () => { audio.sfx('click'); this.workPanel(); } }, svg('hanger'), '上班方案'),
       this.detailEl, this.setFxEl, this.bonusBar, this.styleEl);
+    this.styleFilter = 'all';
+    this.filterBar = h('div', { class: 'wfilters', 'aria-label': '风格与拥有状态筛选' });
     this.el = h('div', { class: 'wardrobe' },
       h('div', { class: 'wleft' }, h('button', { class: 'btn alt', onclick: () => { audio.sfx('click'); this.game.closeWardrobe(); } }, svg('back'), shop ? '离开小屋' : '换好了')),
       this.hint,
@@ -179,7 +181,7 @@ export class Wardrobe {
             } }, '展开'))),
         h('div', { class: 'wbody' },
           h('aside', { class: 'wrail', 'aria-label': '服饰分类和工具' }, h('div', { class: 'wnav' }, this.subjectTabs, this.tabs), this.toolsButton),
-          h('div', { class: 'wlist' }, this.grid, this.toolsEl)), this.foot));
+          h('div', { class: 'wlist' }, this.filterBar, this.grid, this.toolsEl)), this.foot));
     ui.root.append(this.el);
     this.offCoins && this.offCoins();
     this.offCoins = bus.on('coins', (t) => this.coinEl && (this.coinEl.textContent = fmt(t)));
@@ -193,6 +195,7 @@ export class Wardrobe {
     if (!this.canEditOutfit()) return false;
     this.toolsEl.hidden = !open;
     this.grid.hidden = open;
+    if (this.filterBar) this.filterBar.hidden = open || this.subject === 'momo';
     this.toolsButton.setAttribute('aria-expanded', String(open));
     this.toolsButton.classList.toggle('on', open);
     if (!open) this.toolsButton.focus({ preventScroll: true });
@@ -210,6 +213,17 @@ export class Wardrobe {
   }
 
   renderTabs() {
+    if (this.filterBar) {
+      this.filterBar.hidden = !this.toolsEl?.hidden || this.subject === 'momo';
+      if (this.subject !== 'momo') {
+        const opts = [['all', '全部'], ['owned', '已拥有'], ...Object.entries(STYLES).map(([k, s]) => [k, s.name])];
+        this.filterBar.replaceChildren(...opts.map(([id, label]) => h('button', {
+          type: 'button', class: 'wfilter-chip' + (this.styleFilter === id ? ' on' : ''),
+          'aria-pressed': String(this.styleFilter === id),
+          onclick: () => { audio.sfx('tab'); this.styleFilter = id; this.grid.scrollTop = 0; this.renderTabs(); this.renderGrid(); },
+        }, label)));
+      }
+    }
     if (this.subject === 'momo') {
       this.tabs.replaceChildren(...[['front','看正面',0],['back','看背面',Math.PI]].map(([id,label,angle]) =>
         h('button', { 'data-momo-view': id, onclick: () => { this.spin = angle; this.spinV = 0; this.momo.root.rotation.y = angle; audio.sfx('tab'); } }, label)),
@@ -233,7 +247,12 @@ export class Wardrobe {
       this.grid.scrollTop = scrollTop;
       return;
     }
-    const items = CLOTHES.filter((c) => c.cat === this.cat && (!c.only || S.owned.includes(c.id))).sort((a, b) => a.price - b.price);
+    const items = CLOTHES.filter((c) => {
+      if (c.cat !== this.cat || (c.only && !S.owned.includes(c.id))) return false;
+      if (this.styleFilter === 'owned') return S.owned.includes(c.id);
+      if (this.styleFilter && this.styleFilter !== 'all') return c.style === this.styleFilter;
+      return true;
+    }).sort((a, b) => a.price - b.price);
     this.grid.replaceChildren(...items.map((it, i) => {
       const owned = S.owned.includes(it.id);
       const st = it.style && STYLES[it.style];

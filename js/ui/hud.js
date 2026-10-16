@@ -3,9 +3,10 @@
 import { h, fmt, tween, clamp, dragScroll } from '../core/util.js';
 import { app } from '../core/app.js';
 import { audio } from '../core/audio.js';
-import { S, save, beauty } from '../core/state.js';
+import { S, save, beauty, activeRoomSets } from '../core/state.js';
 import { FRUITS, CROPS, beautyRank } from '../data.js';
 import { DOORS } from '../world/town.js';
+import { focusSwatch } from '../world/decor/editing.js';
 import { MAX_BUILD_LEVEL, MAX_BUILD_FLOOR } from '../world/build-constants.js';
 import { cropIco } from '../core/icons.js';
 import { listTasks, trackedTask, taskPanel } from './tasks.js';
@@ -108,7 +109,15 @@ export function buildHUD() {
     this.game.town.decor.setBuildLevel(Number(this.decorLevelSelect.value)); this.refreshDecor();
   } }, ...Array.from({ length: MAX_BUILD_LEVEL + 1 }, (_, level) => h('option', { value: String(level) }, level > MAX_BUILD_FLOOR ? '屋顶' : `${level + 1}楼`)));
   this.decorLevelLabel = h('label', { class: 'decor-level' }, '摆放在 ', this.decorLevelSelect);
-  this.decorFilters = h('div', { class: 'decor-filterbar' }, this.decorCategories, this.decorLevelLabel);
+  this.decorOwnedOnly = false;
+  this.decorSearch = '';
+  this.decorOwnedBtn = h('button', { type: 'button', class: 'decor-owned-toggle', 'aria-pressed': 'false', onclick: click(() => {
+    this.decorOwnedOnly = !this.decorOwnedOnly; this.refreshDecor(); this.decorList.scrollLeft = 0;
+  }, 'tab') }, '仅看库存');
+  this.decorSearchInput = h('input', { type: 'search', class: 'decor-search', placeholder: '搜家具…', 'aria-label': '搜索家具名称', oninput: () => {
+    this.decorSearch = (this.decorSearchInput.value || '').trim(); this.refreshDecor(); this.decorList.scrollLeft = 0;
+  } });
+  this.decorFilters = h('div', { class: 'decor-filterbar' }, this.decorCategories, this.decorOwnedBtn, this.decorSearchInput, this.decorLevelLabel);
   this.decorRepeat = h('button', { class: 'btn alt sm', 'aria-pressed': 'false', onclick: click(() => g.town.decor.setContinuous(!g.town.decor.continuous), 'tab') }, '连续放置：关');
   this.decorPickup = h('button', { class: 'btn alt sm', 'aria-pressed': 'false', onclick: click(() => g.town.decor.setPickupMode(!g.town.decor.pickupMode), 'tab') }, svg('hand'), '整理家具');
   this.decorUndo = h('button', { class: 'btn alt sm', 'aria-label': '撤销上一步', onclick: click(() => g.town.decor.undo(), 'tab') }, '撤销上一步');
@@ -143,6 +152,7 @@ export function buildHUD() {
     h('div', { class: 'who' }, this.dfIcon, this.dfName),
     h('button', { class: 'btn sm', onclick: df((d) => d.focusMove()) }, svg('hand'), '移动'),
     h('button', { class: 'btn alt sm', onclick: df((d) => d.focusRotate()) }, svg('rotate'), '旋转'),
+    (this.dfSwatch = h('button', { class: 'btn alt sm hide', 'data-decor-swatch': '', onclick: df((d) => focusSwatch(d)) }, '换色')),
     (this.dfReplace=h('button', { class: 'btn alt sm hide', onclick: df(() => this.buildWallReplacePanel()) }, '换墙体')),
     h('button', { class: 'btn alt sm', onclick: df((d) => d.focusStore(false)) }, '收进仓库'),
     h('button', { class: 'btn gold sm', onclick: df((d) => d.focusStore(true)) }, LOCAL_PLAY ? '' : '卖掉 ', this.dfSell),
@@ -261,10 +271,12 @@ export function setCoins(total, delta) {
 export function refreshBeauty() {
   const b = beauty();
   const r = beautyRank(b);
+  const sets = activeRoomSets();
+  const setNote = sets.length ? ` · 共鸣 +${sets.reduce((s, x) => s + x.bonus, 0)}（${sets.map((x) => x.name).join('/')}）` : '';
   this.beautyEl.textContent = fmt(b);
   this.rankEl.textContent = r.name;
   this.decorBeauty.textContent = fmt(b);
-  this.decorRank.textContent = r.next ? `${r.name} · 距「${r.next.name}」还差 ${r.next.min - b}` : `${r.name} · 已达最高评价`;
+  this.decorRank.textContent = (r.next ? `${r.name} · 距「${r.next.name}」还差 ${r.next.min - b}` : `${r.name} · 已达最高评价`) + setNote;
   this.decorFill.style.width = (r.next ? clamp((b - r.min) / (r.next.min - r.min)) * 100 : 100) + '%';
 }
 

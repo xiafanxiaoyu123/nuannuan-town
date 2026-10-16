@@ -117,7 +117,7 @@ export class CafeGame extends MiniGame {
   }
 
   mount() {
-    this.trayEls = [0, 1, 2].map(() => h('span'));
+    this.trayEls = [0, 1, 2].map((idx) => h('button', { type: 'button', class: 'tray-slot', title: '点击撤下这格餐品', onclick: () => this.removeTray(idx) }));
     const foods = this.menu.map((f, i) =>
       h('button', { class: 'slot stock', onclick: () => this.add(i) }, h('span', { class: 'key' }, i + 1), h('img', { src: foodIco(f.id), alt: '' }), h('b', {}, f.name), BREW.has(f.id) ? h('span', { class: 'bst' }, BREW_TXT.idle) : h('div', { class: 'pips' }, h('i'), h('i'), h('i')), h('div', { class: 'rs' }, h('i'))));
     this.foodEls = foods;
@@ -134,6 +134,18 @@ export class CafeGame extends MiniGame {
       if (k >= 0) this.serve(k);
       if (e.code === 'KeyX' || e.code === 'Backspace') this.clear();
     });
+  }
+
+  removeTray(idx) {
+    if (!this.playing || !this.tray[idx]) return;
+    const removedId = this.tray.splice(idx, 1)[0];
+    const menuIdx = this.menu.findIndex((f) => f.id === removedId);
+    if (menuIdx >= 0 && !this.brew[menuIdx] && this.stock[menuIdx] < 3) {
+      this.stock[menuIdx]++;
+      this.syncStock();
+    }
+    audio.sfx('remove');
+    this.syncTray();
   }
 
   add(i) {
@@ -186,7 +198,10 @@ export class CafeGame extends MiniGame {
     this.syncTray();
   }
   syncTray() {
-    this.trayEls.forEach((el, i) => el.replaceChildren(...(this.tray[i] ? [h('img', { src: foodIco(this.tray[i]) })] : [])));
+    this.trayEls.forEach((el, i) => {
+      el.disabled = !this.tray[i];
+      el.replaceChildren(...(this.tray[i] ? [h('img', { src: foodIco(this.tray[i]), alt: '' })] : []));
+    });
     while (this.trayItems.children.length) this.trayItems.remove(this.trayItems.children[0]);
     this.tray.forEach((id, i) => {
       const m = FOOD_BUILD[id]();
@@ -213,8 +228,9 @@ export class CafeGame extends MiniGame {
     ch.root.scale.setScalar(1.25);
     ch.root.position.set(12.4, 0, -3.1);
     this.scene.add(ch.root);
-    // 贵客：付双倍，但耐心更少
+    // 贵客：付双倍，但耐心更少；居民常客：报酬 +30%
     const vip = this.modifier?.id === 'vip' || (elapsed > 10 && Math.random() < 0.16);
+    const resident = !vip && Math.random() < 0.22 ? pick(['小满', '阿禾', '阿絮', '小桃', '七七']) : null;
     const patience = (22.5 - this.lv * 0.8 + n * 4) * (vip ? 0.78 : 1) * (1 + this.fx('bubble')); // 整体难度下调约 1/4：耐心更久
     if (vip) {
       const gm = mat('#ffd76a', { rough: 0.3, metal: 0.5 });
@@ -222,14 +238,14 @@ export class CafeGame extends MiniGame {
       for (let k = 0; k < 5; k++) cr.add(cbox(0.08, 0.14, 0.08, gm, Math.sin(k * 1.257) * 0.15, 0.13, Math.cos(k * 1.257) * 0.15, { r: 0.02 }));
       ch.head.add(cr);
     }
-    const c = { ch, slot, order, vip, key: order.slice().sort().join(), state: 'in', patience, max: patience, path: [[SLOTS[slot], -3.1], [SLOTS[slot], -1.5]], el: null };
+    const c = { ch, slot, order, vip, resident, key: order.slice().sort().join(), state: 'in', patience, max: patience, path: [[SLOTS[slot], -3.1], [SLOTS[slot], -1.5]], el: null };
     this.customers.push(c);
     return true;
   }
   showBubble(c) {
     c.pt = h('i');
-    c.el = h('div', { class: 'bubble' + (c.vip ? ' vip' : ''), onclick: () => this.serve(c.slot) },
-      c.vip && h('span', { class: 'viptag' }, '贵客 ×2'),
+    c.el = h('div', { class: 'bubble' + (c.vip || c.resident ? ' vip' : ''), onclick: () => this.serve(c.slot) },
+      c.vip ? h('span', { class: 'viptag' }, '贵客 ×2') : c.resident ? h('span', { class: 'viptag' }, `${c.resident} +30%`) : null,
       h('span', { class: 'kbd' }, KEYS[c.slot]),
       h('div', { class: 'its' }, c.order.map((id) => h('img', { src: foodIco(id), alt: '' }))),
       h('div', { class: 'pt' }, c.pt));
@@ -265,7 +281,9 @@ export class CafeGame extends MiniGame {
     }
     const base = c.order.reduce((s, id) => s + FOODS.find((f) => f.id === id).price, 0);
     const ratio = clamp(c.patience / c.max);
-    const earn = (base + Math.round(base * 0.6 * ratio)) * (c.vip ? 2 : 1) + Math.min(this.combo, 10) * (this.modifier?.id === 'combo' ? 2 : 1);
+    const tipMul = this.modifier?.id === 'sweet_rush' ? 0.85 : 0.6;
+    const mult = c.vip ? 2 : c.resident ? 1.3 : 1;
+    const earn = Math.round((base + Math.round(base * tipMul * ratio)) * mult) + Math.min(this.combo, 10) * (this.modifier?.id === 'combo' ? 2 : 1);
     this.dropPile(slot, earn);
     this.setCombo(this.combo + 1);
     this.served++;
@@ -329,12 +347,13 @@ export class CafeGame extends MiniGame {
 
     if (this.state === 'play') {
       // 备货位自动补货
+      const barTop = this.barEl ? this.barEl.getBoundingClientRect().top : window.innerHeight - 96;
       this.piles.forEach((pl, i) => {
         if (!pl) return;
         pl.t += dt;
         const sp = app.project(new THREE.Vector3(SLOTS[i], this.topY + 0.75, -0.32), this.camera);
-        pl.el.style.left = sp.x + 'px';
-        pl.el.style.top = sp.y + 'px';
+        pl.el.style.left = clamp(sp.x, 54, window.innerWidth - 54) + 'px';
+        pl.el.style.top = clamp(sp.y, 128, Math.max(145, barTop - 28)) + 'px';
         if (pl.t > 6) this.collect(i, true);
       });
       this.menu.forEach((f, i) => {
@@ -366,6 +385,7 @@ export class CafeGame extends MiniGame {
         this.spawnT = ok ? rand(pace * 0.75, pace * 1.15) : 0.6;
       }
     }
+    const barTop = this.barEl ? this.barEl.getBoundingClientRect().top : window.innerHeight - 96;
     for (let i = this.customers.length - 1; i >= 0; i--) {
       const c = this.customers[i], p = c.ch.root.position;
       if (c.hold > 0) { c.hold -= dt; c.ch.targetMove = 0; }
@@ -401,8 +421,8 @@ export class CafeGame extends MiniGame {
         c.pt.style.transform = `scaleX(${k})`;
         c.pt.style.background = k > 0.5 ? '#6fcf9f' : k > 0.25 ? '#ffc94d' : '#ff7f8f';
         const sp = app.project(new THREE.Vector3(p.x, 2.55, p.z), this.camera);
-        c.el.style.left = sp.x + 'px';
-        c.el.style.top = sp.y + 'px';
+        c.el.style.left = clamp(sp.x, 60, window.innerWidth - 60) + 'px';
+        c.el.style.top = clamp(sp.y, 128, Math.max(145, barTop - 44)) + 'px';
         if (c.patience <= 0) {
           this.lost++;
           this.loseLife();

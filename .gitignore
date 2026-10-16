@@ -44,3 +44,6 @@ apk/android/capacitor-cordova-android-plugins/build/
 apk/android/local.properties
 apk/android/app/google-services.json
 apk/android/app/src/main/assets/
+
+tools/qa/out/
+desktop/tools/qa/out/

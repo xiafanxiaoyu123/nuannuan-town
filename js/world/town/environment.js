@@ -143,8 +143,11 @@ export function applySky(town, dt) {
 
 export function updateAmbient(town, dt, time) {
   const r = town.rig;
+  const indoor = town.zone === 'house';
   // 氛围动画
   for (const c of town.clouds) {
+    c.visible = !indoor;
+    if (indoor) continue;
     // 云跟着镜头所在的岛走
     c.userData.ox = c.userData.ox ?? c.position.x;
     c.userData.oz = c.userData.oz ?? c.position.z;
@@ -153,8 +156,11 @@ export function updateAmbient(town, dt, time) {
     c.position.x = r.x + c.userData.ox;
     c.position.z = (town.zone === 'home' ? HOME.cz : 0) + c.userData.oz;
   }
-  town.balloon.position.set(-38 + Math.sin(time * 0.05) * 14, 15 + Math.sin(time * 0.4) * 0.8, -34 + Math.cos(time * 0.04) * 6);
-  town.balloon.rotation.y = time * 0.1;
+  town.balloon.visible = !indoor;
+  if (!indoor) {
+    town.balloon.position.set(-38 + Math.sin(time * 0.05) * 14, 15 + Math.sin(time * 0.4) * 0.8, -34 + Math.cos(time * 0.04) * 6);
+    town.balloon.rotation.y = time * 0.1;
+  }
   town.boat.position.y = -0.72 + Math.sin(time * 1.2) * 0.07;
   town.boat.rotation.z = Math.sin(time * 0.9) * 0.05;
   town.windmill.userData.blades.rotation.z = -time * 0.7;
@@ -178,14 +184,16 @@ export function updateAmbient(town, dt, time) {
   }
   if (town.zone === 'town' || town.camMode === 'title') for (const t of town.trees) t.m.rotation.z = Math.sin(time * 0.9 + t.ph) * 0.012;
   town.seasons.update(dt, time);
+  const showBflies = town.night < 0.6 && town.seasons.current !== 'winter' && (town.zone === 'town' || town.zone === 'home' || town.camMode === 'title');
   for (const b of town.bflies) {
+    b.g.visible = showBflies;
+    if (!showBflies) continue;
     const a = time * b.sp + b.ph;
     b.g.position.set(b.cx + Math.cos(a) * b.rad, 0.8 + Math.sin(a * 2.3) * 0.35, b.cz + Math.sin(a * 1.3) * b.rad);
     b.g.rotation.y = -a + Math.PI / 2;
     const f = Math.sin(time * 18 + b.ph) * 0.9;
     b.l.rotation.z = f;
     b.r.rotation.z = -f;
-    b.g.visible = town.night < 0.6 && town.seasons.current !== 'winter' && (town.zone === 'town' || town.zone === 'home' || town.camMode === 'title');
   }
   if (town.ringT !== undefined) {
     town.ringT += dt;

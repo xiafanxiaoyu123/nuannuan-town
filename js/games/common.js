@@ -9,6 +9,7 @@ import { h, fmt, wait, tween } from '../core/util.js';
 import { ui, svg } from '../ui/ui.js';
 import { coinIco } from '../core/icons.js';
 import { outfitFx } from '../live/effects.js';
+import { addFertilizer } from '../shared/save-compat.js';
 
 // 把底部操作栏整体缩放到屏幕放得下：宽度不超出屏幕，高度不超过屏幕的 maxH
 // 用 zoom 而不是 transform：点击区域和看到的一致
@@ -203,16 +204,23 @@ export class MiniGame {
     this.renderLives();
     this.scoreEl = h('span', { class: 'num' }, '0');
     this.comboEl = h('div', { class: 'cb zero' }, '连击 ×0');
+    this.rushEl = h('div', { class: 'grush-pill hide' }, '🔥 狂热 ×1.25');
     this.countEl = h('div', { class: 'count' });
+    // 工坊熟练度等级（F4）：按历史游玩局数与累计星数计算 Lv.1~Lv.5，每级提供 +2% 永久营收加成
+    const st = S.shops[this.id] || { lv: 1, plays: 0, stars: {} };
+    const starSum = Object.values(st.stars || {}).reduce((a, b) => a + b, 0);
+    this.masteryLv = Math.min(5, 1 + Math.floor(((st.plays || 0) + starSum) / 8));
+    this.masteryBonus = (this.masteryLv - 1) * 0.02;
     // 穿搭加成：开局大字提醒，局内左上角常驻
     const bn = (this.bonus = styleBonus(this.id, this.outfit)), sn = bn.style.name;
     this.bonusEl = h('div', { class: 'gbonus' + (bn.n ? ' on' : ''), style: { '--c': bn.style.color } }, `${sn}穿搭 `, h('b', {}, `+${bn.pct}%`));
+    this.masteryEl = h('div', { class: 'gbonus on gmastery', style: { '--c': this.shop.color } }, `熟练 Lv.${this.masteryLv}`, this.masteryBonus > 0 ? h('b', {}, ` +${Math.round(this.masteryBonus * 100)}%`) : null);
     this.bonusIntro = h('div', { class: 'gbonus-intro' + (bn.n ? ' on' : ''), style: { '--c': bn.style.color } },
-      h('span', {}, `本店偏爱「${sn}」风格`),
+      h('span', {}, `本店偏爱「${sn}」风格 · 工坊熟练 Lv.${this.masteryLv}`),
       h('b', {}, `穿搭加成 +${bn.pct}%`),
       h('em', {}, bn.n ? `身上有 ${bn.n} 件${sn}服饰 · 每件 +6%${bn.n < 5 ? '，还能更高' : '，已拉满'}` : `还没穿${sn}风格的服饰 · 每件能多赚 6%，最多 +30%`));
     this.hudEl = h('div', { class: 'ghud' },
-      h('div', { class: 'gcombo' }, h('div', { class: 'pill coin' }, h('img', { src: coinIco() }), this.scoreEl), this.comboEl, this.bonusEl),
+      h('div', { class: 'gcombo' }, h('div', { class: 'pill coin' }, h('img', { src: coinIco() }), this.scoreEl), this.comboEl, this.rushEl, this.bonusEl, this.masteryEl),
       h('div', { class: 'gtop' }, h('div', { class: 'name', style: { '--c': this.shop.color } }, this.endless ? `${this.shop.name} · 无尽` : `${this.shop.name} · 第 ${this.stage} 关`), this.timerEl,
         !this.endless && (this.goalEl = h('div', { class: 'ggoal' }, '目标 ', h('b', {}, fmt(this.starAt[0]))))),
       h('button', { class: 'btn alt sm gquit', onclick: () => { audio.sfx('click'); if (this.state === 'play') this.finish(); } }, '提前打烊'),
@@ -223,6 +231,7 @@ export class MiniGame {
   }
   addScore(n) {
     if (n > 0 && this.elapsed < (this.goldUntil || 0)) n *= 2;
+    if (n > 0 && this.elapsed < (this.rushUntil || 0)) n *= 1.25;
     this.score = Math.max(0, this.score + Math.round(n));
     this.scoreEl.textContent = fmt(this.score);
     if (this.goalEl) this.goalEl.classList.toggle('done', this.score >= this.starAt[0]);
@@ -234,8 +243,18 @@ export class MiniGame {
   setCombo(n) {
     if (n === 0 && this.combo > 0 && this.comboGuard > 0) { this.comboGuard--; return; }
     if (n === 0 && this.combo > 0 && this.modifier?.id === 'combo') this.addScore(-10);
+    if (n === 0) this.rushUntil = 0;
     this.combo = n;
     this.maxCombo = Math.max(this.maxCombo || 0, n);
+    // 连击达到 6 及之后每 6 连击触发 8 秒狂热时刻（Rush Time F2）
+    if (n >= 6 && n % 6 === 0 && this.playing) {
+      this.rushUntil = (this.elapsed || 0) + 8;
+      if (this.rushEl) this.rushEl.classList.remove('hide');
+      try { navigator.vibrate?.(15); } catch (_) { /* 忽略不支持设备 */ }
+    } else if (n > 0 && n % 3 === 0) {
+      try { navigator.vibrate?.(8); } catch (_) { /* 忽略不支持设备 */ }
+    }
+    if (this.rushEl) this.rushEl.classList.toggle('hide', !(this.elapsed < (this.rushUntil || 0)));
     this.comboEl.textContent = `连击 ×${n}`;
     this.comboEl.classList.toggle('zero', n < 2);
     this.comboEl.classList.remove('pop');
@@ -319,6 +338,7 @@ export class MiniGame {
       if (this.time < 10 && Math.ceil(this.time) !== this._lastBeep) { this._lastBeep = Math.ceil(this.time); if (this.time < 5) audio.sfx('tick'); }
       if (this.time <= 0) this.finish();
     }
+    if (this.rushEl) this.rushEl.classList.toggle('hide', !(this.elapsed < (this.rushUntil || 0)));
     this.tick(dt, time);
     const lh = this.game.liveHooks;
     lh && lh.onGameTick && lh.onGameTick(this, dt);
@@ -334,7 +354,7 @@ export class MiniGame {
     const st = S.shops[this.id];
     const bonus = this.bonus;
     const mult = shopMult(this.lv);
-    const setBonus = this.fx('bloom') + (this.shop.style === 'sweet' ? this.fx('far') : 0);
+    const setBonus = this.fx('bloom') + (this.shop.style === 'sweet' ? this.fx('far') : 0) + (this.masteryBonus || 0);
     const total = Math.round(this.score * mult * (1 + bonus.pct / 100) * (1 + setBonus));
     const stars = this.starAt.filter((t) => this.score >= t).length;
     const record = total > st.best && st.plays > 0;
@@ -353,6 +373,18 @@ export class MiniGame {
       if (this.stage > (st.stage || 0)) { st.stage = this.stage; firstBonus = 30 + this.stage * 20; stat('stages'); }
       canNext = this.stage < MAX_STAGE;
     }
+    // 小游戏专属稀有掉落（F5）：二星以上或无尽坚持满60秒有概率掉落应季种子或有机花肥
+    let rareDrop = null;
+    if ((stars >= 2 || (this.endless && this.elapsed >= 60)) && Math.random() < (stars >= 3 ? 0.55 : 0.3)) {
+      const drops = {
+        cafe: () => { addFertilizer(S); return '有机花肥 ×1'; },
+        bakery: () => { S.seeds.wheat = (S.seeds.wheat || 0) + 1; bus.emit('seed', S.seed); return '金穗小麦种子 ×1'; },
+        flower: () => { S.seeds.moonflower = (S.seeds.moonflower || 0) + 1; bus.emit('seed', S.seed); return '月见花种子 ×1'; },
+        tailor: () => { S.seeds.cotton = (S.seeds.cotton || 0) + 1; bus.emit('seed', S.seed); return '暖绒棉花种子 ×1'; },
+        fish: () => { S.seeds.blueberry = (S.seeds.blueberry || 0) + 1; bus.emit('seed', S.seed); return '冰晶蓝莓种子 ×1'; },
+      };
+      rareDrop = (drops[this.id] || drops.cafe)();
+    }
     // 打烊时就把收入、首次奖金和通关统计一起入账；结算面板只负责选择下一步。
     // state 已设为 over，重复 finish 或再次点击结算按钮都不会重复发奖。
     addCoins(total + firstBonus, 'game');
@@ -368,8 +400,15 @@ export class MiniGame {
     const titles = this.endless ? ['热身而已', '撑住了一阵', '越战越勇！', '无尽之王！'] : ['差一点就过关了', '过关！', '漂亮的一关！', '完美过关！'];
     const lines = this.resultLines();
     if (this.endless) lines.push(['坚持时间', `${Math.floor(this.elapsed / 60)}:${String(Math.floor(this.elapsed) % 60).padStart(2, '0')}`]);
-    else lines.unshift([`第 ${this.stage} 关目标`, `${fmt(this.starAt[0])}`]);
+    else {
+      lines.unshift([`第 ${this.stage} 关目标`, `${fmt(this.starAt[0])}`]);
+      if (stars < 3 && this.starAt[stars] > this.score) {
+        lines.push([`距 ${stars + 1} 星仅差`, `${fmt(this.starAt[stars] - this.score)} 分`]);
+      }
+    }
+    if (this.masteryLv > 1) lines.push([`工坊熟练 Lv.${this.masteryLv}`, `+${Math.round(this.masteryBonus * 100)}%`]);
     if (firstBonus) lines.push(['首次过关奖金', '+' + firstBonus]);
+    if (rareDrop) lines.push(['工坊惊喜掉落', rareDrop]);
     const choice = await ui.resultPanel({ title: titles[stars], stars, record, lv: this.lv, mult, bonus, total: total + firstBonus, lines, ribbon: this.endless ? '无尽模式' : `第 ${this.stage} 关`, next: canNext });
     this.resolve(choice);
   }

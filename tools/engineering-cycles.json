@@ -1,0 +1,5 @@
+{
+  "schema": 1,
+  "note": "2026-10-16 round 2 removed all three prior cycles. Keep empty; do not add exceptions to silence a regression.",
+  "groups": []
+}

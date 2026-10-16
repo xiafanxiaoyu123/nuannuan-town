@@ -49,7 +49,7 @@ const headIcon = (key, look) => icon(key, () => {
 const CANON_LOOKS = { dada: DADA_LOOK, nonoy: NONOY_LOOK, marques: MARQUES_LOOK, giovanni: GIOVANNI_LOOK, laila: LAILA_LOOK };
 export const npcIco = (id) => (CANON_LOOKS[id] ? headIcon('npc:' + id, CANON_LOOKS[id]) : headIcon('npc:' + id, randomNpcLook(RESIDENT_LAYOUT[id]?.look || 0)));
 
-export const decorIcon = (id) => icon('decor:' + id, () => buildDecor(id), { yaw: 0.6, pitch: 0.4, zoom: id === 'stone' || id === 'picnic' ? 1.1 : 1 });
+export const decorIcon = (id) => icon('decor:' + id, () => buildDecor(id), { yaw: 0.6, pitch: 0.4, zoom: id === 'stone' || id === 'picnic' || id === 'step_moss' || id?.startsWith('rug') ? 1.1 : 1 });
 export const cropIco = (id) => icon('crop:' + id, () => cropIcon(id), { yaw: 0.5, pitch: 0.35 });
 export const seedIco = (id) => icon('seed:' + id, () => seedBag(id), { yaw: 0.35, pitch: 0.25 });
 export const foodIco = (id) => icon('food:' + id, () => FOOD_BUILD[id](), { yaw: 0.5, pitch: 0.5 });
@@ -67,7 +67,15 @@ function pierDiorama() {
   g.add(b);
   return g;
 }
-const SHOP_BUILD = { cafe: shopCafe, flower: shopFlower, tailor: shopTailor, boutique: shopBoutique, fish: pierDiorama, bakery: () => shopBakery() };
+function tailorIconDiorama() {
+  const g = shopTailor();
+  if (g.userData.spin3) {
+    g.userData.spin3.position.set(1.35, 5.42, -0.15);
+    g.userData.spin3.rotation.set(0.46, -0.28, 0.12);
+  }
+  return g;
+}
+const SHOP_BUILD = { cafe: shopCafe, flower: shopFlower, tailor: tailorIconDiorama, boutique: shopBoutique, fish: pierDiorama, bakery: () => shopBakery() };
 export const mergeIco = (t, lv) => icon('merge:' + t + lv, () => mergeModel(t, lv), { yaw: 0.35, pitch: 0.3 });
 export const fishIco = (id) => icon('fish:' + id, () => fishModel(id), { yaw: 0.3, pitch: 0.2 });
 export const shopIcon = (id) => icon('shop:' + id, () => SHOP_BUILD[id](), { yaw: 0.55, pitch: 0.36, size: 384, zoom: 1.02 });

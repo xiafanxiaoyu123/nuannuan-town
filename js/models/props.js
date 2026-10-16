@@ -4,6 +4,7 @@ import { Momo } from './character.js';
 import { cropModel } from './items.js';
 import { HOUSE_FURNITURE_BUILD } from './house-furniture.js';
 import { buildYardBuilding } from './yard-building.js';
+import { PHOTO_THEMES, photoThemeIndex } from '../shared/save-compat.js';
 
 const TRUNK = '#b98b6b', WOOD = '#d2a67e', WOOD_D = '#b3855f', STONE = '#f1e9df', STONE_D = '#ddd2c5', WHITE = '#ffffff';
 const LEAF = '#8fd694', LEAF_L = '#a9e3a0', LEAF_D = '#72c58a';
@@ -1568,10 +1569,134 @@ Object.assign(DECOR_BUILD, {
     g.add(cbox(0.34, 0.16, 0.28, '#b9a4f2', -0.48, 0.96, 0, { r: 0.06 }), cbox(0.22, 0.24, 0.22, '#9fe0c5', 0.12, 1.0, 0, { r: 0.05 }), cbox(0.18, 0.2, 0.18, '#ffb3cb', 0.48, 0.98, 0, { r: 0.05 }));
     return g;
   },
+  // 甜心蜂箱（I2）：奶油黄圆角层叠木箱与蜂蜜滴落装饰，带两只轻盈环绕的小蜜蜂
+  beehive() {
+    const g = group();
+    for (const [x, z] of [[-0.24, -0.2], [0.24, -0.2], [-0.24, 0.2], [0.24, 0.2]]) g.add(box(0.08, 0.28, 0.08, WOOD_D, x, 0, z, { r: 0.02 }));
+    g.add(box(0.68, 0.32, 0.58, '#fff4d2', 0, 0.24, 0, { r: 0.08 }));
+    g.add(box(0.62, 0.3, 0.54, '#ffe596', 0, 0.54, 0, { r: 0.08 }));
+    g.add(cbox(0.76, 0.16, 0.66, '#f6b94e', 0, 0.88, 0, { r: 0.07 }));
+    g.add(cbox(0.16, 0.16, 0.06, '#5b4232', 0, 0.44, 0.28, { r: 0.07 }));
+    g.add(cbox(0.24, 0.06, 0.14, WOOD, 0, 0.33, 0.32, { r: 0.02 }));
+    const bees = [-1, 1].map((s, i) => {
+      const b = group(s * 0.38, 0.95 + i * 0.14, 0.18);
+      b.add(cbox(0.11, 0.08, 0.08, '#ffd24f', 0, 0, 0, { r: 0.035 }));
+      b.add(cbox(0.03, 0.085, 0.085, '#4a3b32', 0, 0, 0, { r: 0.01 }));
+      b.add(cbox(0.05, 0.04, 0.13, WHITE, 0, 0.05, 0, { r: 0.015, ...ns }));
+      g.add(b);
+      return b;
+    });
+    g.userData.tick = (t) => bees.forEach((b, i) => {
+      const a = t * 2.2 + i * Math.PI;
+      b.position.set(Math.cos(a) * 0.38, 0.96 + Math.sin(t * 4 + i) * 0.06, Math.sin(a) * 0.34);
+      b.rotation.y = -a;
+    });
+    return g;
+  },
+  // 大喵稻草人（I2）：戴草帽、穿背带裤的圆角方块大喵守护者
+  scarecrow() {
+    const g = group();
+    g.add(cyl(0.28, 0.32, 0.08, WOOD_D, 0, 0, 0, { seg: 14 }));
+    g.add(box(0.09, 1.35, 0.09, WOOD, 0, 0.06, 0, { r: 0.03 }));
+    g.add(cbox(0.92, 0.08, 0.08, WOOD, 0, 0.92, 0, { r: 0.03 }));
+    g.add(cbox(0.46, 0.44, 0.32, '#8fb8ed', 0, 0.78, 0, { r: 0.12 }));
+    g.add(cbox(0.52, 0.22, 0.24, '#ff9fbd', 0, 0.94, 0, { r: 0.08 }));
+    g.add(cbox(0.44, 0.38, 0.38, '#fffaf2', 0, 1.24, 0, { r: 0.14 }));
+    for (const sx of [-1, 1]) {
+      g.add(frustum(0.03, 0.14, 0.14, '#f6c85f', sx * 0.15, 1.44, 0, { sz: 0.6 }));
+      g.add(cbox(0.05, 0.03, 0.02, '#4a3b32', sx * 0.1, 1.26, 0.195, { r: 0.01, ...ns }));
+      g.add(cbox(0.06, 0.03, 0.02, '#ffb3cb', sx * 0.15, 1.2, 0.195, { r: 0.01, ...ns }));
+    }
+    g.add(cyl(0.38, 0.42, 0.06, '#f2cc76', 0, 1.42, 0, { seg: 16 }));
+    g.add(cyl(0.22, 0.25, 0.16, '#f2cc76', 0, 1.48, 0, { seg: 16 }));
+    g.add(cyl(0.23, 0.255, 0.04, '#e84868', 0, 1.49, 0, { seg: 16 }));
+    return g;
+  },
+  // 青苔汀步石（J2）：自然错落的圆润石板配嫩绿青苔，under 层可走人可叠放
+  step_moss() {
+    const g = group();
+    g.add(cbox(0.56, 0.045, 0.44, STONE, -0.08, 0.022, -0.06, { r: 0.14, ry: 0.2, ...ns }));
+    g.add(cbox(0.38, 0.04, 0.32, STONE_D, 0.18, 0.02, 0.18, { r: 0.11, ry: -0.35, ...ns }));
+    g.add(cbox(0.18, 0.05, 0.14, LEAF, -0.22, 0.03, 0.12, { r: 0.05, ...ns }));
+    g.add(cbox(0.14, 0.045, 0.12, LEAF_L, 0.22, 0.028, -0.14, { r: 0.04, ...ns }));
+    return g;
+  },
+  // 大喵圆绒垫（J2，1×1）
+  rug_cat() {
+    const g = group();
+    g.add(cyl(0.44, 0.44, 0.03, '#fff6e4', 0, 0, 0, { seg: 20, ...ns }));
+    g.add(cyl(0.38, 0.38, 0.034, '#ffe5a3', 0, 0.002, 0, { seg: 20, ...ns }));
+    for (const sx of [-1, 1]) {
+      g.add(cbox(0.16, 0.032, 0.16, '#f6c85f', sx * 0.26, 0.016, -0.28, { r: 0.05, ry: sx * 0.35, ...ns }));
+      g.add(cbox(0.08, 0.036, 0.05, '#ff9fbd', sx * 0.18, 0.019, 0.06, { r: 0.02, ...ns }));
+    }
+    return g;
+  },
+  // 云朵长绒毯（J2，2×1）
+  rug_cloud() {
+    const g = group();
+    g.add(cbox(1.76, 0.03, 0.84, '#d8eeff', 0, 0.015, 0, { r: 0.26, ...ns }));
+    g.add(cbox(1.52, 0.035, 0.64, WHITE, 0, 0.019, 0, { r: 0.22, ...ns }));
+    for (const x of [-0.46, 0, 0.46]) g.add(cbox(0.46, 0.038, 0.46, '#fffaf4', x, 0.021, 0, { r: 0.18, ...ns }));
+    return g;
+  },
+  // 花瓣茶几毯（J2，2×2）
+  rug_petal() {
+    const g = group();
+    g.add(cbox(1.82, 0.028, 1.82, '#ffd6e5', 0, 0.014, 0, { r: 0.36, ...ns }));
+    g.add(cbox(1.48, 0.032, 1.48, '#fff3f7', 0, 0.018, 0, { r: 0.28, ...ns }));
+    g.add(cyl(0.32, 0.32, 0.036, '#ffe27a', 0, 0.002, 0, { seg: 18, ...ns }));
+    return g;
+  },
+  // 樱花编织大毯（J2，3×3）
+  rug_sakura() {
+    const g = group();
+    g.add(cbox(2.82, 0.028, 2.82, '#ffc2d6', 0, 0.014, 0, { r: 0.32, ...ns }));
+    g.add(cbox(2.48, 0.032, 2.48, '#fff7fa', 0, 0.017, 0, { r: 0.24, ...ns }));
+    g.add(cbox(1.68, 0.035, 1.68, '#ffe6ef', 0, 0.019, 0, { r: 0.18, ...ns }));
+    for (const [x, z] of [[-0.95, -0.95], [0.95, -0.95], [-0.95, 0.95], [0.95, 0.95]]) {
+      g.add(cbox(0.24, 0.038, 0.24, '#ff8fb1', x, 0.021, z, { r: 0.08, ry: Math.PI / 4, ...ns }));
+    }
+    return g;
+  },
+  // 玻璃插花瓶（J3，1×1）：通透圆角玻璃瓶 + 原木小底座 + 可切换插花
+  flower_vase() {
+    const g = group();
+    g.add(cyl(0.26, 0.28, 0.06, WOOD, 0, 0, 0, { seg: 16 }));
+    const glass = mat('#d8f2ff', { rough: 0.15, opacity: 0.72, transparent: true });
+    g.add(cyl(0.18, 0.22, 0.34, glass, 0, 0.06, 0, { seg: 16 }));
+    g.add(cyl(0.12, 0.18, 0.14, glass, 0, 0.4, 0, { seg: 16 }));
+    g.add(torus(0.12, 0.025, '#ffffff', 0, 0.54, 0, { rx: Math.PI / 2 }));
+    const holder = group(0, 0.18, 0);
+    holder.name = 'vase-flower-holder';
+    holder.add(vaseBouquet('rose'));
+    g.add(holder);
+    return g;
+  },
+  // 回忆画架（J3，1×1）：原木三角画架 + 暖暖小镇风景相框（支持切换画作主题）
+  photo_frame() {
+    const g = group();
+    for (const sx of [-1, 1]) g.add(box(0.06, 1.38, 0.06, WOOD_D, sx * 0.26, 0, 0.08, { r: 0.02, rz: -sx * 0.08, rx: -0.14 }));
+    g.add(box(0.06, 1.32, 0.06, WOOD_D, 0, 0, -0.24, { r: 0.02, rx: 0.24 }));
+    g.add(cbox(0.72, 0.06, 0.12, WOOD, 0, 0.58, 0.14, { r: 0.02 }));
+    const canvas = group(0, 0.92, 0.08);
+    canvas.name = 'frame-canvas';
+    canvas.rotation.x = -0.14;
+    canvas.add(cbox(0.68, 0.56, 0.06, '#fff8ee', 0, 0, 0, { r: 0.04 }));
+    const sky = cbox(0.58, 0.46, 0.02, '#bfe6ff', 0, 0, 0.032, { r: 0.02, ...ns });
+    sky.name = 'frame-sky';
+    const hill = cbox(0.56, 0.18, 0.025, '#98de9b', 0, -0.13, 0.036, { r: 0.02, ...ns });
+    hill.name = 'frame-hill';
+    const sun = cbox(0.14, 0.14, 0.03, '#ffe066', 0.16, 0.1, 0.04, { r: 0.05, ...ns });
+    sun.name = 'frame-sun';
+    canvas.add(sky, hill, sun);
+    g.add(canvas);
+    return g;
+  },
 });
 
 // 巨大作物摆件共用成熟作物模型，缩放只发生在摆件本身，不复制纹理或材质。
-for (const cropId of ['pumpkin', 'sunflower', 'rose']) DECOR_BUILD['giant_' + cropId] = () => {
+for (const cropId of ['pumpkin', 'sunflower', 'rose', 'moonflower']) DECOR_BUILD['giant_' + cropId] = () => {
   const g = group();
   const base = cbox(0.72, 0.12, 0.72, '#d2a67e', 0, 0.06, 0, { r: 0.08 });
   const crop = cropModel(cropId, 3);
@@ -1585,7 +1710,70 @@ for (const cropId of ['pumpkin', 'sunflower', 'rose']) DECOR_BUILD['giant_' + cr
 export function buildDecor(id) {
   const g = id.startsWith('yard_') ? buildYardBuilding(id) : (HOUSE_FURNITURE_BUILD[id] || DECOR_BUILD[id])();
   g.userData.decorId = id;
+  g.userData.applyVariant = (entry) => applyDecorVariant(g, entry);
   return g;
+}
+
+const VASE_TONES = {
+  daisy: ['#ffffff', '#ffd34e'],
+  tulip: ['#ff8fb1', '#ff5d88'],
+  lavender: ['#b9a4f2', '#957be3'],
+  rose: ['#f2546b', '#ffd6e2'],
+  sunflower: ['#ffd24f', '#7a4d2b'],
+  wreath: ['#ff9fbd', '#ffe27a'],
+};
+function vaseBouquet(kind = 'rose') {
+  const [c1, c2] = VASE_TONES[kind] || VASE_TONES.rose;
+  const g = group();
+  for (const [dx, dz, hgt, col] of [[-0.06, 0.03, 0.42, c1], [0.06, -0.03, 0.46, c2], [0, 0.05, 0.38, c1]]) {
+    g.add(box(0.035, hgt, 0.035, LEAF_D, dx, 0, dz, { r: 0.01 }));
+    g.add(cbox(0.14, 0.12, 0.14, col, dx, hgt + 0.04, dz, { r: 0.05 }));
+  }
+  return g;
+}
+
+// 为摆件应用色盘换色（J4）、花瓶插花（J3）或画架主题（J3），复用 mat 缓存材质以支持静态合批。
+const SWATCH_HEX = [null, '#ff9fbd', '#8fd6b8'];
+export function applyDecorVariant(root, entry) {
+  if (!root || !entry) return;
+  if (entry.id === 'flower_vase' && entry.flower) {
+    let holder = null;
+    root.traverse((n) => { if (n.name === 'vase-flower-holder') holder = n; });
+    if (holder && VASE_TONES[entry.flower] && holder.userData.flowerId !== entry.flower) {
+      holder.clear();
+      holder.add(vaseBouquet(entry.flower));
+      holder.userData.flowerId = entry.flower;
+    }
+  }
+  if (entry.id === 'photo_frame' && entry.photo !== undefined) {
+    const theme = PHOTO_THEMES[photoThemeIndex(entry.photo)];
+    if (theme) root.traverse((n) => {
+      if (n.name === 'frame-sky') n.material = mat(theme.sky, { rough: 0.6 });
+      if (n.name === 'frame-hill') n.material = mat(theme.hill, { rough: 0.6 });
+      if (n.name === 'frame-sun') n.material = mat(theme.sun, { emissive: theme.sun, ei: 0.35 });
+    });
+  }
+  const swatchIdx = Number(entry.swatch || 0);
+  const target = root._furnitureShape?.model || root;
+  if ((target.userData.appliedSwatch || 0) === swatchIdx) return;
+  target.userData.appliedSwatch = swatchIdx;
+  const toneHex = SWATCH_HEX[swatchIdx];
+  const mainTone = toneHex ? new THREE.Color(toneHex) : null;
+  target.traverse((mesh) => {
+    if (!mesh.isMesh || !mesh.material?.color) return;
+    if (!mesh.userData._origMat) mesh.userData._origMat = mesh.material;
+    if (!mainTone) {
+      mesh.material = mesh.userData._origMat;
+      return;
+    }
+    const baseMat = mesh.userData._origMat;
+    const hsl = {};
+    baseMat.color.getHSL(hsl);
+    if (hsl.s > 0.14 && hsl.l > 0.25 && hsl.l < 0.94) {
+      const hex = '#' + new THREE.Color(baseMat.color).lerp(mainTone, 0.58).getHexString();
+      mesh.material = mat(hex, { rough: baseMat.roughness, metal: baseMat.metalness, opacity: baseMat.opacity, side: baseMat.side });
+    }
+  });
 }
 
 // 农场旁的回收小铺：收作物和闲置家具

@@ -47,7 +47,7 @@ function config() {
   };
 }
 
-function configured({ callback = false } = {}) {
+function configured() {
   const c = config();
   const missing = [];
   if (!c.mchid) missing.push('WECHAT_MCHID');
@@ -56,8 +56,10 @@ function configured({ callback = false } = {}) {
   if (!c.privateKey) missing.push('WECHAT_PRIVATE_KEY_PATH/PEM');
   if (!c.apiV3Key || Buffer.byteLength(c.apiV3Key, 'utf8') !== 32) missing.push('WECHAT_API_V3_KEY(32字节)');
   if (!c.notifyUrl) missing.push('WECHAT_NOTIFY_URL');
-  if (callback && !c.platformCert && !c.publicKey) missing.push('WECHAT_PLATFORM_CERT_PATH/PEM or WECHAT_PUBLIC_KEY_PATH/PEM');
-  if (callback && c.publicKey && (!c.publicKeyId || !c.publicKeyId.startsWith('PUB_KEY_ID_'))) {
+  // API responses and notifications share the same verification keys. Never
+  // issue an order/query with verification disabled just because it is not a callback.
+  if (!c.platformCert && !c.publicKey) missing.push('WECHAT_PLATFORM_CERT_PATH/PEM or WECHAT_PUBLIC_KEY_PATH/PEM');
+  if (c.publicKey && (!c.publicKeyId || !c.publicKeyId.startsWith('PUB_KEY_ID_'))) {
     missing.push('WECHAT_PUBLIC_KEY_ID(PUB_KEY_ID_...)');
   }
   return { ok: missing.length === 0, missing, config: c };
@@ -81,12 +83,12 @@ function verifySignature(rawBody, headers, c) {
   const signature = String(headers['wechatpay-signature'] || '');
   const timestamp = String(headers['wechatpay-timestamp'] || '');
   const nonce = String(headers['wechatpay-nonce'] || '');
-  if (!serial || !signature || !timestamp || !nonce) throw fail('微信支付回调缺少验签头', 400, 'WECHAT_SIGNATURE_HEADERS_MISSING');
-  if (!/^\d+$/.test(timestamp) || Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) throw fail('微信支付回调时间戳已过期', 400, 'WECHAT_SIGNATURE_EXPIRED');
+  if (!serial || !signature || !timestamp || !nonce) throw fail('微信支付报文缺少验签头', 400, 'WECHAT_SIGNATURE_HEADERS_MISSING');
+  if (!/^\d+$/.test(timestamp) || Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) throw fail('微信支付报文时间戳已过期', 400, 'WECHAT_SIGNATURE_EXPIRED');
   const usesPublicKey = serial.startsWith('PUB_KEY_ID_');
   if (usesPublicKey) {
-    if (!c.publicKey) throw fail('微信支付回调使用公钥 ID，但未配置微信支付公钥', 503, 'WECHAT_PUBLIC_KEY_MISSING');
-    if (c.publicKeyId && serial !== c.publicKeyId) throw fail('微信支付公钥 ID 不匹配，请更新公钥文件', 401, 'WECHAT_PUBLIC_KEY_ID_MISMATCH');
+    if (!c.publicKey) throw fail('微信支付报文使用公钥 ID，但未配置微信支付公钥', 503, 'WECHAT_PUBLIC_KEY_MISSING');
+    if (!c.publicKeyId || serial !== c.publicKeyId) throw fail('微信支付公钥 ID 不匹配，请更新公钥文件', 401, 'WECHAT_PUBLIC_KEY_ID_MISMATCH');
   } else if (c.platformSerial && serial !== c.platformSerial) {
     throw fail('微信支付平台证书序列号不匹配，请更新平台证书', 401, 'WECHAT_PLATFORM_SERIAL_MISMATCH');
   }
@@ -95,7 +97,7 @@ function verifySignature(rawBody, headers, c) {
   const verifier = createVerify('RSA-SHA256');
   verifier.update(`${timestamp}\n${nonce}\n${rawBody}\n`);
   verifier.end();
-  if (!verifier.verify(cert, Buffer.from(signature, 'base64'))) throw fail('微信支付回调验签失败', 401, 'WECHAT_SIGNATURE_INVALID');
+  if (!verifier.verify(cert, Buffer.from(signature, 'base64'))) throw fail('微信支付报文验签失败', 401, 'WECHAT_SIGNATURE_INVALID');
   return { serial, timestamp, nonce };
 }
 
@@ -127,10 +129,27 @@ function request(method, requestPath, payload = null) {
     'Content-Length': Buffer.byteLength(body),
   };
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (failure, result) => {
+      if (settled) return;
+      settled = true;
+      if (failure) reject(failure); else resolve(result);
+    };
     const req = https.request({ hostname: 'api.mch.weixin.qq.com', port: 443, path: requestPath, method, headers, timeout: 15000 }, (res) => {
       const chunks = [];
+      let ended = false;
+      // IncomingMessage can error after the request itself has succeeded.
+      // Retain an error listener after settlement so late stream errors are safe.
+      res.on('error', (failure) => finish(failure));
+      res.on('aborted', () => finish(fail('微信支付接口响应中断', 502, 'WECHAT_API_RESPONSE_ABORTED')));
+      res.on('close', () => {
+        if (!ended) finish(fail('微信支付接口响应未完整接收', 502, 'WECHAT_API_RESPONSE_INCOMPLETE'));
+      });
       res.on('data', (chunk) => chunks.push(chunk));
       res.on('end', () => {
+        ended = true;
+        if (settled) return;
+        if (res.complete === false) return finish(fail('微信支付接口响应未完整接收', 502, 'WECHAT_API_RESPONSE_INCOMPLETE'));
         const text = Buffer.concat(chunks).toString('utf8');
         let json = {};
         try { json = text ? JSON.parse(text) : {}; } catch { json = { raw: text }; }
@@ -138,14 +157,18 @@ function request(method, requestPath, payload = null) {
           const error = fail(`微信支付接口返回 HTTP ${res.statusCode}`, 502, 'WECHAT_API_ERROR');
           error.providerStatus = res.statusCode;
           error.providerBody = json;
-          reject(error);
+          finish(error);
           return;
         }
-        resolve({ status: res.statusCode, headers: res.headers, body: json });
+        // Verify the original response bytes, including an empty HTTP 204 body,
+        // before a successful result can reach billing fulfilment.
+        try { verifySignature(text, res.headers || {}, c); }
+        catch (failure) { finish(failure); return; }
+        finish(null, { status: res.statusCode, headers: res.headers, body: json });
       });
     });
     req.on('timeout', () => req.destroy(fail('微信支付接口请求超时', 504, 'WECHAT_API_TIMEOUT')));
-    req.on('error', reject);
+    req.on('error', (failure) => finish(failure));
     if (body) req.write(body);
     req.end();
   });

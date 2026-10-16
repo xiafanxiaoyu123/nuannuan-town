@@ -153,7 +153,8 @@ export class FishGame extends MiniGame {
     this.nikki.setPose('cheer');
     this.tipText('甩竿！');
     audio.sfx('whoosh');
-    const from = new THREE.Vector3(1.6, 1.6, 0.3), to = new THREE.Vector3(rand(4.2, 5.6), WATER_Y, rand(0.2, 1));
+    const portrait = window.innerWidth <= window.innerHeight;
+    const from = new THREE.Vector3(1.6, 1.6, 0.3), to = new THREE.Vector3(portrait ? rand(3.3, 4.3) : rand(4.2, 5.6), WATER_Y, rand(0.2, 1));
     this.tween({ dur: 0.55, ease: ease.linear, update: (k) => { this.bobber.position.lerpVectors(from, to, k); this.bobber.position.y += Math.sin(k * Math.PI) * 2.2; }, done: () => {
       if (this.dead || this.state !== 'play') return;
       audio.sfx('water');
@@ -218,7 +219,7 @@ export class FishGame extends MiniGame {
       const perfect = !this.left;
       if (perfect) this.perfects = (this.perfects || 0) + 1;
       const base = Math.round(f.price * (perfect ? 1.3 : 1)) + this.treBonus + Math.min(this.combo, 6) * 2;
-      const earn = Math.round(base * (this.modifier?.id === 'storm' ? 1.5 : 1));
+      const earn = Math.round(base * (this.modifier?.id === 'storm' ? 1.5 : this.modifier?.id === 'golden_tide' ? 1.35 : 1));
       this.addScore(earn);
       this.setCombo(this.combo + 1);
       audio.sfx(f.price >= 44 ? 'fanfare' : 'success');
@@ -226,12 +227,13 @@ export class FishGame extends MiniGame {
       this.tipText(perfect ? `完美收线！钓到了 ${f.name}` : `钓到了 ${f.name}！`);
       const p = this.bobber.position.clone();
       fx.burst(this.scene, p.clone().setY(WATER_Y + 0.1), { n: 10, colors: ['#ffffff', '#cfeeff', '#9be0f0'], speed: 1.7, up: 2.8, life: 0.7, size: 0.5 });
+      if (this.fishMesh) { this.scene.remove(this.fishMesh); this.fishMesh = null; }
       const m = fishModel(f.id);
       m.scale.setScalar(1.25);
       this.scene.add(m);
       this.fishMesh = m;
       const to = new THREE.Vector3(-1.9, 0.9, -0.7);
-      this.tween({ dur: 1.05, ease: ease.linear, update: (k) => { m.position.lerpVectors(p, to, k); m.position.y += Math.sin(k * Math.PI) * 1.8; m.rotation.z = k * 4.5; }, done: () => { this.scene.remove(m); this.fishMesh = null; fx.sparkle(this.scene, to, 6); } });
+      this.tween({ dur: 1.05, ease: ease.linear, update: (k) => { m.position.lerpVectors(p, to, k); m.position.y += Math.sin(k * Math.PI) * 1.8; m.rotation.z = k * 4.5; }, done: () => { if (this.fishMesh === m) this.fishMesh = null; this.scene.remove(m); fx.sparkle(this.scene, to, 6); } });
       this.popEl.replaceChildren(h('div', { class: 'caught card' }, h('img', { src: fishIco(f.id) }), h('b', {}, (perfect ? '完美 · ' : '') + f.name), h('span', { class: 'price num' }, `+${earn}` + (this.treBonus ? '（含宝箱）' : ''))));
       setTimeout(() => this.popEl.replaceChildren(), 1300);
       this.setPhase('rest');
@@ -246,10 +248,14 @@ export class FishGame extends MiniGame {
     }
   }
   onFinish() {
+    if (this.fishMesh) { this.scene.remove(this.fishMesh); this.fishMesh = null; }
     this.barEl.classList.add('off');
     this.biteEl.classList.add('hide');
     this.nikki.setPose('cheer');
     this.tipEl.style.opacity = 0;
+  }
+  onExit() {
+    if (this.fishMesh) { this.scene.remove(this.fishMesh); this.fishMesh = null; }
   }
   resultLines() {
     return [['渔获收入', this.score], ['钓到的鱼', `${this.caught} 条`], ['完美收线', `${this.perfects || 0} 次`], ['最好的一条', this.bestFish ? this.bestFish.name : '—']];

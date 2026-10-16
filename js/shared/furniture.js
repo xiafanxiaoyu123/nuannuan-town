@@ -23,6 +23,9 @@ export const DECOR = [
   { id: 'hammock', name: '花边吊床', price: 520, beauty: 32, size: [2, 1] },
   { id: 'pond', name: '荷叶小池', price: 900, beauty: 60, size: [2, 2], flat: true },
   { id: 'garden_table', name: '藤编花园桌', price: 1100, beauty: 72, size: [2, 2] },
+  { id: 'beehive', name: '甜心蜂箱', price: 720, beauty: 38, size: [1, 1] },
+  { id: 'scarecrow', name: '大喵稻草人', price: 560, beauty: 32, size: [1, 1] },
+  { id: 'step_moss', name: '青苔汀步石', price: 90, beauty: 6, size: [1, 1], flat: true, under: true },
   { id: 'yard_slab', name: '工坊木纹楼板', price: 120, beauty: 8, size: [2, 2], outdoorOnly: true, building: 'slab', category: 'foundation' },
   { id: 'yard_stairs', name: '奶油木阶梯', price: 280, beauty: 18, size: [2, 3], outdoorOnly: true, building: 'stairs', category: 'foundation' },
   { id: 'yard_foundation', name: '奶油石地基', price: 100, beauty: 6, size: [2, 2], outdoorOnly: true, building: 'foundation', category: 'foundation' },
@@ -66,6 +69,10 @@ DECOR.push(
   { id: 'plant', name: '龟背竹', price: 160, beauty: 10, size: [1, 1], indoor: true },
   { id: 'floorlamp', name: '落地灯', price: 240, beauty: 14, size: [1, 1], indoor: true },
   { id: 'rug', name: '菱格地毯', price: 260, beauty: 16, size: [3, 2], indoor: true, flat: true, under: true }, // under：铺在地上的一层，上面还能再摆家具
+  { id: 'rug_cat', name: '大喵圆绒垫', price: 180, beauty: 12, size: [1, 1], indoor: true, flat: true, under: true },
+  { id: 'rug_cloud', name: '云朵长绒毯', price: 240, beauty: 15, size: [2, 1], indoor: true, flat: true, under: true },
+  { id: 'rug_petal', name: '花瓣茶几毯', price: 320, beauty: 20, size: [2, 2], indoor: true, flat: true, under: true },
+  { id: 'rug_sakura', name: '樱花编织大毯', price: 480, beauty: 28, size: [3, 3], indoor: true, flat: true, under: true },
   { id: 'coffee', name: '茶几', price: 320, beauty: 18, size: [2, 1], indoor: true },
   { id: 'catbed', name: '大喵的窝', price: 380, beauty: 22, size: [1, 1], indoor: true },
   { id: 'desk', name: '书桌', price: 420, beauty: 24, size: [2, 1], indoor: true },
@@ -83,6 +90,8 @@ DECOR.push(
   { id: 'wardrobe', name: '花漾衣柜', price: 820, beauty: 44, size: [2, 1], indoor: true },
   { id: 'ottoman', name: '云朵脚踏', price: 260, beauty: 16, size: [1, 1], indoor: true },
   { id: 'sideboard', name: '奶油餐边柜', price: 620, beauty: 32, size: [2, 1], indoor: true },
+  { id: 'flower_vase', name: '玻璃插花瓶', price: 360, beauty: 24, size: [1, 1], indoor: true },
+  { id: 'photo_frame', name: '回忆画架', price: 460, beauty: 28, size: [1, 1], indoor: true },
 );
 // 奶油薄荷厨房与粉瓷卫浴：整件为落地家具，仅能在室内摆放；上柜和镜柜自带支撑背板。
 DECOR.push(
@@ -141,4 +150,5 @@ export const beautyRank = (b) => {
   BEAUTY_RANKS.forEach((r, i) => { if (b >= r.min) idx = i; });
   return { idx, ...BEAUTY_RANKS[idx], next: BEAUTY_RANKS[idx + 1] || null };
 };
+
 

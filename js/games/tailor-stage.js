@@ -189,7 +189,7 @@ export function fitTailorCamera(g, width, height) {
   const camera = g.camera;
   camera.aspect = width / height; camera.fov = portrait ? 85 : 65;
   camera.clearViewOffset(); camera.updateProjectionMatrix();
-  const top = portrait ? 140 : 104, bottom = height - 76, left = portrait ? 38 : 30, right = width - 14;
+  const top = portrait ? 140 : 104, bottom = height - 76, left = portrait ? Math.min(28, Math.max(14, Math.round(width * 0.06))) : 30, right = width - 14;
   const target = new THREE.Vector3(0, 1.4, 0);
   // 操作视角优先展示整个布面；提高俯角仍保留透视，机头位置须配合全路线遮挡检查。
   const pitch = 68 * Math.PI / 180, up = Math.sin(pitch), forward = Math.cos(pitch);
@@ -237,7 +237,9 @@ export function projectTailorInput(g, width, height) {
   g.laneField.style.setProperty('--judge-inset', PLANE_H - g.judgeY + 'px');
   const project = (x, y, z) => { const v = g.workstation.localToWorld(new THREE.Vector3(x, y, z)).project(g.camera); return { x: (v.x + 1) * width / 2, y: (1 - v.y) * height / 2 }; };
   const a = project(FABRIC.left, 0.95, 4.5), b = project(FABRIC.right, 0.95, 4.5);
-  const keyWidth = Math.max(58, (b.x - a.x) / 4), keyLeft = (a.x + b.x) / 2 - keyWidth * 2;
+  const maxKeyW = Math.floor((width - 16) / 4);
+  const keyWidth = Math.min(maxKeyW, Math.max(50, (b.x - a.x) / 4));
+  const keyLeft = Math.max(8, Math.min(width - 8 - keyWidth * 4, (a.x + b.x) / 2 - keyWidth * 2));
   g.keyEls.forEach((key, i) => {
     key.style.left = (keyLeft + keyWidth * i + 1) + 'px'; key.style.top = a.y + 'px';
     key.style.width = (keyWidth - 2) + 'px';

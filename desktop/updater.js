@@ -565,3 +565,4 @@ module.exports = {
   validateManifest,
   writeJsonAtomic,
 };
+

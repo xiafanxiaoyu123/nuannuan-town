@@ -758,6 +758,22 @@
     {
       "id": "rose",
       "name": "星光玫瑰"
+    },
+    {
+      "id": "wheat",
+      "name": "金穗小麦"
+    },
+    {
+      "id": "blueberry",
+      "name": "冰晶蓝莓"
+    },
+    {
+      "id": "cotton",
+      "name": "暖绒棉花"
+    },
+    {
+      "id": "moonflower",
+      "name": "月见花"
     }
   ],
   "crops": [
@@ -786,6 +802,22 @@
       "name": "星光玫瑰"
     },
     {
+      "id": "wheat",
+      "name": "金穗小麦"
+    },
+    {
+      "id": "blueberry",
+      "name": "冰晶蓝莓"
+    },
+    {
+      "id": "cotton",
+      "name": "暖绒棉花"
+    },
+    {
+      "id": "moonflower",
+      "name": "月见花"
+    },
+    {
       "id": "apple",
       "name": "苹果"
     },
@@ -796,6 +828,14 @@
     {
       "id": "orange",
       "name": "甜橙"
+    },
+    {
+      "id": "cherry",
+      "name": "甜心樱桃"
+    },
+    {
+      "id": "lemon",
+      "name": "香水柠檬"
     }
   ],
   "decor": [
@@ -894,6 +934,18 @@
     {
       "id": "garden_table",
       "name": "藤编花园桌"
+    },
+    {
+      "id": "beehive",
+      "name": "甜心蜂箱"
+    },
+    {
+      "id": "scarecrow",
+      "name": "大喵稻草人"
+    },
+    {
+      "id": "step_moss",
+      "name": "青苔汀步石"
     },
     {
       "id": "yard_slab",
@@ -1008,6 +1060,22 @@
       "name": "菱格地毯"
     },
     {
+      "id": "rug_cat",
+      "name": "大喵圆绒垫"
+    },
+    {
+      "id": "rug_cloud",
+      "name": "云朵长绒毯"
+    },
+    {
+      "id": "rug_petal",
+      "name": "花瓣茶几毯"
+    },
+    {
+      "id": "rug_sakura",
+      "name": "樱花编织大毯"
+    },
+    {
       "id": "coffee",
       "name": "茶几"
     },
@@ -1074,6 +1142,14 @@
     {
       "id": "sideboard",
       "name": "奶油餐边柜"
+    },
+    {
+      "id": "flower_vase",
+      "name": "玻璃插花瓶"
+    },
+    {
+      "id": "photo_frame",
+      "name": "回忆画架"
     },
     {
       "id": "kitchen_counter",
@@ -1146,6 +1222,10 @@
     {
       "id": "giant_rose",
       "name": "巨大星光玫瑰摆件"
+    },
+    {
+      "id": "giant_moonflower",
+      "name": "巨大月见花摆件"
     }
   ]
 }

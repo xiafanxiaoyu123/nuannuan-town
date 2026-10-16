@@ -150,3 +150,4 @@ if (desktop?.updates) {
     checkAutomatically();
   }).catch(() => {});
 }
+

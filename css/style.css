@@ -1196,3 +1196,23 @@ html, body, #ui, #ui * { touch-action: manipulation; }
   .mail-meta { flex-wrap: wrap; gap: .25rem; }
   .mail-toolbar .btn { flex: 1; }
 }
+/* —— C1-C6：全端安全区、触屏44px热区、装修库存/搜索、衣橱筛选与拍照九宫格 —— */
+.hud-tl { top: max(.9rem, calc(env(safe-area-inset-top, 0px) + .5rem)); left: max(.9rem, calc(env(safe-area-inset-left, 0px) + .5rem)); }
+.hud-tr { top: max(.9rem, calc(env(safe-area-inset-top, 0px) + .5rem)); right: max(.9rem, calc(env(safe-area-inset-right, 0px) + .5rem)); }
+.decor-filterbar { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-bottom: .38rem; }
+.decor-owned-toggle { padding: .24rem .62rem; border-radius: 99rem; border: .1rem solid #edd5df; background: #fff8fb; color: #7a5568; font-size: .74rem; font-weight: 800; cursor: pointer; transition: all .15s; }
+.decor-owned-toggle.on, .decor-owned-toggle[aria-pressed="true"] { background: linear-gradient(180deg, #ff9fbd, #f37ca3); border-color: #f37ca3; color: #fff; }
+.decor-search { width: 7.8rem; max-width: 42vw; height: 1.85rem; padding: 0 .6rem; border-radius: 99rem; border: .1rem solid #edd5df; background: #fff; color: var(--ink); font: 700 .74rem var(--font); outline: none; }
+.decor-search:focus { border-color: var(--pink2); box-shadow: 0 0 0 .12rem rgba(255, 143, 177, .2); }
+.wardrobe .wfilters { display: flex; flex-wrap: wrap; gap: .32rem; padding: .15rem .1rem .42rem; flex-shrink: 0; }
+.wardrobe .wfilter-chip { padding: .22rem .62rem; border-radius: 99rem; border: .1rem solid #edd5df; background: #fff8fb; color: #7e5b6e; font-size: .72rem; font-weight: 800; cursor: pointer; transition: all .15s; }
+.wardrobe .wfilter-chip.on { background: linear-gradient(180deg, #ff9fbd, #f37ca3); border-color: #f37ca3; color: #fff; box-shadow: 0 .12rem .3rem rgba(243, 124, 163, .22); }
+.photo-frame.grid-on {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, .42) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, .42) 1px, transparent 1px);
+  background-size: 33.333% 33.333%;
+}
+@media (pointer: coarse) {
+  .modal > .x, .camx, .dfx { min-width: 44px; min-height: 44px; }
+}

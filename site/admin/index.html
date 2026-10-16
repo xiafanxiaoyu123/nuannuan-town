@@ -1,0 +1,703 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b0d14">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23121624'/%3E%3Ctext x='20' y='28' text-anchor='middle' font-size='24' fill='%23f48fb8'%3E%E2%9C%A6%3C/text%3E%3C/svg%3E">
+  <title>暖暖小镇 · 账号与运营工作台</title>
+  <link rel="stylesheet" href="admin.css?v=20261014-fix1">
+</head>
+<body>
+  <div class="ambient ambient-a" aria-hidden="true"></div>
+  <div class="ambient ambient-b" aria-hidden="true"></div>
+  <div class="ambient ambient-c" aria-hidden="true"></div>
+
+  <section id="gate" class="gate-view">
+    <div class="gate-card">
+      <div class="gate-header">
+        <div class="brand-mark">
+          <span class="brand-orb">✦</span>
+          <div class="brand-text">
+            <b>暖暖的方块小镇</b>
+            <small>NIKKI BLOCK TOWN · OPERATIONS</small>
+          </div>
+        </div>
+      </div>
+      <div class="gate-hero">
+        <div class="eyebrow">ACCOUNT &amp; LIVEOPS WORKBENCH</div>
+        <h1>把每一座小镇都悉心照料。</h1>
+        <p>集中管理居民账号、会话与权益授权、云存档备份、自定义礼包工坊、全服与定向邮件投递及全链路操作审计。</p>
+      </div>
+      <form id="gate-form" class="gate-form">
+        <label for="admin-token">
+          <span>服务端管理员令牌</span>
+          <input id="admin-token" type="password" autocomplete="off" placeholder="粘贴管理员令牌（或通过启动脚本免密进入）" required>
+        </label>
+        <button class="primary gate-submit" type="submit">
+          <span>进入运营工作台</span>
+          <span aria-hidden="true">→</span>
+        </button>
+        <div id="gate-error" class="form-error" role="alert"></div>
+      </form>
+      <div class="gate-security-note">
+        <span class="security-dot"></span>
+        <small>推荐使用一键启动脚本通过短期单次票据兑换 HttpOnly 会话。手动输入的令牌仅驻留当前页面内存，绝不写入 URL、localStorage 或导出文件。</small>
+      </div>
+    </div>
+  </section>
+
+  <main id="app" class="app-shell" hidden>
+    <aside class="rail">
+      <div class="rail-top">
+        <a class="brand" href="/admin/" aria-label="暖暖小镇运营工作台">
+          <span class="brand-orb">✦</span>
+          <span class="brand-copy">
+            <b>暖暖小镇</b>
+            <small>OPERATIONS CONSOLE</small>
+          </span>
+        </a>
+      </div>
+
+      <div class="rail-section-label">核心运营模块</div>
+      <nav class="nav" aria-label="管理台导航">
+        <button class="nav-item active" data-view="accounts" type="button" aria-current="page">
+          <span class="nav-icon" aria-hidden="true">⌘</span>
+          <span class="nav-label">账号档案</span>
+          <kbd class="nav-kbd">1</kbd>
+        </button>
+        <button class="nav-item" data-view="gifts" type="button">
+          <span class="nav-icon" aria-hidden="true">✦</span>
+          <span class="nav-label">礼包工坊</span>
+          <kbd class="nav-kbd">2</kbd>
+        </button>
+        <button class="nav-item" data-view="mail" type="button">
+          <span class="nav-icon" aria-hidden="true">✉</span>
+          <span class="nav-label">邮件中心</span>
+          <kbd class="nav-kbd">3</kbd>
+        </button>
+        <button class="nav-item" data-view="service" type="button">
+          <span class="nav-icon" aria-hidden="true">◉</span>
+          <span class="nav-label">服务设置</span>
+          <kbd class="nav-kbd">4</kbd>
+        </button>
+        <button class="nav-item" data-view="audit" type="button">
+          <span class="nav-icon" aria-hidden="true">◷</span>
+          <span class="nav-label">操作记录</span>
+          <kbd class="nav-kbd">5</kbd>
+        </button>
+      </nav>
+
+      <div class="rail-footer">
+        <div class="connection-pill">
+          <span id="connection-dot" class="pulse"></span>
+          <span id="connection-status" role="status">正在连接</span>
+        </div>
+        <button id="sign-out" class="rail-signout" data-admin-sign-out type="button" title="安全退出管理台">退出登录</button>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <div class="topbar-title-group">
+          <div class="eyebrow">NIKKI · BLOCK TOWN / ADMIN WORKBENCH</div>
+          <div class="topbar-heading-row">
+            <h2 id="view-title">账号档案</h2>
+            <span id="view-subtitle" class="topbar-subtitle">居民档案检索、云档检视、权益与会话管控</span>
+          </div>
+        </div>
+        <div class="top-actions">
+          <span id="last-sync" class="last-sync">尚未同步</span>
+          <button id="refresh" class="icon-button" type="button" title="刷新当前视图数据" aria-label="刷新数据">↻</button>
+          <button id="sign-out-mobile" class="secondary-button mobile-signout" data-admin-sign-out type="button" title="安全退出管理台" aria-label="退出管理员登录">退出</button>
+        </div>
+      </header>
+
+      <div id="service-banner" class="service-banner" role="status">
+        <div class="service-banner-main">
+          <span class="service-banner-dot" aria-hidden="true"></span>
+          <span id="service-summary">正在读取服务状态…</span>
+        </div>
+        <button class="text-button banner-action" data-view="service" type="button">管理限免与服务开关 →</button>
+      </div>
+
+      <!-- VIEW 1: 账号档案 -->
+      <section id="view-accounts" class="view">
+        <div class="section-banner">
+          <div class="section-banner-copy">
+            <span class="kicker">RESIDENT LEDGER &amp; CLOUD SAVES</span>
+            <h1>居民账号与云档总览</h1>
+            <p>支持按状态、云存档、近 7 天活跃度组合筛选与排序；点击统计卡片可快速切换筛选视图，所有管理操作均受乐观锁与审计回执保护。</p>
+          </div>
+          <div class="section-banner-actions">
+            <button class="secondary-button" type="button" data-view="mail">✉ 群发/定向邮件</button>
+            <button class="secondary-button" type="button" data-view="gifts">✦ 管理礼包模板</button>
+          </div>
+        </div>
+
+        <div class="metric-grid" id="metrics" aria-label="账号核心指标"></div>
+
+        <div class="panel-card filter-panel">
+          <div class="toolbar">
+            <div class="search-wrap">
+              <span class="search-icon" aria-hidden="true">⌕</span>
+              <input id="account-search" type="search" aria-label="搜索账号" placeholder="搜索用户名、账号 ID 或运营备注关键词…" autocomplete="off">
+            </div>
+            <div class="toolbar-meta">
+              <span id="result-count" class="count-pill">0 个账号</span>
+              <button id="clear-search" class="ghost-button" type="button">重置筛选</button>
+              <button id="account-export" class="secondary-button" type="button">↓ 导出筛选结果 CSV</button>
+            </div>
+          </div>
+
+          <div class="filter-bar">
+            <label>
+              <span>账号状态</span>
+              <select id="account-status">
+                <option value="all">全部状态</option>
+                <option value="active">正常启用</option>
+                <option value="disabled">已停用</option>
+              </select>
+            </label>
+            <label>
+              <span>云存档状态</span>
+              <select id="account-save">
+                <option value="all">全部</option>
+                <option value="yes">已有云存档</option>
+                <option value="no">暂无云存档</option>
+              </select>
+            </label>
+            <label>
+              <span>活跃度范围</span>
+              <select id="account-activity">
+                <option value="all">全部活跃度</option>
+                <option value="7d">近 7 天活跃</option>
+                <option value="inactive">近 7 天未活跃</option>
+              </select>
+            </label>
+            <label>
+              <span>排序方式</span>
+              <select id="account-sort">
+                <option value="newest">最近注册优先</option>
+                <option value="oldest">最早注册优先</option>
+                <option value="activity">最近活跃优先</option>
+                <option value="save">最近同步云档优先</option>
+              </select>
+            </label>
+            <label>
+              <span>每页显示</span>
+              <select id="account-page-size">
+                <option value="20">20 条 / 页</option>
+                <option value="50">50 条 / 页</option>
+              </select>
+            </label>
+          </div>
+          <div id="account-feedback" class="inline-feedback" role="status"></div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-head">
+            <span>居民账号 / 备注</span>
+            <span>云存档与家园进度</span>
+            <span>生效服务权益</span>
+            <span>最近活跃 / 注册</span>
+            <span>操作</span>
+          </div>
+          <div id="account-list" class="account-list">
+            <div class="loading"><i></i><i></i><i></i></div>
+          </div>
+          <div class="pager">
+            <button id="prev-page" class="page-button" type="button" aria-label="上一页">←</button>
+            <span id="page-label">第 1 页</span>
+            <button id="next-page" class="page-button" type="button" aria-label="下一页">→</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 2: 服务设置 -->
+      <section id="view-service" class="view" hidden>
+        <div class="section-banner">
+          <div class="section-banner-copy">
+            <span class="kicker">SERVICE ACCESS &amp; ENTITLEMENT POLICY</span>
+            <h1>全服限免开关与商业化状态</h1>
+            <p>控制全体登录居民是否默认享有「云存档同步」与「自动更新」权益。设置变更采用版本乐观锁校验并实时持久化，重启服务不会覆盖运营配置。</p>
+          </div>
+        </div>
+
+        <div class="studio-grid service-grid">
+          <section class="studio-card">
+            <div class="studio-card-head">
+              <div>
+                <p class="kicker">GLOBAL ENTITLEMENT SWITCH</p>
+                <h3>全体账号统一限免</h3>
+                <p id="service-current">正在读取当前策略…</p>
+              </div>
+              <span id="service-mode" class="chip">待同步</span>
+            </div>
+
+            <form id="service-form" class="studio-form">
+              <label class="service-switch">
+                <input id="free-access" type="checkbox" role="switch" disabled>
+                <span class="service-switch-copy">
+                  <b>开启全体账号统一免费开放（云同步 + 自动更新）</b>
+                  <small>开启期间，所有正常登录账号无需单独购买或手动授权即可使用云存档同步与客户端自动更新。</small>
+                </span>
+              </label>
+
+              <div class="policy-matrix">
+                <div class="policy-box">
+                  <b>开启限免时</b>
+                  <p>全员享有 <code>cloud_sync</code> 与 <code>auto_update</code>（来源标记为 <code>free_public</code>），付费购买入口自动关闭以防重复消费。</p>
+                </div>
+                <div class="policy-box">
+                  <b>关闭限免时</b>
+                  <p>仅具独立有效授权（<code>admin</code> 手动授权、<code>payment</code> 历史付费、<code>test</code> 测试授权）的账号可使用云同步；已有云存档安全保留，且不会自动开启购买收银台。</p>
+                </div>
+              </div>
+
+              <p id="service-meta" class="form-note mono"></p>
+              <div class="studio-actions">
+                <button id="service-save" class="primary" type="submit" disabled>保存并应用服务设置</button>
+                <button id="service-reload" class="secondary-button" type="button">重新读取服务器设置</button>
+              </div>
+              <div id="service-feedback" role="status" class="inline-feedback"></div>
+            </form>
+          </section>
+
+          <section class="studio-card">
+            <div class="studio-card-head">
+              <div>
+                <p class="kicker">COMMERCE &amp; PAYMENT GATEWAY</p>
+                <h3 id="checkout-state">正在读取支付状态…</h3>
+              </div>
+              <span class="studio-mark">◉</span>
+            </div>
+            <p id="checkout-description" class="service-desc-box">当前状态由服务器返回。</p>
+            <div class="service-checklist">
+              <div class="checklist-item">
+                <span>✦</span>
+                <div>
+                  <b>限免与支付开通解耦</b>
+                  <small>关闭全服限免后，购买下单入口仍保持暂停状态，防止未完成商业化审核前误开收款。</small>
+                </div>
+              </div>
+              <div class="checklist-item">
+                <span>✦</span>
+                <div>
+                  <b>玩家存档与独立授权隔离</b>
+                  <small>切换限免开关不会删改任何居民已保存的云存档，也不会清除管理员手动发放或历史购买的独立授权。</small>
+                </div>
+              </div>
+            </div>
+            <div class="studio-actions">
+              <button class="secondary-button" type="button" data-view="audit">查看限免变更审计记录 →</button>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- VIEW 3: 礼包工坊 -->
+      <section id="view-gifts" class="view" hidden>
+        <div class="section-banner">
+          <div class="section-banner-copy">
+            <span class="kicker">THE GIFT STUDIO &amp; RESOURCE CATALOG</span>
+            <h1>自定义礼包模板与资源工坊</h1>
+            <p>配置常用的噗灵、服饰、种子、作物与家具组合。模板既可在「账号详情」中向单人补发，也可在「邮件中心」作为全服或定向礼包邮件附件复用。</p>
+          </div>
+          <div class="section-banner-actions">
+            <button class="secondary-button" type="button" data-view="accounts">⌘ 前往账号档案单人补发</button>
+            <button class="secondary-button" type="button" data-view="mail">✉ 前往邮件中心群发礼包</button>
+          </div>
+        </div>
+
+        <div class="studio-grid gifts-studio-grid">
+          <section class="studio-card">
+            <div class="studio-card-head">
+              <div>
+                <p class="kicker">REUSABLE GIFT RECIPE</p>
+                <h3 id="template-form-title">创建 / 编辑礼包模板</h3>
+                <p>所有礼包严格采用加法原则与有效目录校验，禁止负数或覆盖余额。</p>
+              </div>
+              <span class="studio-mark">✦</span>
+            </div>
+
+            <form id="template-form" class="studio-form">
+              <input id="template-id" type="hidden">
+              <div class="form-grid">
+                <label>
+                  <span>礼包模板名称 *</span>
+                  <input id="template-name" maxlength="40" placeholder="例如：春日迎新回馈礼包" required>
+                </label>
+                <label>
+                  <span>内部运营说明（可选）</span>
+                  <input id="template-description" maxlength="160" placeholder="例如：用于新版本维护补偿或社区活动发放">
+                </label>
+              </div>
+
+              <div class="preset-bar">
+                <span class="preset-label">快捷填充示例：</span>
+                <button type="button" class="chip-button" data-template-preset="welcome">🌱 新手迎新包</button>
+                <button type="button" class="chip-button" data-template-preset="harvest">🍓 田园丰收包</button>
+                <button type="button" class="chip-button" data-template-preset="dressup">👗 满分穿搭包</button>
+              </div>
+
+              <div class="ops-box">
+                <div class="ops-header">
+                  <span class="ops-title">资源附件配置（支持目录点选或直接输入）</span>
+                </div>
+                <div class="form-grid compact-grid">
+                  <label>
+                    <span>噗灵（增加整数）</span>
+                    <input id="template-coins" type="number" min="0" max="1000000000" step="1" placeholder="0">
+                  </label>
+                  <label>
+                    <span>拥有物 / 服饰 ID（逗号分隔）</span>
+                    <input id="template-owned" list="gift-owned-options" placeholder="例如：h_reunion, d_reunion">
+                  </label>
+                  <label>
+                    <span>种子（ID:数量，逗号分隔）</span>
+                    <input id="template-seeds" placeholder="例如：radish:10, strawberry:5">
+                  </label>
+                  <label>
+                    <span>作物（ID:数量，逗号分隔）</span>
+                    <input id="template-crops" placeholder="例如：radish:10, tulip:5">
+                  </label>
+                  <label class="span-2">
+                    <span>家具布置（ID:数量，逗号分隔）</span>
+                    <input id="template-decor" list="gift-decor-options" placeholder="例如：fence:2">
+                  </label>
+                </div>
+                <div id="template-visual-ops" class="visual-ops-preview" aria-live="polite"></div>
+              </div>
+
+              <div class="studio-actions">
+                <button class="primary" type="submit" id="template-save">保存模板</button>
+                <button class="secondary-button" type="button" id="template-cancel" hidden>取消编辑</button>
+                <button class="ghost-button" type="button" id="template-clear-fields">清空附件</button>
+              </div>
+            </form>
+          </section>
+
+          <section class="studio-card">
+            <div class="studio-card-head">
+              <div>
+                <p class="kicker">SAVED TEMPLATES</p>
+                <h3>已保存的礼包模板库</h3>
+                <p>归档后的模板不会出现在新邮件或发礼包下拉列表中，但历史记录完整保留。</p>
+              </div>
+              <button class="secondary-button" type="button" id="template-refresh">↻ 刷新列表</button>
+            </div>
+
+            <div class="section-toolbar template-toolbar">
+              <div class="search-wrap compact-search">
+                <span class="search-icon" aria-hidden="true">⌕</span>
+                <input id="template-search" type="search" placeholder="搜索模板名称、说明或包含的物品…">
+              </div>
+              <label class="check-label">
+                <input type="checkbox" id="template-archived">
+                <span>显示已归档模板</span>
+              </label>
+            </div>
+
+            <div id="template-feedback" class="inline-feedback" role="status"></div>
+            <div id="template-list" class="template-list">
+              <div class="empty-inline">还没有模板，先在左侧保存一份常用礼包。</div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- VIEW 4: 邮件中心 -->
+      <section id="view-mail" class="view" hidden>
+        <div class="section-banner">
+          <div class="section-banner-copy">
+            <span class="kicker">THE TOWN POST &amp; DELIVERY LEDGER</span>
+            <h1>全服公告与礼包邮件中心</h1>
+            <p>支持撰写全服广播或单人定向邮件。内置本机会话草稿自动保存与幂等请求编号锁：即使网络回执丢失或按 F5 刷新页面后恢复草稿重试，也绝不会重复发信。</p>
+          </div>
+        </div>
+
+        <div id="mail-metrics" class="metric-grid mail-metric-grid" aria-label="邮件投递统计概览"></div>
+
+        <div class="studio-grid mail-grid">
+          <section class="studio-card">
+            <div class="studio-card-head">
+              <div>
+                <p class="kicker">COMPOSE &amp; PREVIEW</p>
+                <h3>撰写新邮件</h3>
+                <p>全体邮件投递给发布时刻所有正常启用账号；定向邮件投递给指定正常账号。</p>
+              </div>
+              <span class="studio-mark">✉</span>
+            </div>
+
+            <form id="mail-form" class="studio-form">
+              <div class="form-grid">
+                <label>
+                  <span>邮件类型</span>
+                  <select id="mail-kind">
+                    <option value="announcement">📢 公告邮件（纯文本通知）</option>
+                    <option value="gift">🎁 礼包邮件（附带可领取资源）</option>
+                  </select>
+                </label>
+                <label>
+                  <span>收件范围</span>
+                  <select id="mail-audience">
+                    <option value="all">🌍 全体正常账号</option>
+                    <option value="user">🎯 指定单个账号</option>
+                  </select>
+                </label>
+              </div>
+
+              <div id="mail-target-wrap" class="target-picker-box" hidden>
+                <div class="form-grid">
+                  <label>
+                    <span>目标账号 ID *</span>
+                    <input id="mail-target" list="account-options" placeholder="输入或粘贴账号 UUID">
+                  </label>
+                  <label>
+                    <span>从已加载居民中快速点选</span>
+                    <select id="mail-target-quick">
+                      <option value="">— 选择居民自动填入 ID —</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <datalist id="account-options"></datalist>
+              <datalist id="gift-owned-options"></datalist>
+              <datalist id="gift-decor-options"></datalist>
+
+              <label>
+                <span>邮件标题 *（最多 80 字）</span>
+                <input id="mail-title" maxlength="80" placeholder="例如：春日花朝节活动开启与维护致谢" required>
+              </label>
+
+              <label>
+                <span>邮件正文 *（支持多行段落）</span>
+                <textarea id="mail-body" rows="5" maxlength="10000" placeholder="亲爱的小镇居民：&#10;感谢大家一直以来的陪伴與支持……" required></textarea>
+              </label>
+
+              <div id="mail-gift-fields" class="ops-box" hidden>
+                <div class="ops-header">
+                  <span class="ops-title">礼包邮件附件配置</span>
+                </div>
+                <label>
+                  <span>附件来源（可选择已有礼包模板或自定义）</span>
+                  <select id="mail-template">
+                    <option value="custom">✨ 自定义配置附件内容</option>
+                  </select>
+                </label>
+                <div class="form-grid compact-grid" id="mail-custom-ops">
+                  <label>
+                    <span>噗灵（增加整数）</span>
+                    <input id="mail-coins" type="number" min="0" max="1000000000" step="1" placeholder="0">
+                  </label>
+                  <label>
+                    <span>拥有物 / 服饰 ID（逗号分隔）</span>
+                    <input id="mail-owned" list="gift-owned-options" placeholder="h_reunion, d_reunion">
+                  </label>
+                  <label>
+                    <span>种子（ID:数量）</span>
+                    <input id="mail-seeds" placeholder="radish:10">
+                  </label>
+                  <label>
+                    <span>作物（ID:数量）</span>
+                    <input id="mail-crops" placeholder="radish:10">
+                  </label>
+                  <label class="span-2">
+                    <span>家具布置（ID:数量）</span>
+                    <input id="mail-decor" list="gift-decor-options" placeholder="fence:1">
+                  </label>
+                </div>
+                <div id="mail-visual-ops" class="visual-ops-preview" aria-live="polite"></div>
+              </div>
+
+              <div class="expires-box">
+                <label>
+                  <span>邮件过期时间（可选，留空表示永不过期，最长未来 1 年内）</span>
+                  <input id="mail-expires" type="datetime-local">
+                </label>
+                <div class="preset-bar">
+                  <span class="preset-label">快捷设定有效期：</span>
+                  <button type="button" class="chip-button" data-mail-expire-days="1">+24 小时</button>
+                  <button type="button" class="chip-button" data-mail-expire-days="3">+3 天</button>
+                  <button type="button" class="chip-button" data-mail-expire-days="7">+7 天</button>
+                  <button type="button" class="chip-button" data-mail-expire-days="30">+30 天</button>
+                  <button type="button" class="chip-button" data-mail-expire-days="0">永不过期</button>
+                </div>
+              </div>
+
+              <div class="draft-bar">
+                <span id="mail-draft-state" role="status">草稿仅保存在本机当前浏览器会话</span>
+                <div class="draft-actions">
+                  <button class="secondary-button" type="button" id="mail-draft-restore">恢复本机草稿</button>
+                  <button class="ghost-button danger" type="button" id="mail-draft-clear">清除草稿</button>
+                </div>
+              </div>
+
+              <div class="studio-actions">
+                <button class="primary" type="submit" id="mail-send">预览并确认发布</button>
+                <span class="form-note">发布前将弹出预览确认窗；撤回操作仅阻止未读/未领入口，不回滚已领取的存档资源。</span>
+              </div>
+              <div id="mail-feedback" class="inline-feedback" role="status"></div>
+            </form>
+          </section>
+
+          <section class="studio-card mail-history-card">
+            <div class="studio-card-head">
+              <div>
+                <p class="kicker">DELIVERY LEDGER &amp; REVOKE</p>
+                <h3>历史邮件与投递统计</h3>
+                <p>实时追踪收件人数、已读率、礼包领取率及撤回状态。</p>
+              </div>
+              <div class="card-head-actions">
+                <button id="mail-export" class="secondary-button" type="button">↓ 导出邮件 CSV</button>
+                <button id="mail-refresh" class="secondary-button" type="button">↻ 刷新</button>
+              </div>
+            </div>
+
+            <div class="filter-bar mail-filter-bar">
+              <label class="grow">
+                <span>搜索邮件</span>
+                <input id="mail-search" type="search" placeholder="搜索标题、正文或邮件 ID…">
+              </label>
+              <label>
+                <span>类型</span>
+                <select id="mail-filter-kind">
+                  <option value="all">全部类型</option>
+                  <option value="announcement">公告</option>
+                  <option value="gift">礼包</option>
+                </select>
+              </label>
+              <label>
+                <span>状态</span>
+                <select id="mail-filter-status">
+                  <option value="all">全部状态</option>
+                  <option value="published">生效中</option>
+                  <option value="expired">已过期</option>
+                  <option value="revoked">已撤回</option>
+                </select>
+              </label>
+            </div>
+
+            <div id="mail-history-feedback" class="inline-feedback" role="status"></div>
+            <div id="admin-mail-list" class="mail-history">
+              <div class="empty-inline">还没有发布过邮件。</div>
+            </div>
+            <div class="pager">
+              <button id="mail-prev-page" class="page-button" type="button" aria-label="邮件上一页">←</button>
+              <span id="mail-page-label">第 1 页</span>
+              <button id="mail-next-page" class="page-button" type="button" aria-label="邮件下一页">→</button>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- VIEW 5: 操作记录 -->
+      <section id="view-audit" class="view" hidden>
+        <div class="section-banner">
+          <div class="section-banner-copy">
+            <span class="kicker">THE PAPER TRAIL &amp; SECURITY AUDIT</span>
+            <h1>全链路运营操作审计</h1>
+            <p>完整记录礼包发放、邮件发布与撤回、玩家领取、账号停用与恢复、会话强制下线、手动授权调整及限免开关变更。支持多维筛选与全量防注入 CSV 导出。</p>
+          </div>
+        </div>
+
+        <div class="panel-card filter-panel">
+          <form id="audit-filter-form" class="audit-filter-wrap">
+            <div class="filter-bar">
+              <label class="grow">
+                <span>关键词搜索</span>
+                <input id="audit-search" type="search" placeholder="搜索动作、原因、用户名或回执详情关键词…">
+              </label>
+              <label>
+                <span>操作类型</span>
+                <select id="audit-action">
+                  <option value="">全部操作类型</option>
+                  <option value="gift.issue">发放礼包 (gift.issue)</option>
+                  <option value="mail.publish">发布邮件 (mail.publish)</option>
+                  <option value="mail.revoke">撤回邮件 (mail.revoke)</option>
+                  <option value="mail.claim">领取邮件礼包 (mail.claim)</option>
+                  <option value="account.manage">修改账号/状态 (account.manage)</option>
+                  <option value="account.sessions.revoke">结束账号会话 (account.sessions.revoke)</option>
+                  <option value="account.entitlements.update">调整手动授权 (account.entitlements.update)</option>
+                  <option value="service.free_access.update">全服限免设置 (service.free_access.update)</option>
+                  <option value="gift_template.create">创建礼包模板 (gift_template.create)</option>
+                  <option value="gift_template.update">更新礼包模板 (gift_template.update)</option>
+                  <option value="gift_template.archive">归档礼包模板 (gift_template.archive)</option>
+                  <option value="gift_template.restore">恢复礼包模板 (gift_template.restore)</option>
+                </select>
+              </label>
+              <label>
+                <span>目标账号 ID</span>
+                <input id="audit-target" list="account-options" placeholder="按账号 UUID 精确筛选">
+              </label>
+              <label>
+                <span>起始日期</span>
+                <input id="audit-from" type="date">
+              </label>
+              <label>
+                <span>结束日期</span>
+                <input id="audit-to" type="date">
+              </label>
+            </div>
+            <div class="audit-toolbar-row">
+              <div class="preset-bar">
+                <span class="preset-label">快捷时间范围：</span>
+                <button type="button" class="chip-button" data-audit-range="all">全部时间</button>
+                <button type="button" class="chip-button" data-audit-range="today">今天</button>
+                <button type="button" class="chip-button" data-audit-range="7d">近 7 天</button>
+                <button type="button" class="chip-button" data-audit-range="30d">近 30 天</button>
+              </div>
+              <div class="audit-action-buttons">
+                <button class="primary" type="submit">查询记录</button>
+                <button id="audit-reset" class="ghost-button" type="button">重置条件</button>
+                <button id="audit-export" class="secondary-button" type="button">↓ 导出当前筛选 CSV</button>
+              </div>
+            </div>
+          </form>
+          <div id="audit-feedback" class="inline-feedback" role="status"></div>
+        </div>
+
+        <div id="audit-list" class="audit-list"></div>
+        <div class="pager">
+          <button id="audit-prev-page" class="page-button" type="button" aria-label="操作记录上一页">←</button>
+          <span id="audit-page-label">第 1 页</span>
+          <button id="audit-next-page" class="page-button" type="button" aria-label="操作记录下一页">→</button>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
+  <aside id="detail-drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-name" aria-hidden="true" inert>
+    <div class="drawer-head">
+      <div class="drawer-title-wrap">
+        <span class="kicker">RESIDENT ACCOUNT DOSSIER</span>
+        <h2 id="drawer-name">—</h2>
+        <p id="drawer-id" class="mono">—</p>
+      </div>
+      <button id="close-drawer" class="close-button" type="button" aria-label="关闭详情">×</button>
+    </div>
+    <div id="drawer-body" class="drawer-body"></div>
+  </aside>
+
+  <dialog id="workbench-dialog" class="workbench-dialog" aria-labelledby="dialog-title">
+    <form method="dialog">
+      <div class="dialog-head">
+        <h2 id="dialog-title">确认操作</h2>
+        <button id="dialog-close" class="close-button" value="cancel" formnovalidate aria-label="关闭">×</button>
+      </div>
+      <div id="dialog-body" class="dialog-body"></div>
+      <div id="dialog-feedback" class="inline-feedback" role="status"></div>
+      <div class="dialog-actions">
+        <button id="dialog-cancel" class="secondary-button" value="cancel" formnovalidate>取消</button>
+        <button id="dialog-confirm" class="primary" value="confirm">确认</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast-region" class="toast-region" aria-live="polite"></div>
+  <script src="admin.js?v=20261014-fix1" defer></script>
+</body>
+</html>

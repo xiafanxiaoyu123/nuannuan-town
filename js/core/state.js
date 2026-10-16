@@ -12,6 +12,8 @@ import { validateYardLayout, yardFootprint, isBuildInterior, buildInteriorChecke
 import { LOCAL_PLAY } from './local-play-mode.js';
 import { prepareLocalPlaySave } from './local-play-save.js';
 import { createPlayerDefaults, createStartingPlot as plotAt } from '../shared/player-defaults.js';
+import { ROOM_SETS } from '../shared/home-themes.js';
+import { prepareCompatibleSave } from '../shared/save-compat.js';
 import { diagnostics } from '../devtools/diagnostics.js';
 export { MAX_SAVE_BYTES } from './save-format.js';
 
@@ -215,6 +217,7 @@ function migrateBuildHeight(next, original) {
 
 // 无副作用迁移：导入预览和正常启动使用同一套规则，预览不会改当前存档。
 function migrateSave(d) {
+  d = prepareCompatibleSave(d);
   d = { ...d }; delete d[CLOUD_BASE_FIELD]; // 手动导入/云档不能携带另一设备的同步祖先。
   const f = fresh();
   const next = { ...f, ...d, settings: { ...f.settings, ...(d.settings || {}) }, shops: { ...f.shops, ...(d.shops || {}) }, outfit: { ...f.outfit, ...(d.outfit || {}) } };
@@ -319,18 +322,16 @@ export function load() {
 // 绕过现有兼容逻辑；返回深拷贝，调用方修改它不会碰到正在运行的游戏状态。
 export function serializeState() {
   const data = JSON.parse(JSON.stringify(S));
-  validateSaveData(data);
-  return data;
+  return validateSaveData(data);
 }
 
 // 统一外部存档的当前形状，供云同步在比较前迁移旧版本字段。
 // 如果直接把本机已迁移的数据和云端原始数据做 JSON 字符串比较，
 // 选择云端并刷新后会把同一份存档误判成再次冲突。
 export function normalizeSaveData(data) {
-  validateSaveData(data, { allowLegacyBuilding: true });
-  const next = migrateSave(JSON.parse(JSON.stringify(data)));
-  validateSaveData(next);
-  return next;
+  const compatible = validateSaveData(data, { allowLegacyBuilding: true });
+  const next = migrateSave(JSON.parse(JSON.stringify(compatible)));
+  return validateSaveData(next);
 }
 
 export function replaceSaveData(data, base = null) {
@@ -410,8 +411,7 @@ const saveSummary = (data) => ({
   shops: Object.fromEntries(Object.entries(data.shops).map(([id, s]) => [id, { lv: s.lv, stage: s.stage || 0, plays: s.plays || 0 }])),
 });
 export function exportSaveFile(now = Date.now()) {
-  const data = JSON.parse(JSON.stringify(S));
-  validateSaveData(data);
+  const data = serializeState();
   const at = new Date(now), pad = (n) => String(n).padStart(2, '0');
   const stamp = `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}_${pad(at.getHours())}-${pad(at.getMinutes())}-${pad(at.getSeconds())}`;
   const file = { format: SAVE_FILE_FORMAT, formatVersion: SAVE_FILE_VERSION, exportedAt: at.toISOString(), data };
@@ -423,15 +423,13 @@ export function exportSaveFile(now = Date.now()) {
   return { filename: `暖暖小镇-存档-${stamp}.txt`, text };
 }
 export function previewSaveImport(text) {
-  const parsed = parseSaveFile(text), data = migrateSave(parsed.data);
-  validateSaveData(data);
+  const parsed = parseSaveFile(text), data = validateSaveData(migrateSave(parsed.data));
   return { summary: saveSummary(data), exportedAt: parsed.exportedAt, oldVersion: parsed.oldVersion, migrated: parsed.oldVersion < data.v };
 }
 export function importSaveFile(text) {
   try {
     // 再次解析，提交不相信可被外部改写的预览对象；此时仍未触碰 S 或存储。
-    const data = migrateSave(parseSaveFile(text).data);
-    validateSaveData(data);
+    const data = validateSaveData(migrateSave(parseSaveFile(text).data));
     const incoming = JSON.stringify(data);
     const previousRecovery = localStorage.getItem(BEFORE_IMPORT);
     // 使用同一导出校验，避免当前档过大/异常时留下无法恢复的“恢复点”。
@@ -456,8 +454,7 @@ export function importRecoveryInfo() {
   try {
     const raw = localStorage.getItem(BEFORE_IMPORT);
     if (!raw) return null;
-    const parsed = parseSaveFile(raw), data = migrateSave(parsed.data);
-    validateSaveData(data);
+    const parsed = parseSaveFile(raw), data = validateSaveData(migrateSave(parsed.data));
     return { ...saveSummary(data), at: parsed.exportedAt };
   } catch { return { invalid: true }; }
 }
@@ -465,8 +462,7 @@ export function restoreBeforeImport() {
   try {
     const raw = localStorage.getItem(BEFORE_IMPORT);
     if (!raw) return { ok: false, error: '还没有导入前恢复点。' };
-    const data = migrateSave(parseSaveFile(raw).data);
-    validateSaveData(data);
+    const data = validateSaveData(migrateSave(parseSaveFile(raw).data));
     localStorage.setItem(KEY, JSON.stringify(data));
     clearTimeout(saveTimer); saveTimer = 0;
     cloudSaveBase = null;
@@ -507,11 +503,17 @@ export function spend(n) {
   return true;
 }
 
+export function activeRoomSets(state = S) {
+  const inIds = new Set([...(state.placedIn || []), ...(state.buildPlaced || [])].map((p) => p.id));
+  return ROOM_SETS.filter((set) => set.items.every((id) => inIds.has(id)));
+}
+
 export function beauty(state = S) {
   let b = HOUSES[state.house - 1].beauty + YARDS[(state.yardLv || 1) - 1].beauty;
   for (const p of state.placed) b += DECO[p.id].beauty;
   for (const p of state.placedIn || []) b += DECO[p.id].beauty;
   for (const p of state.buildPlaced || []) b += DECO[p.id].beauty;
+  for (const set of activeRoomSets(state)) b += set.bonus;
   return b;
 }
 

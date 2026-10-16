@@ -1,14 +1,15 @@
 // 后院菜地：田地本身是装修里的一种"家具"，想开垦在哪就摆在哪。
 // 这里负责田里的东西：普通田（plot）种作物，果树田（bigplot）种果树；按真实时间生长，离开去打工时也在长。
 // 另外还有两位帮手：自动喷水器（给紧挨着的一圈浇水）和大喵（在后院会自己找没浇水的田去浇）。
-import { THREE, cbox, box, group, mat } from '../core/kit.js';
+import { THREE, cbox, box, group, mat, disposeSceneResources } from '../core/kit.js';
 import { cropModel } from '../models/items.js';
 import { CROP, CROPS, FRUIT, FRUITS, CLOTHES } from '../data.js';
-import { S, bus, spend, stat, save } from '../core/state.js';
+import { S, bus, spend, stat, save, addCoins } from '../core/state.js';
 import { audio } from '../core/audio.js';
 import { fx } from '../core/fx.js';
 import { popIn, tween, ease } from '../core/util.js';
 import { outfitFx } from '../live/effects.js';
+import { fertilizerCount, useFertilizer } from '../shared/save-compat.js';
 
 const SOIL = mat('#b08566'), SOIL_WET = mat('#8a6048');
 const keyOf = (e) => e.gx + ',' + e.gz;
@@ -106,6 +107,7 @@ export class Farm {
     if (!this.carry) return false;
     const model = this.carry.model;
     if (model?.parent) model.parent.remove(model);
+    if (model) disposeSceneResources(model);
     this.carry = null;
     // 拍照或睡觉已经切好姿势时，仅移除作物，避免重新覆盖为站立。
     if (this.town.player?.pose === 'carry') this.town.player.setPose('idle');
@@ -142,6 +144,20 @@ export class Farm {
     bus.emit('toast', `拿起${CROP[cropId].name}，到处炫耀一下吧！点击“收起巨大作物”可结束展示`);
     return true;
   }
+  // 检查田块周围是否有蜂箱或大喵稻草人守护 (I2)
+  fieldAura(rec) {
+    const entries = this.town.decors?.home?.entries || [];
+    let beehive = false, scarecrow = false;
+    const rx = rec.obj.position.x, rz = rec.obj.position.z;
+    for (const s of entries) {
+      if (s.e.id !== 'beehive' && s.e.id !== 'scarecrow') continue;
+      if (Math.hypot(s.obj.position.x - rx, s.obj.position.z - rz) <= 5.2) {
+        if (s.e.id === 'beehive') beehive = true;
+        if (s.e.id === 'scarecrow') scarecrow = true;
+      }
+    }
+    return { beehive, scarecrow };
+  }
   // 这块田现在缺不缺水（喷水器和大喵用）
   thirsty(rec) {
     const p = this.state(rec);
@@ -168,7 +184,7 @@ export class Farm {
       build = () => f.holder.add(treeModel(t.f, t.stage, t.ripe));
     } else if (p) {
       const st = plotStage(p);
-      key = p.crop + st + (p.giant ? 'G' : '') + (p.watered ? 'w' : '');
+      key = p.crop + st + (p.giant ? 'G' : '') + (p.shiny ? 'S' : '') + (p.watered ? 'w' : '');
       wet = p.watered;
       build = () => {
         // 一块田种 4 株（南瓜长大后只留一个大的）
@@ -176,7 +192,7 @@ export class Farm {
         for (const [ox, oz] of one ? [[0, 0]] : [[-0.42, -0.42], [0.42, -0.42], [-0.42, 0.42], [0.42, 0.42]]) {
           const m = cropModel(p.crop, st);
           m.position.set(ox, 0, oz);
-          m.scale.setScalar(p.giant ? (st >= 3 ? 3.25 : 1.8) : (one ? 2.3 : 1.25));
+          m.scale.setScalar(p.giant ? (st >= 3 ? 3.25 : 1.8) : (one ? 2.3 : p.shiny && st >= 2 ? 1.38 : 1.25));
           m.rotation.y = (ox * 7 + oz * 3) % 1;
           f.holder.add(m);
         }
@@ -256,16 +272,47 @@ export class Farm {
     }
     if (!p) {
       const c = CROP[S.seed];
+      const inSeason = c.season && c.season === this.town.seasons?.current;
       it.label = `播种 · ${c.name} (${S.seeds[c.id] > 0 ? '免费种子 ×' + S.seeds[c.id] : c.seed})`;
-      it.sub = c.tip;
+      it.sub = (inSeason ? '【当季加速】' : '') + c.tip;
       it.act = () => this.plant(rec);
     } else {
       const st = plotStage(p), c = CROP[p.crop];
-      if (st >= 3) { it.label = `收获 · ${c.name}${(c.yield || 1) > 1 ? ' ×' + c.yield : ''}`; it.act = () => this.harvest(rec); }
-      else if (!p.watered) { it.label = '浇水 · 加速生长'; it.sub = `${c.name} 还需 ${plotRemain(p)} 秒`; it.act = () => this.water(rec); }
-      else { it.label = `${c.name} 生长中 · 还需 ${plotRemain(p)} 秒`; it.act = null; }
+      if (st >= 3) {
+        it.label = `收获 · ${p.shiny ? '闪耀' : ''}${c.name}${(c.yield || 1) > 1 ? ' ×' + c.yield : ''}`;
+        it.act = () => this.harvest(rec);
+      } else if (!p.watered) {
+        it.label = '浇水 · 加速生长';
+        it.sub = `${c.name} 还需 ${plotRemain(p)} 秒`;
+        it.act = () => this.water(rec);
+      } else if (!p.fertilized && fertilizerCount(S) > 0) {
+        it.label = `撒有机花肥 (剩 ${fertilizerCount(S)} 袋)`;
+        it.sub = `加速成熟并提高闪耀金星产出率 · 还需 ${plotRemain(p)} 秒`;
+        it.act = () => this.fertilize(rec);
+      } else {
+        it.label = `${p.fertilized ? '已施肥 · ' : ''}${c.name} 生长中 · 还需 ${plotRemain(p)} 秒`;
+        it.act = null;
+      }
     }
     return it;
+  }
+
+  fertilize(rec) {
+    const p = this.state(rec);
+    if (!p || p.tree || p.fertilized || plotStage(p) >= 3 || !useFertilizer(S)) return false;
+    const now = Date.now(), remain = Math.max(0, p.t0 + p.dur - now);
+    p.dur = now - p.t0 + Math.round(remain * 0.72);
+    p.fertilized = true;
+    if (!p.shiny && Math.random() < 0.35) p.shiny = true;
+    const pos = rec.obj.position;
+    this.town.face(pos.x, pos.z);
+    this.town.act('pick', 0.45);
+    audio.sfx('sparkle');
+    fx.sparkle(this.town.scene, new THREE.Vector3(pos.x, 0.8, pos.z), 8, ['#ffe27a', '#a8e380', '#ffffff']);
+    bus.emit('float', { x: pos.x, y: 1.5, z: pos.z, text: '有机花肥 · 加速生长！', cls: 'good' });
+    this.refresh(rec, true);
+    save();
+    return true;
   }
 
   plant(rec) {
@@ -277,8 +324,20 @@ export class Farm {
       bus.emit('seed', S.seed);
     } else if (!spend(c.seed)) return;
     const pos = rec.obj.position;
+    const aura = this.fieldAura(rec);
+    const inSeason = c.season && c.season === this.town.seasons?.current;
+    const growMul = (inSeason ? 0.85 : 1) * (aura.beehive ? 0.9 : 1);
+    const giantChance = aura.scarecrow ? 0.012 : 0.005;
+    const shinyChance = aura.scarecrow ? 0.14 : 0.06;
     // 只在播种时抽一次签，避免每帧或每次浇水改变结果；未标记 giant 的作物永远不会变大。
-    S.farm[keyOf(rec.e)] = { crop: c.id, t0: Date.now(), dur: c.grow * 1000, watered: false, giant: !!c.giant && Math.random() < 0.005 };
+    S.farm[keyOf(rec.e)] = {
+      crop: c.id,
+      t0: Date.now(),
+      dur: Math.round(c.grow * growMul * 1000),
+      watered: false,
+      giant: !!c.giant && Math.random() < giantChance,
+      shiny: Math.random() < shinyChance,
+    };
     this.town.face(pos.x, pos.z);
     this.town.act('pick', 0.45);
     audio.sfx('plant');
@@ -341,6 +400,15 @@ export class Farm {
   water(rec) {
     const pos = rec.obj.position;
     if (!this.applyWater(rec)) return;
+    // 解锁满篮时光后，手动浇水会顺带滋润紧邻的缺水田块 (I4)
+    if (this.harvestUnlocked()) {
+      for (const other of this.recs()) {
+        if (other === rec || !this.thirsty(other)) continue;
+        if (Math.hypot(other.obj.position.x - pos.x, other.obj.position.z - pos.z) <= 2.4 && this.applyWater(other)) {
+          stat('watered');
+        }
+      }
+    }
     this.town.face(pos.x, pos.z);
     this.town.act('water', 0.7);
     audio.sfx('water');
@@ -349,7 +417,10 @@ export class Farm {
   harvest(rec) {
     const p = this.state(rec), pos = rec.obj.position;
     const c = CROP[p.crop], chance = outfitFx(S.outfit, 'sun');
-    const n = (c.yield || 1) + (chance > 0 && Math.random() < chance ? 1 : 0);
+    const aura = this.fieldAura(rec);
+    const inSeason = c.season && c.season === this.town.seasons?.current;
+    const bonusYield = (chance > 0 && Math.random() < chance ? 1 : 0) + (aura.beehive && Math.random() < 0.25 ? 1 : 0) + (inSeason && Math.random() < 0.25 ? 1 : 0) + (p.shiny ? 1 : 0);
+    const n = (c.yield || 1) + bonusYield;
     const giantId = p.giant ? 'giant_' + p.crop : null;
     if (giantId) {
       // 巨大作物以独立摆件入库，保留普通作物背包不被重复增加。
@@ -359,13 +430,16 @@ export class Farm {
     } else {
       S.crops[p.crop] = (S.crops[p.crop] || 0) + n;
       bus.emit('found', 'crop', p.crop, n);
+      if (p.shiny) {
+        addCoins(15, 'farm');
+      }
     }
     delete S.farm[keyOf(rec.e)];
     this.town.face(pos.x, pos.z);
     this.town.act('pick', 0.45);
     audio.sfx('harvest');
     fx.sparkle(this.town.scene, new THREE.Vector3(pos.x, 0.8, pos.z), 10, [c.color, '#fff3a8', '#ffffff']);
-    bus.emit('float', { x: pos.x, y: 1.6, z: pos.z, text: giantId ? `巨大${c.name}！` : `${c.name} +${n}`, cls: 'good' });
+    bus.emit('float', { x: pos.x, y: 1.6, z: pos.z, text: giantId ? `巨大${c.name}！` : p.shiny ? `闪耀${c.name} +${n} (+15噗灵)` : `${c.name} +${n}`, cls: 'good' });
     // 收获只入装修仓库；手持展示由玩家在家园面板主动选择。
     if (giantId) bus.emit('giantCrop', giantId);
     this.refresh(rec, true);

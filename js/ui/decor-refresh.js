@@ -26,6 +26,10 @@ function refreshFilters(ui, decor) {
       setClass(button, 'hide', !available.includes(button.dataset.decorCategory));
       setAttribute(button, 'aria-pressed', String(ui.decorCategory === button.dataset.decorCategory));
     }
+    if (ui.decorOwnedBtn) {
+      setAttribute(ui.decorOwnedBtn, 'aria-pressed', String(!!ui.decorOwnedOnly));
+      setClass(ui.decorOwnedBtn, 'on', !!ui.decorOwnedOnly);
+    }
     setClass(ui.decorLevelLabel, 'hide', !decor.cfg.freeBuild);
     setProperty(ui.decorLevelSelect, 'value', String(decor.buildLevel || 0));
   }
@@ -98,6 +102,7 @@ function refreshRepeatTools(ui, decor) {
 
 function refreshFurnitureCatalog(ui, decor) {
   const sel = ui.game.town ? ui.game.town.decor.sel : null;
+  const kw = (ui.decorSearch || '').toLowerCase();
   for (const el of ui.decorSlots) {
     const n = S.decor[el._id] || 0;
     setText(el._cnt, LOCAL_PLAY ? '∞' : n);
@@ -108,7 +113,9 @@ function refreshFurnitureCatalog(ui, decor) {
     const def = DECO[el._id], indoor = !!decor?.cfg.indoor, both = def.indoor === 'both';
     const category = isYardStructure(el._id) ? def.category : def.category || (def.indoor === true ? 'home' : 'garden');
     const invalidZone = decor?.cfg.freeBuild ? ['plot', 'bigplot', 'pond'].includes(el._id) : isYardStructure(el._id) || (!both && !!def.indoor !== indoor);
-    setClass(el, 'hide', invalidZone || (!LOCAL_PLAY && !!def.only && !n) || (ui.decorCategory !== 'all' && category !== ui.decorCategory));
+    const notOwned = !LOCAL_PLAY && !!ui.decorOwnedOnly && !(n > 0);
+    const notMatched = !!kw && !def.name.toLowerCase().includes(kw);
+    setClass(el, 'hide', invalidZone || (!LOCAL_PLAY && !!def.only && !n) || (ui.decorCategory !== 'all' && category !== ui.decorCategory) || notOwned || notMatched);
   }
 }
 

@@ -2,8 +2,9 @@
 import { S, flushSave, getCloudSaveBase, setCloudSaveBase, normalizeSaveData, replaceSaveData, serializeState } from './state.js';
 import { LOCAL_PLAY } from './local-play-mode.js';
 
-// 桌面版由 preload/--api-base 注入地址；Android 可在入口 HTML 中设置
-// __NIKKI_API_BASE__。开源副本默认不连接任何外部账号服务器。
+// 桌面版由 preload/--api-base 注入地址；Android APK 没有命令行参数，
+// 需要在保持离线内置资源的同时，把登录和云存档请求发到正式账号 API。
+// 仍允许宿主通过 __NIKKI_API_BASE__ 覆盖（例如本地验收或测试环境）。
 const API_BASE = String(globalThis.__NIKKI_API_BASE__ || '').replace(/\/$/, '');
 const NATIVE_API_BASE = '';
 const isNativeHost = () => !!globalThis.NikkiNative?.setOrientation
@@ -271,7 +272,7 @@ readProfile();
 async function request(path, options = {}) {
   if (LOCAL_PLAY) throw new Error('本地自由试玩无需登录，进度保存在当前设备的独立试玩档中');
   if (DESKTOP_API_MISSING) {
-    const error = new Error('此安装包未配置账号服务器，可继续游客游玩。自建服务配置方法见项目 README。');
+    const error = new Error('桌面版未配置账号服务器，请用 --api-base=https://你的域名 启动，或设置 NIKKI_API_BASE');
     error.status = 503;
     error.code = 'API_BASE_MISSING';
     throw error;

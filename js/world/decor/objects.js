@@ -97,6 +97,7 @@ export function refreshFurnitureFits(decor) {
 export function addObj(decor, e, animate = true) {
   const [w, d] = decor.size(e.id, e.rot);
   const obj = decor.cfg.key==='house'&&e.id!=='fence' ? decor.houseObject(e.id) : buildDecor(e.id);
+  obj.userData?.applyVariant?.(e);
   const x = decor.lot.x0 + e.gx + w / 2, z = decor.lot.z0 + e.gz + d / 2;
   const off=e.id==='fence'?decor.fenceOffset(e.rot):{x:0,z:0};
   const angle=(e.rot*Math.PI)/2;

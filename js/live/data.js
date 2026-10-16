@@ -14,11 +14,13 @@ export const MODIFIERS = {
     { id: 'soldout', name: '断货日', tone: '#9a8290', desc: '今天有一样甜点没到货，点到它的客人只能婉拒' },
     { id: 'rush', name: '午高峰', tone: '#f0679a', desc: '前 30 秒客人翻倍涌入，之后恢复正常' },
     { id: 'combo', name: '连击派对', tone: '#a58bea', desc: '连击加成翻倍，但断一次连击扣 10 噗灵' },
+    { id: 'sweet_rush', name: '糖霜加倍', tone: '#ff8fb1', desc: '今日甜点现撒双倍糖霜，客人满意度小费提高' },
   ],
   flower: [
     { id: 'wedding', name: '婚礼订单', tone: '#ff8fb1', desc: '只收白色与粉色的花，每单报酬 +50%' },
     { id: 'weeds', name: '杂草疯长', tone: '#6fcf9f', desc: '开局棋盘上多 6 格杂草，清一格奖 3 噗灵' },
     { id: 'gift', name: '礼盒季', tone: '#e9a520', desc: '每单都要配包装，丝带篮回充加快' },
+    { id: 'dew', name: '晨露花期', tone: '#7fc4f5', desc: '清晨花材饱满，合成高阶花束的额外奖励提升' },
   ],
   tailor: [
     { id: 'mirror', name: '镜像谱面', tone: '#7fc4f5', desc: '四条轨道左右镜像' },
@@ -29,6 +31,7 @@ export const MODIFIERS = {
     { id: 'storm', name: '暴雨', tone: '#5fa8ee', desc: '鱼更猛，卖价 ×1.5' },
     { id: 'treasure', name: '藏宝图', tone: '#e9a520', desc: '每条鱼都带宝箱' },
     { id: 'calm', name: '风平浪静', tone: '#6fcf9f', desc: '鱼很温顺，但只有小鱼' },
+    { id: 'golden_tide', name: '暖潮回游', tone: '#f6a56b', desc: '暖流经过渔场，每条鱼的渔获收入 +35%' },
   ],
 };
 

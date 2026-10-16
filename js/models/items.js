@@ -19,7 +19,7 @@ const fruitModel = (c) => {
   return g;
 };
 const CROP_BUILD = {
-  apple: fruitModel, peach: fruitModel, orange: fruitModel,
+  apple: fruitModel, peach: fruitModel, orange: fruitModel, cherry: fruitModel, lemon: fruitModel,
   radish(c, ripe) {
     const g = group();
     for (const [x, z, r] of [[-0.08, 0, 0.3], [0.08, 0.03, -0.3], [0, -0.06, 0]]) g.add(cbox(0.1, 0.42, 0.06, c.leaf, x, 0.34, z, { r: 0.03, rz: r }));
@@ -85,6 +85,58 @@ const CROP_BUILD = {
       g.add(cbox(0.1, 0.08, 0.1, '#e3ccff', x, y + 0.07, z, { r: 0.03 }));
     }
     else g.add(cbox(0.1, 0.1, 0.1, '#e3ccff', 0.02, 0.78, 0.05, { r: 0.03 }));
+    return g;
+  },
+  wheat(c, ripe) {
+    const g = group();
+    const stalkCol = ripe ? '#e8bc52' : c.leaf, headCol = ripe ? c.color : '#b9e3a0';
+    [[-0.14, -0.05, 0.62, 0.12], [0, 0.08, 0.74, 0], [0.15, -0.04, 0.66, -0.12]].forEach(([x, z, hgt, rz]) => {
+      g.add(box(0.045, hgt, 0.045, stalkCol, x, 0, z, { rz }));
+      g.add(cbox(0.12, 0.28, 0.12, headCol, x - Math.sin(rz) * hgt * 0.6, hgt + 0.06, z, { r: 0.05, rz }));
+      if (ripe) g.add(cbox(0.08, 0.12, 0.08, '#ffe794', x - Math.sin(rz) * hgt * 0.6, hgt + 0.22, z, { r: 0.03, rz }));
+    });
+    return g;
+  },
+  blueberry(c, ripe) {
+    const g = group();
+    g.add(cbox(0.54, 0.36, 0.54, c.leaf, 0, 0.2, 0, { r: 0.14 }));
+    g.add(cbox(0.36, 0.24, 0.36, '#88d49e', -0.04, 0.42, 0.03, { r: 0.1 }));
+    if (ripe) for (const [x, y, z] of [[-0.18, 0.24, 0.24], [0.2, 0.32, 0.18], [0.02, 0.48, 0.12], [-0.22, 0.34, -0.12], [0.22, 0.2, -0.16]]) {
+      g.add(cbox(0.14, 0.14, 0.14, c.color, x, y, z, { r: 0.06 }));
+      g.add(cbox(0.06, 0.03, 0.06, '#b8dcff', x, y + 0.07, z, { r: 0.015 }));
+    } else for (const [x, y, z] of [[-0.16, 0.32, 0.2], [0.18, 0.36, 0.12]]) {
+      g.add(cbox(0.09, 0.09, 0.09, '#d6f5d6', x, y, z, { r: 0.04 }));
+    }
+    return g;
+  },
+  cotton(c, ripe) {
+    const g = group();
+    g.add(box(0.06, 0.46, 0.06, '#8a6a55', 0, 0, 0));
+    g.add(cbox(0.42, 0.22, 0.42, c.leaf, 0, 0.18, 0, { r: 0.09 }));
+    for (const [x, y, z] of [[-0.15, 0.38, 0.1], [0.16, 0.44, -0.06], [0, 0.56, 0.04]]) {
+      g.add(cbox(0.14, 0.08, 0.14, '#8a6a55', x, y - 0.07, z, { r: 0.03 }));
+      if (ripe) {
+        g.add(cbox(0.24, 0.22, 0.24, c.color, x, y + 0.05, z, { r: 0.1 }));
+        g.add(cbox(0.16, 0.14, 0.16, WHITE, x + 0.03, y + 0.12, z, { r: 0.07 }));
+      } else {
+        g.add(cbox(0.14, 0.14, 0.14, '#b9e3a0', x, y + 0.02, z, { r: 0.06 }));
+      }
+    }
+    return g;
+  },
+  moonflower(c, ripe) {
+    const g = group();
+    g.add(box(0.06, 0.72, 0.06, c.leaf, 0, 0, 0));
+    g.add(cbox(0.28, 0.06, 0.16, c.leaf, -0.14, 0.32, 0, { r: 0.02, rz: -0.38 }));
+    g.add(cbox(0.28, 0.06, 0.16, c.leaf, 0.14, 0.46, 0, { r: 0.02, rz: 0.38 }));
+    const m = mat(c.color, { emissive: c.color, ei: ripe ? 0.5 : 0.15, rough: 0.4 });
+    if (ripe) {
+      g.add(cbox(0.36, 0.22, 0.36, m, 0, 0.76, 0, { r: 0.11 }));
+      g.add(cbox(0.24, 0.18, 0.24, '#dce6ff', 0, 0.88, 0, { r: 0.08, ry: Math.PI / 4 }));
+      g.add(cbox(0.12, 0.12, 0.12, mat('#fff3b0', { emissive: '#ffe066', ei: 0.7 }), 0, 0.96, 0, { r: 0.05 }));
+    } else {
+      g.add(cbox(0.18, 0.22, 0.18, '#c5d4ff', 0, 0.74, 0, { r: 0.07 }));
+    }
     return g;
   },
 };

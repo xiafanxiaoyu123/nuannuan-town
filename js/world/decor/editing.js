@@ -6,9 +6,32 @@ import { audio } from '../../core/audio.js';
 import { fx } from '../../core/fx.js';
 import { yardLevel } from '../yard-building.js';
 import { LOCAL_PLAY } from '../../core/local-play-mode.js';
+import { SWATCHABLE_IDS, SWATCH_FAMILIES } from '../../shared/home-themes.js';
 import { furnitureAt } from './dragging.js';
 
 const copy = value => JSON.parse(JSON.stringify(value));
+
+/** @param {import('../decor.js').DecorSys} decor */
+export function focusSwatch(decor) {
+  const rec = decor.focus;
+  if (!rec || !SWATCHABLE_IDS.has(rec.e.id)) return false;
+  if (!S[decor.pk].includes(rec.e)) { decor.reload(); return decor.refuse('家具已刷新，请重新选择'); }
+  decor.finishStroke();
+  const before = decor.snapshot();
+  const nextIdx = ((Number(rec.e.swatch) || 0) + 1) % SWATCH_FAMILIES.length;
+  if (nextIdx === 0) delete rec.e.swatch;
+  else rec.e.swatch = nextIdx;
+  rec.obj.userData?.applyVariant?.(rec.e);
+  decor.town.renderOptimizer?.invalidateDecor();
+  audio.sfx('tab');
+  fx.sparkle(decor.town.scene, rec.obj.position.clone().setY(0.8), 6, ['#ffd24f', SWATCH_FAMILIES[nextIdx].color]);
+  decor.recordEdit(before, '家具换色');
+  save();
+  decor.setFocus(rec);
+  bus.emit('toast', `已切换为「${SWATCH_FAMILIES[nextIdx].name}」配色`);
+  bus.emit('decorChanged');
+  return true;
+}
 
 /** @param {import('../decor.js').DecorSys} decor */
 export function focusMove(decor) {

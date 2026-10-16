@@ -27,7 +27,7 @@ export class ScenePerformance {
   near(root,x){const b=this.range(root);return !b || Math.abs(root.position.x+b.offset-x)<180+b.radius;}
   eligible(rec){
     const o=rec.obj;
-    return !rec.tick && !o.userData.seasonalPlant && rec.e.id!=='plot' && rec.e.id!=='bigplot' && o.visible &&
+    return !rec.tick && !o.userData.seasonalPlant && rec.e.id!=='plot' && rec.e.id!=='bigplot' && rec.e.lightOn!==false && o.visible &&
       Math.abs(o.scale.x-1)<1e-6 && Math.abs(o.scale.y-1)<1e-6 && Math.abs(o.scale.z-1)<1e-6;
   }
   buildDecor(decor,sources){
@@ -76,7 +76,7 @@ export class ScenePerformance {
   }
   render(draw,camera=this.town.camera){
     if(!this.enabled)return draw();
-    const scene=this.town.scene,original=scene.children,x=camera.position.x;
+    const scene=this.town.scene,original=scene.children,x=camera.position.x,z=camera.position.z||0;
     // 缓冲只供本次同步 draw 使用；嵌套绘制用下一层，不能改写外层正在绘制的列表。
     const depth=this.renderDepth++;
     const frame=this.renderFrames[depth]||(this.renderFrames[depth]={selected:[],replaced:new Set(),batches:[]});
@@ -86,6 +86,7 @@ export class ScenePerformance {
       const activeRoots=selected.length;
       for(const decor of Object.values(this.town.decors)){
         if(Math.abs(decor.lot.x0+decor.lot.cols/2-x)>180)continue;
+        if(Number.isFinite(decor.lot.z0)&&Number.isFinite(decor.lot.rows)&&Math.abs(decor.lot.z0+decor.lot.rows/2-z)>240)continue;
         const cache=this.furniture(decor);
         for(const root of cache.replaced)replaced.add(root);
         for(const batch of cache.batches)batches.push(batch);

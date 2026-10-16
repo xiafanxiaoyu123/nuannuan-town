@@ -2,7 +2,7 @@
 
 ## 网页开发环境
 
-- Node.js 22.13 或更高版本；推荐 Node.js 24。
+- Node.js 24 或更高版本（共享纯数据校验需要同步加载 ESM）。
 - npm；Three.js 的精确安装版本由根目录 `package-lock.json` 锁定为 0.170.0。
 - 构建静态目录另需 Python 3，使用标准库，无需安装 Python 依赖包。
 - 支持 WebGL 的现代浏览器。
@@ -11,6 +11,7 @@
 npm ci
 npm run check
 npm test
+npm run qa:backend
 npm start
 ```
 
@@ -100,3 +101,9 @@ python tools/apk_build.py
 2.1.14 的源码更新范围与开源副本的配置边界见 [更新记录](UPDATES.md)。
 
 这些自动检查不能代替实际浏览器体验、移动端触摸测试、APK 安装、Windows 签名或线上部署验收。对自己的改动，至少验证启动、正常游玩、保存后刷新、存档导出与导入，再进行平台构建。
+
+## 当前维护入口
+
+`npm run check` 现在执行工程检查，覆盖共享存档校验闭包、资源、版本及循环依赖；保留旧检查为 `npm run check:source`。`npm run qa:backend` 执行 16 套隔离后端与存档回归。新增源码及安全配置契约见 [账号服务与存档说明](ACCOUNT_SERVICE.md)。
+
+`npm run build:esm` 和 `npm run build:web` 创建独立候选；`npm run build` 重建默认 `dist/`。可使用 `python tools/pack_three.py` 打开三端打包工具，工具不会部署或上传。公开版账号地址、资源更新与签名配置保持为空或关闭，需要自己配置服务；支付保持关闭。

@@ -4,11 +4,12 @@
 import { S, bus, save, getStat, addCoins, checkQuest, FRIEND_AT, beauty, spend } from '../core/state.js';
 import { SIGNIN, MODIFIERS, PERKS, SET_EFFECTS, BEAUTY_REWARDS, PROJECT, STORIES, VISIT_LINES, FESTIVALS } from './data.js';
 import { createDailyService } from '../features/daily/service.js';
-import { SETS, CLOTH, CLOTHES, CROPS, FRUITS } from '../data.js';
+import { SETS, CLOTH, CLOTHES, CROPS, FRUITS, DECOR } from '../data.js';
 import { RESIDENTS as NPCS } from './people.js';
 import { FISH, FLOWERS } from '../models/items.js';
 import { outfitFx, festivalAt } from './effects.js';
 import { gameDayKey, gameDayNo } from '../core/gametime.js';
+import { addFertilizer, migrateMarketOrders } from '../shared/save-compat.js';
 
 // 日期按本地日历计算，不能用 UTC 截日期；昨天也用日历减一天，兼容夏令时
 const dateKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -252,4 +253,118 @@ export const live = {
 
   // ——— 居民剧情 ———
   story(npcId) { return syncStory(npcId); },
+
+  // ——— 大喵今日迎宾礼 (H5) ———
+  welcome() {
+    const d = today();
+    if (!S.live.welcome || S.live.welcome.date !== d) {
+      const seedPool = CROPS.slice(0, 6);
+      const dayHash = Number(d.replace(/-/g, '')) || 1;
+      const seed = seedPool[dayHash % seedPool.length];
+      S.live.welcome = { date: d, claimed: false, coins: 80, seedId: seed.id, seedName: `${seed.name}种子 ×1` };
+    }
+    return S.live.welcome;
+  },
+  claimWelcome() {
+    const w = this.welcome();
+    if (w.claimed) return null;
+    w.claimed = true;
+    addCoins(w.coins, 'live');
+    if (w.seedId) {
+      S.seeds[w.seedId] = (S.seeds[w.seedId] || 0) + 1;
+      bus.emit('seed', S.seed);
+    }
+    addFertilizer(S);
+    save();
+    bus.emit('liveDaily');
+    return w;
+  },
+
+  // ——— 每日闪购橱窗 (H1) ———
+  spotlight() {
+    const d = today();
+    if (!S.live.spotlight || S.live.spotlight.date !== d || !Array.isArray(S.live.spotlight.items)) {
+      const daySeed = Number(d.replace(/-/g, '')) || 20261017;
+      const clothPool = CLOTHES.filter((c) => c.price > 0 && !S.owned.includes(c.id));
+      const cPick = (clothPool.length ? clothPool : CLOTHES.filter((c) => c.price > 0))[daySeed % Math.max(1, clothPool.length || CLOTHES.length)];
+      const decorPool = DECOR.filter((x) => x.price > 0 && !x.mile);
+      const dPick = decorPool[(daySeed * 3 + 7) % decorPool.length];
+      const sPick = CROPS[(daySeed * 5 + 2) % CROPS.length];
+      const items = [];
+      if (cPick) items.push({ kind: 'cloth', id: cPick.id, name: cPick.name, orig: cPick.price, price: Math.max(40, Math.round(cPick.price * 0.78)), bought: S.owned.includes(cPick.id) });
+      if (dPick) items.push({ kind: 'decor', id: dPick.id, name: dPick.name, orig: dPick.price, price: Math.max(30, Math.round(dPick.price * 0.8)), bought: false });
+      if (sPick) items.push({ kind: 'seed', id: sPick.id, name: `${sPick.name}种子 ×3`, count: 3, orig: sPick.seed * 3, price: Math.max(12, Math.round(sPick.seed * 3 * 0.75)), bought: false });
+      S.live.spotlight = { date: d, items };
+    } else {
+      for (const it of S.live.spotlight.items) {
+        if (it.kind === 'cloth' && S.owned.includes(it.id)) it.bought = true;
+      }
+    }
+    return S.live.spotlight;
+  },
+  buySpotlight(idx) {
+    const sp = this.spotlight();
+    const it = sp.items[idx];
+    if (!it || it.bought) return null;
+    if (it.kind === 'cloth' && S.owned.includes(it.id)) { it.bought = true; return null; }
+    if (!spend(it.price)) return null;
+    it.bought = true;
+    if (it.kind === 'cloth') {
+      if (!S.owned.includes(it.id)) S.owned.push(it.id);
+      bus.emit('collection');
+      checkQuest();
+    } else if (it.kind === 'decor') {
+      S.decor[it.id] = (S.decor[it.id] || 0) + 1;
+      bus.emit('decorChanged');
+    } else if (it.kind === 'seed') {
+      S.seeds[it.id] = (S.seeds[it.id] || 0) + (it.count || 3);
+      bus.emit('seed', S.seed);
+    }
+    save();
+    bus.emit('liveDaily');
+    return it;
+  },
+
+  // ——— 周末小镇集市周常单 (H4) ———
+  market() {
+    const now = new Date();
+    const weekKey = `${now.getFullYear()}-W${String(Math.ceil((now.getDate() + 6 - now.getDay()) / 7)).padStart(2, '0')}-${now.getMonth() + 1}`;
+    if (!S.live.market || S.live.market.week !== weekKey || !Array.isArray(S.live.market.orders)) {
+      S.live.market = {
+        week: weekKey,
+        orders: [
+          { id: 'mk_work', title: '集市帮工周记', desc: '本周累计完成 5 局任意小游戏', stat: 'plays', base: getStat('plays'), need: 5, coins: 260, seed: 'wheat', seedCount: 2, claimed: false },
+          { id: 'mk_harvest', title: '田园鲜果篮', desc: '本周累计收获 8 株后院作物或果子', stat: 'harvested', base: getStat('harvested'), need: 8, coins: 240, seed: 'moonflower', seedCount: 1, claimed: false },
+          { id: 'mk_fish', title: '河畔渔歌补给', desc: '本周累计在钓场钓起 4 条鱼', stat: 'fish_caught', base: getStat('fish_caught'), need: 4, coins: 220, decor: 'step_moss', claimed: false },
+        ],
+      };
+    }
+    // 同一会话里恢复/替换旧数据后也沿用幂等迁移，不必等重启才修正别名。
+    const compatible = migrateMarketOrders(S);
+    if (compatible !== S) S.live.market = compatible.live.market;
+    const orders = S.live.market.orders.map((o) => {
+      const cur = (o.carriedProgress || 0) + Math.max(0, getStat(o.stat) - (o.base || 0));
+      return { ...o, cur, done: cur >= o.need };
+    });
+    return { week: weekKey, orders };
+  },
+  claimMarket(id) {
+    const m = this.market();
+    const idx = S.live.market.orders.findIndex((o) => o.id === id);
+    const view = m.orders[idx];
+    if (!view || !view.done || view.claimed) return null;
+    S.live.market.orders[idx].claimed = true;
+    addCoins(view.coins, 'live');
+    if (view.seed) {
+      S.seeds[view.seed] = (S.seeds[view.seed] || 0) + (view.seedCount || 1);
+      bus.emit('seed', S.seed);
+    }
+    if (view.decor) {
+      S.decor[view.decor] = (S.decor[view.decor] || 0) + 1;
+      bus.emit('decorChanged');
+    }
+    save();
+    bus.emit('liveDaily');
+    return view;
+  },
 };

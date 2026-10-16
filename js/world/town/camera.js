@@ -80,7 +80,8 @@ export function updateCamera(town, dt, time) {
     bus.emit('peek');
   }
   const cp = Math.cos(r.pitch), sp = Math.sin(r.pitch);
-  town.camera.position.set(r.x + Math.sin(r.yaw) * cp * r.dist, 1 + r.y + sp * r.dist, r.z + Math.cos(r.yaw) * cp * r.dist);
+  const camY = Math.max(r.y + 0.35, 1 + r.y + sp * r.dist);
+  town.camera.position.set(r.x + Math.sin(r.yaw) * cp * r.dist, camY, r.z + Math.cos(r.yaw) * cp * r.dist);
   town.camera.lookAt(r.x, 1 + r.y, r.z);
   if (town.cine) town.cine(time, dt, town.camera);
   town.sun.target.position.set(r.x, 0, r.z);

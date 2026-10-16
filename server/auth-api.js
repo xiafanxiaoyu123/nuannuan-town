@@ -1,5 +1,5 @@
 // 暖暖小镇账号与云存档 API。
-// 依赖 Node 22+ 的 node:sqlite，避免测试阶段额外编译原生数据库模块。
+// 依赖 Node 24+ 的 node:sqlite 和同步纯数据 ESM 加载，无需原生数据库模块。
 // 生产环境请通过 HTTPS 反向代理访问，并将 COOKIE_SECURE=1。
 const { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
@@ -9,6 +9,11 @@ const GIFT_CATALOG = require('./gift-catalog.json');
 const GIFT_IDS = Object.fromEntries(['owned', 'seeds', 'crops', 'decor'].map((type) => [type, new Set(GIFT_CATALOG[type].map((item) => item.id))]));
 const createBilling = require('./billing');
 const createAdminWorkbench = require('./admin-workbench');
+const { validateCloudSave } = require('./save-contract');
+const { createRequestSecurity, createLoginFailureLimiter, sessionToken } = require('./request-security');
+const requestSecurity = createRequestSecurity(process.env);
+const loginFailures = createLoginFailureLimiter();
+const { clientIp, originHeaders } = requestSecurity;
 const ADMIN_CAPABILITIES = ['accounts.read', 'accounts.write', 'sessions.read', 'sessions.revoke', 'entitlements.write', 'saves.read', 'gifts.write', 'gift_templates.write', 'mail.write', 'mail.read', 'mail.revoke', 'audit.read', 'service_settings.read', 'service_settings.write'];
 
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, '..', 'data'));
@@ -19,12 +24,6 @@ const MAX_SAVE_BYTES = 2 * 1024 * 1024;
 // single-origin fallback, while APP_ORIGINS accepts a comma-separated list for
 // the public site plus explicitly approved test/mobile mirrors. Never use `*`
 // here because account requests carry cookies.
-const APP_ORIGINS = new Set(
-  String(process.env.APP_ORIGINS || process.env.APP_ORIGIN || '')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean),
-);
 const COOKIE_SECURE = process.env.COOKIE_SECURE === '1';
 // Android Capacitor 页面使用 https://localhost，请求公网 API 时属于跨站
 // fetch；Secure 生产会话必须允许带凭据跨站发送，否则 APK 注册后下一次
@@ -53,6 +52,7 @@ const db = (() => {
   value.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
+    PRAGMA busy_timeout = 5000;
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       username TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -262,13 +262,6 @@ function send(res, status, body, headers = {}) {
   res.end(text);
 }
 
-function originHeaders(req) {
-  const origin = req.headers.origin;
-  if (!origin) return {};
-  if (!APP_ORIGINS.size || APP_ORIGINS.has(origin)) return { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', Vary: 'Origin' };
-  return {};
-}
-
 function parseCookies(req) {
   const out = {};
   for (const part of String(req.headers.cookie || '').split(';')) {
@@ -283,7 +276,6 @@ function parseCookies(req) {
 function tokenHash(token) { return createHash('sha256').update(token).digest('hex'); }
 function passwordHash(password, salt) { return scryptSync(password, salt, 32, { N: 16384, r: 8, p: 1 }).toString('base64url'); }
 function userView(row) { return { id: row.id, username: row.username, createdAt: row.created_at }; }
-function clientIp(req) { return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim(); }
 
 function sameSecret(actual, expected) {
   if (!expected || typeof actual !== 'string') return false;
@@ -551,17 +543,21 @@ function mailInput(body, replay = false) {
 }
 
 function applyGiftOpsToSave(data, ops) {
-  data.coins = Number.isFinite(Number(data.coins)) ? Math.max(0, Math.min(1_000_000_000_000, Math.trunc(Number(data.coins)))) : 0;
-  data.owned = Array.isArray(data.owned) ? [...new Set(data.owned.map(String))] : [];
+  data = validateSave(data).data;
+  const addQuantity = (current, amount) => {
+    const next = current + amount;
+    if (!Number.isSafeInteger(next) || next < current) throw Object.assign(new Error('这份礼包超过当前存档的数量容量，未发放任何物品'), { status: 409, code: 'SAVE_CAPACITY_EXCEEDED' });
+    return next;
+  };
+  data.owned = [...new Set(data.owned)];
   for (const op of ops) {
-    if (op.type === 'coins') data.coins = op.mode === 'set' ? op.amount : data.coins + op.amount;
+    if (op.type === 'coins') data.coins = addQuantity(data.coins, op.amount);
     if (op.type === 'owned') data.owned = [...new Set([...data.owned, ...op.ids])];
     if (['crops', 'seeds', 'decor'].includes(op.type)) {
-      data[op.type] = data[op.type] && typeof data[op.type] === 'object' && !Array.isArray(data[op.type]) ? data[op.type] : {};
-      for (const [key, amount] of Object.entries(op.items)) data[op.type][key] = Math.max(0, Math.min(1_000_000, Math.trunc(Number(data[op.type][key] || 0) + amount)));
+      data[op.type] = data[op.type] || {};
+      for (const [key, amount] of Object.entries(op.items)) data[op.type][key] = addQuantity(data[op.type][key] || 0, amount);
     }
   }
-  data.coins = Math.max(0, Math.min(1_000_000_000_000, Math.trunc(data.coins)));
   data.savedAt = Date.now();
   return data;
 }
@@ -687,8 +683,7 @@ function clearSessionCookie() { const secure = COOKIE_SECURE ? '; Secure' : ''; 
 
 function authUser(req) {
   const cookies = parseCookies(req);
-  const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  const token = cookies.session || bearer;
+  const token = sessionToken(req, cookies);
   if (!token) return null;
   const now = Date.now();
   const row = db.prepare(`SELECT u.id, u.username, u.created_at, s.id AS session_id
@@ -714,19 +709,15 @@ function readRawBody(req) {
 
 async function readBody(req) {
   const raw = await readRawBody(req);
-  try { return JSON.parse(raw.toString('utf8') || '{}'); }
+  let body;
+  try { body = JSON.parse(raw.toString('utf8') || '{}'); }
   catch { throw Object.assign(new Error('请求不是有效 JSON'), { status: 400 }); }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw Object.assign(new Error('请求应为 JSON 对象'), { status: 400 });
+  return body;
 }
 
 function validateSave(data) {
-  if (!data || typeof data !== 'object' || Array.isArray(data)) throw Object.assign(new Error('存档格式不正确'), { status: 400 });
-  if (!Number.isInteger(data.v) || data.v < 1 || data.v > 99) throw Object.assign(new Error('存档版本不受支持'), { status: 400 });
-  if (!Array.isArray(data.owned) || !data.outfit || typeof data.outfit !== 'object') throw Object.assign(new Error('存档缺少必要字段'), { status: 400 });
-  if (!Number.isFinite(data.coins) || data.coins < 0 || data.coins > 1e12) throw Object.assign(new Error('存档数值不合法'), { status: 400 });
-  const text = JSON.stringify(data);
-  const bytes = Buffer.byteLength(text, 'utf8');
-  if (bytes > MAX_SAVE_BYTES) throw Object.assign(new Error('单个存档不能超过 2 MB'), { status: 413 });
-  return { text, bytes, checksum: createHash('sha256').update(text).digest('hex') };
+  return validateCloudSave(data);
 }
 
 function newSession(userId) {
@@ -758,7 +749,7 @@ async function handleApi(req, res) {
     res.writeHead(204, { ...headers, 'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Test-Admin-Token, X-Admin-Token, X-Nikki-Account-Id', 'Access-Control-Allow-Methods': 'DELETE,GET,POST,PUT,OPTIONS', 'Access-Control-Max-Age': '600' }).end();
     return true;
   }
-  if (APP_ORIGINS.size && req.headers.origin && !headers['Access-Control-Allow-Origin']) { send(res, 403, { error: '来源不被允许' }); return true; }
+  if (!requestSecurity.isOriginAllowed(req)) { send(res, 403, { error: '来源不被允许' }); return true; }
   try {
     if (await handleAdminWorkbench(req, res, url, headers)) return true;
     if (url.pathname === '/api/admin/launch' && req.method === 'POST') {
@@ -872,7 +863,8 @@ async function handleApi(req, res) {
       if (row.disabled) { send(res, 409, { error: '账号已停用，请恢复账号后再发放礼包', code: 'ACCOUNT_DISABLED' }, headers); return true; }
       const old = db.prepare('SELECT revision,payload,payload_bytes,checksum,client_updated_at,server_updated_at FROM saves WHERE user_id=?').get(id);
       if (!old) { send(res, 404, { error: '该账号还没有云存档，无法发放礼包', code: 'SAVE_NOT_FOUND' }, headers); return true; }
-      if (body.baseRevision !== undefined && Number(body.baseRevision) !== old.revision) { send(res, 409, { error: '存档在查看后发生了变化，请刷新详情后再发放', code: 'SAVE_REVISION_CONFLICT', currentRevision: old.revision }, headers); return true; }
+      if (!Number.isSafeInteger(body.baseRevision) || body.baseRevision < 0) { send(res, 400, { error: '发放前需要有效的存档版本，请刷新详情', code: 'SAVE_REVISION_REQUIRED' }, headers); return true; }
+      if (body.baseRevision !== old.revision) { send(res, 409, { error: '存档在查看后发生了变化，请刷新详情后再发放', code: 'SAVE_REVISION_CONFLICT', currentRevision: old.revision }, headers); return true; }
       let parsedOld;
       try { parsedOld = JSON.parse(old.payload); }
       catch { send(res, 409, { error: '该账号云存档已经损坏，无法直接改写', code: 'SAVE_CORRUPTED' }, headers); return true; }
@@ -882,6 +874,11 @@ async function handleApi(req, res) {
       const giftId = randomUUID();
       db.exec('BEGIN IMMEDIATE');
       try {
+        const current = db.prepare('SELECT revision FROM saves WHERE user_id=?').get(id);
+        if (!current || current.revision !== old.revision) {
+          db.exec('ROLLBACK');
+          send(res, 409, { error: '存档在查看后发生了变化，请刷新详情后再发放', code: 'SAVE_REVISION_CONFLICT', currentRevision: current?.revision || 0 }, headers); return true;
+        }
         db.prepare('UPDATE saves SET revision=?,payload=?,payload_bytes=?,checksum=?,client_updated_at=?,server_updated_at=? WHERE user_id=?')
           .run(old.revision + 1, checked.text, checked.bytes, checked.checksum, now, now, id);
         db.prepare('INSERT INTO gift_grants (id,user_id,idempotency_key,items_json,operator,before_revision,after_revision,status,created_at) VALUES (?,?,?,?,?,?,?,?,?)')
@@ -1013,7 +1010,11 @@ async function handleApi(req, res) {
         const old = db.prepare('SELECT revision,payload,payload_bytes,checksum,client_updated_at,server_updated_at FROM saves WHERE user_id=?').get(user.id);
         if (!old) { db.exec('ROLLBACK'); send(res, 409, { error: '请先完成一次云存档同步，再领取邮件礼包', code: 'SAVE_NOT_FOUND' }, headers); return true; }
         const latest = db.prepare('SELECT revision,payload FROM saves WHERE user_id=?').get(user.id);
-        if (body.baseRevision !== undefined && Number(body.baseRevision) !== latest.revision) {
+        if (!Number.isSafeInteger(body.baseRevision) || body.baseRevision < 0) {
+          db.exec('ROLLBACK');
+          send(res, 400, { error: '领取前需要有效的存档版本，请重新同步', code: 'SAVE_REVISION_REQUIRED' }, headers); return true;
+        }
+        if (body.baseRevision !== latest.revision) {
           db.exec('ROLLBACK');
           send(res, 409, { error: '领取前存档发生了变化，请重新同步后再试', code: 'MAIL_REVISION_CONFLICT', currentRevision: latest.revision }, headers);
           return true;
@@ -1041,14 +1042,22 @@ async function handleApi(req, res) {
     }
     if (url.pathname === '/api/auth/login' && req.method === 'POST') {
       if (limited(`login:${clientIp(req)}`, 10, 60000)) { send(res, 429, { error: '登录尝试太频繁，请稍后再试' }, headers); return true; }
-      const body = await readBody(req); const row = db.prepare('SELECT * FROM users WHERE username=?').get(body.username || '');
+      const body = await readBody(req);
+      if (!validLogin(body?.username) || typeof body?.password !== 'string' || body.password.length < 8 || body.password.length > 128) { send(res, 401, { error: '用户名或密码不正确' }, headers); return true; }
+      const retryAfter = loginFailures.blocked(body.username);
+      if (retryAfter > 0) { send(res, 429, { error: '登录尝试太频繁，请稍后再试' }, { ...headers, 'Retry-After': String(retryAfter) }); return true; }
+      const row = db.prepare('SELECT * FROM users WHERE username=?').get(body.username);
       const actual = row && !row.disabled ? passwordHash(String(body.password || ''), row.password_salt) : randomBytes(32).toString('base64url');
       const ok = row && !row.disabled && actual.length === row.password_hash.length && timingSafeEqual(Buffer.from(actual), Buffer.from(row.password_hash));
-      if (!ok) { send(res, 401, { error: '用户名或密码不正确' }, headers); return true; }
+      if (!ok) {
+        const seconds = loginFailures.failure(body.username);
+        send(res, seconds > 0 ? 429 : 401, { error: seconds > 0 ? '登录尝试太频繁，请稍后再试' : '用户名或密码不正确' }, seconds > 0 ? { ...headers, 'Retry-After': String(seconds) } : headers); return true;
+      }
+      loginFailures.success(row.username);
       const token = newSession(row.id); send(res, 200, { user: userView(row) }, { ...headers, 'Set-Cookie': sessionCookie(token) }); return true;
     }
     if (url.pathname === '/api/auth/logout' && req.method === 'POST') {
-      const cookies = parseCookies(req); if (cookies.session) db.prepare('DELETE FROM sessions WHERE token_hash=?').run(tokenHash(cookies.session));
+      const token = sessionToken(req, parseCookies(req)); if (token) db.prepare('DELETE FROM sessions WHERE token_hash=?').run(tokenHash(token));
       send(res, 200, { ok: true }, { ...headers, 'Set-Cookie': clearSessionCookie() }); return true;
     }
     if (url.pathname === '/api/auth/me' && req.method === 'GET') {
@@ -1144,17 +1153,25 @@ async function handleApi(req, res) {
       const user = requireUser(req, res, headers); if (!user) return true;
       if (!hasEntitlement(user.id, 'cloud_sync')) { sendCloudSyncRequired(res, headers, user.id); return true; }
       if (limited(`save:${user.id}`, 60, 60000)) { send(res, 429, { error: '同步太频繁，请稍后再试' }, headers); return true; }
-      const body = await readBody(req); const checked = validateSave(body.data); const base = Number.isInteger(body.baseRevision) ? body.baseRevision : 0; const now = Date.now();
+      const body = await readBody(req); const checked = validateSave(body.data); const base = body.baseRevision; const now = Date.now();
+      db.exec('BEGIN IMMEDIATE');
+      try {
       const old = db.prepare('SELECT revision,payload,checksum,client_updated_at,server_updated_at FROM saves WHERE user_id=?').get(user.id);
       // A response may be lost after COMMIT. An identical validated retry has
       // already succeeded, even if its original baseRevision is now stale.
       if (old && old.checksum === checked.checksum && old.payload === checked.text) {
+        db.exec('COMMIT');
         send(res, 200, { ok: true, unchanged: true, revision: old.revision, checksum: old.checksum, serverUpdatedAt: old.server_updated_at }, headers); return true;
       }
-      if (old && old.revision !== base) { send(res, 409, { error: '云端已有更新', conflict: { revision: old.revision, data: JSON.parse(old.payload), checksum: old.checksum, clientUpdatedAt: old.client_updated_at, serverUpdatedAt: old.server_updated_at } }, headers); return true; }
+      if (!Number.isSafeInteger(base) || base < 0) { db.exec('ROLLBACK'); send(res, 400, { error: '同步需要有效的存档版本，请重新同步', code: 'SAVE_REVISION_REQUIRED' }, headers); return true; }
+      if (!old && base !== 0) { db.exec('ROLLBACK'); send(res, 409, { error: '云存档已变化，请重新确认本地进度', code: 'SAVE_REVISION_CONFLICT', currentRevision: 0, conflict: null }, headers); return true; }
+      if (old && old.revision !== base) { db.exec('ROLLBACK'); send(res, 409, { error: '云端已有更新', conflict: { revision: old.revision, data: JSON.parse(old.payload), checksum: old.checksum, clientUpdatedAt: old.client_updated_at, serverUpdatedAt: old.server_updated_at } }, headers); return true; }
       if (old) db.prepare('UPDATE saves SET revision=?,payload=?,payload_bytes=?,checksum=?,client_updated_at=?,server_updated_at=? WHERE user_id=?').run(old.revision + 1, checked.text, checked.bytes, checked.checksum, Number.isFinite(body.clientUpdatedAt) ? body.clientUpdatedAt : null, now, user.id);
       else db.prepare('INSERT INTO saves (user_id,revision,payload,payload_bytes,checksum,client_updated_at,server_updated_at) VALUES (?,?,?,?,?,?,?)').run(user.id, 1, checked.text, checked.bytes, checked.checksum, Number.isFinite(body.clientUpdatedAt) ? body.clientUpdatedAt : null, now);
-      const revision = old ? old.revision + 1 : 1; send(res, 200, { ok: true, revision, checksum: checked.checksum, serverUpdatedAt: now }, headers); return true;
+      const revision = old ? old.revision + 1 : 1;
+      db.exec('COMMIT');
+      send(res, 200, { ok: true, revision, checksum: checked.checksum, serverUpdatedAt: now }, headers); return true;
+      } catch (error) { try { db.exec('ROLLBACK'); } catch { /* preserve original error */ } throw error; }
     }
     send(res, 404, { error: '接口不存在' }, headers); return true;
   } catch (error) {

@@ -142,9 +142,15 @@ export class BakeryGame extends MiniGame {
       const item = this.display[i];
       if (!item) return h('div', { class: 'bread-slot empty' }, '空位');
       const b = BREADS.find((x) => x.id === item.id);
-      return h('div', { class: 'bread-slot' + (item.perfect ? ' perfect' : '') }, h('img', { src: breadIco(item.id), alt: '' }),
+      const slotEl = h('div', { class: 'bread-slot' + (item.perfect ? ' perfect' : ''), 'data-slot': i, onclick: (e) => {
+        if (e.target.closest('.bread-discard')) return;
+        // 点击展示架面包可自动交付给首位匹配的等待客人（A1 快捷交付）
+        const targetIdx = this.customers.findIndex((c) => c && c.state === 'wait' && c.order.includes(item.id) && this.match(c.order));
+        if (targetIdx >= 0) this.serve(targetIdx);
+      } }, h('img', { src: breadIco(item.id), alt: '' }),
         h('span', {}, h('b', {}, b.name), h('small', {}, item.perfect ? '完美火候' : '普通火候')),
-        h('button', { class: 'bread-discard', onclick: () => this.discard(i), 'aria-label': `回收第${i + 1}份面包`, title: '回收这份面包，不计营业额' }, '×'));
+        h('button', { class: 'bread-discard', onclick: (e) => { e.stopPropagation(); this.discard(i); }, 'aria-label': `回收第${i + 1}份面包`, title: '回收这份面包，不计营业额' }, '×'));
+      return slotEl;
     }));
     while (this.displayRoot.children.length) this.displayRoot.remove(this.displayRoot.children[0]);
     this.display.forEach((item, i) => { const m = bread(item.id); m.position.set((i - 1.5) * 1.6, 0, 0); m.scale.setScalar(0.75); this.displayRoot.add(m); });
@@ -161,13 +167,15 @@ export class BakeryGame extends MiniGame {
     const n = this.modifier?.id === 'bigorder' ? 2 : Math.random() < 0.55 ? 1 : 2;
     const order = Array.from({ length: n }, () => pick(this.menu).id);
     const ch = new Character(randomNpcLook(this.npcI++)); ch.root.scale.setScalar(1.2); ch.root.position.set(12.5, 0, 1.9); this.scene.add(ch.root);
-    const max = Math.max(18, (28 + n * 6) / Math.sqrt(this.pressure));
-    this.customers[slot] = { ch, order, state: 'in', patience: max, max, el: null };
+    const vip = this.elapsed > 8 && Math.random() < 0.18;
+    const max = Math.max(18, (28 + n * 6) / Math.sqrt(this.pressure)) * (vip ? 0.88 : 1);
+    this.customers[slot] = { ch, order, vip, state: 'in', patience: max, max, el: null };
     return true;
   }
   showOrder(slot) {
     const c = this.customers[slot]; c.pt = h('i');
-    c.el = h('button', { class: 'bubble', onclick: () => this.serve(slot), 'aria-label': `交付第${slot + 1}位客人的订单` },
+    c.el = h('button', { class: 'bubble' + (c.vip ? ' vip' : ''), onclick: () => this.serve(slot), 'aria-label': `交付第${slot + 1}位客人的订单` },
+      c.vip && h('span', { class: 'viptag' }, '熟客 +30%'),
       h('span', { class: 'kbd' }, KEYS[slot]), h('div', { class: 'its' }, c.order.map((id) => h('img', { src: breadIco(id), alt: BREADS.find((b) => b.id === id).name }))),
       h('span', { class: 'rw' }, '等待面包'), h('div', { class: 'pt' }, c.pt));
     this.bubbles.append(c.el); this.syncReady(); audio.sfx('bell');
@@ -194,7 +202,8 @@ export class BakeryGame extends MiniGame {
     if (!this.playing || !c || c.state !== 'wait') return false;
     const indices = this.match(c.order);
     if (!indices) { audio.sfx('error'); return false; }
-    const earn = indices.reduce((n, i) => n + this.display[i].value, 0) + Math.min(this.combo, 8);
+    const baseEarn = indices.reduce((n, i) => n + this.display[i].value, 0) + Math.min(this.combo, 8);
+    const earn = Math.round(baseEarn * (c.vip ? 1.3 : 1));
     for (const i of [...indices].sort((a, b) => b - a)) this.display.splice(i, 1);
     this.addScore(earn); this.setCombo(this.combo + 1); this.served++;
     this.leave(c); c.ch.setPose('cheer');
@@ -205,7 +214,12 @@ export class BakeryGame extends MiniGame {
     return true;
   }
   onFinish() {
+    for (let i = 0; i < this.ovens.length; i++) if (this.ovens[i]) this.clear(i);
     for (const c of this.customers) if (c) this.leave(c);
+    // 打烊时展示架上已烤好的面包折算余温津贴（A4）
+    if (this.display.length > 0) {
+      this.addScore(this.display.length * 2);
+    }
     this.nikki.setPose('cheer'); this.poseT = 9;
   }
   tick(dt) {
@@ -240,8 +254,9 @@ export class BakeryGame extends MiniGame {
           c.pt.style.transform = `scaleX(${clamp(c.patience / c.max)})`;
           c.pt.style.background = c.patience / c.max > 0.3 ? '#6fcf9f' : '#ff7f8f';
           const at = app.project(new THREE.Vector3(p.x, 2.8, p.z), this.camera), half = c.el.offsetWidth / 2 + 10;
+          const ctrlTop = this.controls.getBoundingClientRect().top || (app.height - 160);
           c.el.style.left = clamp(at.x, half, app.width - half) + 'px';
-          c.el.style.top = Math.max(c.el.offsetHeight + 58, Math.min(at.y, this.controls.getBoundingClientRect().top - 10)) + 'px';
+          c.el.style.top = Math.max(c.el.offsetHeight + 68, Math.min(at.y, ctrlTop - 12)) + 'px';
           c.ch.root.rotation.y = angleLerp(c.ch.root.rotation.y, 0.3, Math.min(1, dt * 8));
         }
       }

@@ -182,7 +182,13 @@ export function lailaPanel(game) {
 // ————— 拍照模式 —————
 // 三种机位：自拍（相机在暖暖面前回头看她）、拍别人（从她眼前往外看）、支架（相机立在原地不动）。
 // 任何机位下都可以走动；整张画面保持清晰（拍照期间关掉小镇平时的移轴模糊），出片时再提高分辨率重画一帧。
-const P = { on: false, mode: 'selfie', yaw: 0, pitch: 0.1, dist: 2.4, fov: 50, fixed: null, timer: 0, pose: 'stand' };
+const PHOTO_FILTERS = [
+  { id: 'none', name: '原色', css: '' },
+  { id: 'warm', name: '暖阳', css: 'sepia(0.18) saturate(1.18) brightness(1.03)' },
+  { id: 'cool', name: '清透', css: 'saturate(1.12) contrast(1.04) hue-rotate(-6deg) brightness(1.03)' },
+  { id: 'dream', name: '柔梦', css: 'saturate(1.15) brightness(1.05) contrast(0.96)' },
+];
+const P = { on: false, mode: 'selfie', yaw: 0, pitch: 0.1, dist: 2.4, fov: 50, fixed: null, timer: 0, pose: 'stand', grid: false, filterIdx: 0 };
 const playback = { time: 0, active: false, handheld: true };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 let el = null, game0 = null, tripodObj = null, saved = null, last = null;
@@ -253,7 +259,7 @@ export const photo = {
     const town = game.town, ui = game.ui;
     if (P.on || !S.live.photo.camera || game.busy || app.view !== town || town.decor.active) return;
     game0 = game;
-    Object.assign(P, { on: true, mode: 'selfie', fixed: null, dist: 2.4, pitch: 0.1, fov: 50, timer: 0, pose: 'stand' });
+    Object.assign(P, { on: true, mode: 'selfie', fixed: null, dist: 2.4, pitch: 0.1, fov: 50, timer: 0, pose: 'stand', grid: false, filterIdx: 0 });
     playback.time = 0; playback.active = true; playback.handheld = true;
     town.player.photoPlayback = playback;
     P.yaw = town.player.root.rotation.y;
@@ -271,7 +277,8 @@ export const photo = {
   exit() {
     if (!P.on) return;
     const town = game0.town;
-    P.on = false; P.timer = 0; P.pose = 'stand'; playback.active = false; playback.time = 0;
+    P.on = false; P.timer = 0; P.pose = 'stand'; P.grid = false; P.filterIdx = 0; playback.active = false; playback.time = 0;
+    if (app.canvas?.style) app.canvas.style.filter = '';
     town.photoOn = false;
     town.cine = saved.cine || null;
     town.camera.near = saved.near; town.camera.fov = saved.fov; town.camera.updateProjectionMatrix();
@@ -476,16 +483,19 @@ export const photo = {
     for (const event of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'click', 'wheel']) posePanel.addEventListener(event, e => e.stopPropagation());
     poseList.addEventListener('wheel', e => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { poseList.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
     const triBtn = b('', '', () => this.setFixed(!P.fixed));
+    const gridBtn = b('', '九宫格', () => { P.grid = !P.grid; this.refreshUI(); });
+    const filterBtn = b('', '滤镜·原色', () => { P.filterIdx = (P.filterIdx + 1) % PHOTO_FILTERS.length; this.refreshUI(); });
     const shutter = h('button', { class: 'pshutter', 'aria-label': '快门', onclick: (e) => { e.stopPropagation(); audio.init(); this.press(); } }, h('i'));
     const thumb = h('button', { class: 'photo-thumb', 'aria-label': '看刚拍的照片', onclick: (e) => { e.stopPropagation(); this.view(); } });
     const shots = h('span', { class: 'pbtn ghost num' }, `已拍 ${own.shots || 0}`);
-    el = h('div', { class: 'photo-ui' }, pad, h('div', { class: 'photo-frame' }), count,
-      h('div', { class: 'photo-top' }, h('span', { class: 'photo-tip' }), shots),
+    const frameEl = h('div', { class: 'photo-frame' });
+    el = h('div', { class: 'photo-ui' }, pad, frameEl, count,
+      h('div', { class: 'photo-top' }, h('span', { class: 'photo-tip' }), gridBtn, filterBtn, shots),
       h('button', { class: 'photo-exit', 'aria-label': '退出拍照', onclick: (e) => { e.stopPropagation(); audio.init(); this.exit(); } }, '✕ 退出'),
       own.stick ? h('label', { class: 'photo-zoomwrap' }, h('span', {}, '远'), zoom, h('span', {}, '近')) : null,
       thumb, posePanel,
       h('div', { class: 'photo-bar' }, modeBtn, poseBtn, shutter, own.tripod ? triBtn : h('span', { class: 'pbtn ghost' }, '支架未购买')));
-    Object.assign(el, { _count: count, _pad: pad, _mode: modeBtn, _pose: poseBtn, _poseList: poseList, _poseNote: poseNote, _tri: triBtn, _tip: el.querySelector('.photo-tip'), _zoom: zoom, _zoomNow: zoomNow, _thumb: thumb, _shots: shots });
+    Object.assign(el, { _count: count, _pad: pad, _frame: frameEl, _grid: gridBtn, _filter: filterBtn, _mode: modeBtn, _pose: poseBtn, _poseList: poseList, _poseNote: poseNote, _tri: triBtn, _tip: el.querySelector('.photo-tip'), _zoom: zoom, _zoomNow: zoomNow, _thumb: thumb, _shots: shots });
     ui.root.append(el);
     this.refreshUI();
   },
@@ -495,6 +505,11 @@ export const photo = {
     el._mode.textContent = P.mode === 'selfie' ? '自拍 → 拍别人' : '拍别人 → 自拍';
     el._mode.classList.toggle('off', fixed);
     el._mode.disabled = fixed;
+    if (el._frame) el._frame.classList.toggle('grid-on', !!P.grid);
+    if (el._grid) el._grid.setAttribute('aria-pressed', String(!!P.grid));
+    const flt = PHOTO_FILTERS[P.filterIdx] || PHOTO_FILTERS[0];
+    if (el._filter) el._filter.textContent = `滤镜·${flt.name}`;
+    if (app.canvas?.style) app.canvas.style.filter = flt.css;
     const canPose = P.mode === 'selfie' || fixed;
     el._poseNote.textContent = canPose ? `${photoPose(P.pose).name} · 循环播放，移动时暂停` : '正在拍别人，切回自拍或放下支架后继续动作';
     for (const button of el._poseList.children) {

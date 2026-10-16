@@ -39,6 +39,7 @@ function beginFurnitureDrag(decor, drag) {
   if (!decor.canRemove(drag.rec)) return decor.refuse(decor.placementError || '请先收回依赖这件建筑的物件');
   const id = drag.rec.e.id;
   const preview = decor.cfg.key === 'house' && id !== 'fence' ? decor.houseObject(id) : buildDecor(id);
+  preview.userData?.applyVariant?.(drag.rec.e);
   if (id === 'fence') preview.position.set(0, 0, -.5);
   preview.traverse(object => { if (object.isMesh) object.castShadow = false; });
   drag.preview = preview;

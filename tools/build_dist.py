@@ -1,52 +1,76 @@
-# 生成可直接上传到静态托管的发布文件夹 dist/：游戏代码 + 只含用到的 three.js 文件（不带 node_modules / tools / 视频）
-import os, re, shutil, sys
+"""Build browser ESM resources. --out creates a fresh candidate without touching dist/."""
+import argparse
+import hashlib
+import json
 from pathlib import Path
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-DIST = os.path.join(ROOT, 'dist')
-T = os.path.join(ROOT, 'node_modules', 'three')
-root_path, dist_path = Path(ROOT).resolve(), Path(DIST)
-if dist_path.is_symlink() or dist_path.resolve().parent != root_path or dist_path.name != 'dist':
-    raise SystemExit('Unsafe distribution directory: ' + str(dist_path))
-if not os.path.isfile(os.path.join(T, 'LICENSE')):
-    raise SystemExit('Missing three.js installation. Run npm ci first.')
-if os.path.isdir(DIST): shutil.rmtree(DIST)
-os.makedirs(DIST)
-for name in ('css', 'js'): shutil.copytree(os.path.join(ROOT, name), os.path.join(DIST, name))
+import shutil
+from resource_graph import candidate_directory, native_closure, stamp_html
 
-# 找出游戏用到的 addons，并沿 import 链补全依赖
-seen, todo = set(), []
-for dp, _, fs in os.walk(os.path.join(ROOT, 'js')):
-    for f in fs:
-        if f.endswith('.js'):
-            for m in re.finditer(r"from\s+'three/addons/([^']+)'", open(os.path.join(dp, f), encoding='utf-8').read()):
-                todo.append(os.path.join(T, 'examples', 'jsm', m.group(1)))
-while todo:
-    p = os.path.normpath(todo.pop())
-    if p in seen: continue
-    seen.add(p)
-    src = open(p, encoding='utf-8').read()
-    for m in re.finditer(r"""(?:from|import)\s*['"](\.{1,2}/[^'"]+)['"]""", src):
-        todo.append(os.path.join(os.path.dirname(p), m.group(1)))
-files = sorted(seen) + [os.path.join(T, 'build', 'three.module.js')]
-# three.module.js 若引用同目录的 three.core.js 也带上
-core = os.path.join(T, 'build', 'three.core.js')
-if re.search(r"three\.core\.js", open(files[-1], encoding='utf-8').read()) and os.path.exists(core): files.append(core)
-for p in files:
-    rel = os.path.relpath(p, T)
-    # 许多工具会忽略名叫 build 的文件夹（Gradle 复制、静态托管上传等），所以引擎主体放到 lib/ 下
-    if rel.startswith('build' + os.sep): rel = 'lib' + rel[len('build'):]
-    dst = os.path.join(DIST, 'vendor', 'three', rel)
-    os.makedirs(os.path.dirname(dst), exist_ok=True)
-    shutil.copy2(p, dst)
+ROOT = Path(__file__).resolve().parent.parent
 
-html = open(os.path.join(ROOT, 'index.html'), encoding='utf-8').read()
-html = html.replace('./node_modules/three/build/three.module.js', './vendor/three/lib/three.module.js').replace('./node_modules/three/examples/jsm/', './vendor/three/examples/jsm/')
-assert 'node_modules' not in html
-open(os.path.join(DIST, 'index.html'), 'w', encoding='utf-8').write(html)
-# 保留依赖及项目许可证；dist 是纯静态目录，不复制依赖账号 API 的服务器入口。
-shutil.copy2(os.path.join(T, 'LICENSE'), os.path.join(DIST, 'vendor', 'three', 'LICENSE'))
-for name in ('LICENSE', 'THIRD_PARTY_NOTICES.md'):
-    shutil.copy2(os.path.join(ROOT, name), os.path.join(DIST, name))
-size = sum(os.path.getsize(os.path.join(dp, f)) for dp, _, fs in os.walk(DIST) for f in fs)
-print(f'dist 生成完成：{len(files)} 个 three.js 文件，共 {size / 1e6:.2f} MB')
-print('预览：python -m http.server 5173 --bind 127.0.0.1 --directory dist')
+
+def build(root=ROOT, output=None):
+    root = Path(root).resolve()
+    target = candidate_directory(root, output) if output else root / 'dist'
+    # Resolve every module and resource before touching the output directory.
+    page, styles, resources, graph, vendor = native_closure(root)
+    version = json.loads((root / 'site/releases.json').read_text(encoding='utf-8-sig'))['version']
+    fingerprint = hashlib.sha256()
+    source_files = sorted(set([root / name for name in graph['inputs']] + styles + resources + [root / 'index.html']))
+    for source in source_files:
+        fingerprint.update(source.relative_to(root).as_posix().encode('utf-8') + b'\0' + source.read_bytes())
+    build_id = fingerprint.hexdigest()[:16]
+    if not output and target.exists():
+        if target.resolve() != root / 'dist' or target.is_symlink():
+            raise ValueError('Unsafe default dist path')
+        shutil.rmtree(target)
+    target.mkdir(parents=True)
+    for name in ('css', 'js'):
+        shutil.copytree(root / name, target / name)
+    for source in vendor:
+        relative = source.relative_to(root / 'node_modules/three')
+        if relative.parts[0] == 'build':
+            relative = Path('lib', *relative.parts[1:])
+        destination = target / 'vendor/three' / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+    # Preserve explicitly referenced local media as well as the usual JS/CSS.
+    for source in resources:
+        relative = source.relative_to(root)
+        if relative.parts[0] == 'node_modules':
+            raise ValueError('HTML media should not directly reference dependency files: ' + str(relative))
+        destination = target / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if not destination.exists():
+            shutil.copy2(source, destination)
+    html = page.text.replace('./node_modules/three/build/three.module.js', './vendor/three/lib/three.module.js')
+    html = html.replace('./node_modules/three/examples/jsm/', './vendor/three/examples/jsm/')
+    if 'node_modules' in html:
+        raise ValueError('Unmapped dependency URL in native HTML')
+    (target / 'index.html').write_text(stamp_html(html, version, build_id, 'native'), encoding='utf-8')
+    # Public distribution preserves notices; miniature QA fixtures may omit them.
+    for notice, destination in (('node_modules/three/LICENSE', 'vendor/three/LICENSE'), ('LICENSE', 'LICENSE'), ('THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_NOTICES.md')):
+        if (root / notice).is_file():
+            shutil.copy2(root / notice, target / destination)
+    # The old _serve.js lacked server/auth-api; do not emit a broken preview entry.
+    manifest = {'schema': 1, 'kind': 'esm', 'version': version, 'buildId': build_id, 'modules': sorted(graph['inputs']),
+                'sourceSha256': {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in source_files},
+                'files': {p.relative_to(target).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                          for p in sorted(target.rglob('*')) if p.is_file()}}
+    (target / 'build-manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    return {'output': str(target), 'modules': len(graph['inputs']), 'vendorFiles': len(vendor),
+            'resourceFiles': len(manifest['files']), 'bytes': sum(p.stat().st_size for p in target.rglob('*') if p.is_file())}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--out', type=Path, help='New candidate directory; refuses existing/source/release directories')
+    args = parser.parse_args()
+    try:
+        print(json.dumps(build(output=args.out), ensure_ascii=False, indent=2))
+    except (ValueError, OSError) as exc:
+        parser.exit(1, 'ESM build failed: ' + str(exc) + '\n')
+
+
+if __name__ == '__main__':
+    main()

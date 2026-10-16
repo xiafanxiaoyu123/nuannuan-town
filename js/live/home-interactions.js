@@ -1,19 +1,51 @@
 // 自宅家具的生活互动。按装修系统当前记录查找，不保留已收回家具的互动点。
-import { S, bus, save } from '../core/state.js';
+import { S, bus, save, addCoins, stat } from '../core/state.js';
 import { app } from '../core/app.js';
 import { audio } from '../core/audio.js';
-import { h } from '../core/util.js';
-import { DECO, CLOTH } from '../data.js';
+import { h, fmt } from '../core/util.js';
+import { DECO, CLOTH, CROP, FRUIT } from '../data.js';
 import { outfitToLook } from '../models/character.js';
+import { applyDecorVariant } from '../models/props.js';
+import { cropIco, coinIco } from '../core/icons.js';
 import { canSleep, sleepUntilMorning } from '../ui/calendar.js';
 import { openPiano } from './piano.js';
 import { YARD_LEVEL_HEIGHT, yardLevel, yardSurfaceAt, yardFootprint } from '../world/yard-building.js';
+import { PHOTO_THEMES, photoThemeIndex } from '../shared/save-compat.js';
 
 const RADIUS = 0.36;
-const SEATS = { chair: { top: 0.56, z: 0.06 }, sofa: { top: 0.6, z: 0.1, xs: [-0.68, 0, 0.68] }, n_bean: { top: 0.59, z: 0.23 }, ottoman: { top: 0.53, z: 0.06 }, hammock: { top: 0.68, z: 0.06 } };
-const LAMPS = new Set(['floorlamp', 'n_lamp', 'lamp']);
+const SEATS = {
+  chair: { top: 0.56, z: 0.06 },
+  sofa: { top: 0.6, z: 0.1, xs: [-0.68, 0, 0.68] },
+  n_bean: { top: 0.59, z: 0.23 },
+  ottoman: { top: 0.53, z: 0.06 },
+  hammock: { top: 0.68, z: 0.06 },
+  bench: { top: 0.56, z: 0.08, xs: [-0.45, 0.45] },
+  swing: { top: 0.65, z: 0.05 },
+};
+const LAMPS = new Set(['floorlamp', 'n_lamp', 'lamp', 'post']);
 const READERS = new Set(['bookshelf', 'desk']);
-const SUPPORTED = new Set([...Object.keys(SEATS), ...LAMPS, ...READERS, 'bed', 'vanity', 'wardrobe', 'sideboard', 'piano', 'catbed', 'dining', 'coffee', 'tv', 'fireplace', 'windowseat', 'teacart', 'musicbox']);
+const SUPPORTED = new Set([
+  ...Object.keys(SEATS), ...LAMPS, ...READERS,
+  'bed', 'vanity', 'wardrobe', 'sideboard', 'piano', 'catbed', 'dining', 'coffee',
+  'tv', 'fireplace', 'windowseat', 'teacart', 'musicbox',
+  'kitchen_stove', 'fridge', 'kitchen_island', 'flower_vase', 'photo_frame',
+  'fountain', 'goldfountain', 'wishing', 'momohut', 'birdbath', 'easel', 'gramophone', 'beehive', 'scarecrow',
+]);
+const RECIPES = [
+  { id: 'strawberry_tart', name: '草莓鲜果挞', desc: '香脆塔皮铺满刚摘的甜草莓，酸甜可口', cost: [['strawberry', 2], ['wheat', 1]], coins: 95 },
+  { id: 'pumpkin_soup', name: '奶油南瓜浓汤', desc: '金黄浓郁的热汤，喝完整个人都暖洋洋的', cost: [['pumpkin', 1], ['carrot', 1]], coins: 85 },
+  { id: 'blueberry_muffin', name: '蓝莓蜜糖松饼', desc: '爆浆冰晶蓝莓配清甜果肉，下午茶绝配', cost: [['blueberry', 2], ['apple', 1]], coins: 105 },
+  { id: 'lemon_tea', name: '香水柠檬花果茶', desc: '清香柠檬片与蜜桃慢煮，满屋都是果香', cost: [['lemon', 1], ['peach', 1]], coins: 110 },
+  { id: 'moon_cake', name: '月见星光糕', desc: '用夜里盛开的月见花与甜樱桃细细蒸制', cost: [['moonflower', 1], ['cherry', 1]], coins: 155 },
+];
+const VASE_FLOWERS = [
+  { id: 'rose', name: '星光玫瑰' },
+  { id: 'sunflower', name: '向日葵' },
+  { id: 'tulip', name: '郁金香' },
+  { id: 'lavender', name: '薰衣草' },
+  { id: 'moonflower', name: '月见花' },
+  { id: 'strawberry', name: '甜心红果枝' },
+];
 const MOVEMENT = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight']);
 const BOOKS = [
   { title: '一扇窗的四季', pages: [
@@ -38,8 +70,8 @@ export function installHomeInteractions(game, ui) {
   if (town.homeInteractions) return town.homeInteractions;
   const records = new Map(), owners = new WeakMap(), off = [];
   const disposedLampMaterials = new WeakSet();
-  const decors = () => [town.decors.house, town.decors.build].filter(Boolean);
-  const currentDecor = () => ['house','build'].includes(town.zone) ? town.decors[town.zone] : null;
+  const decors = () => [town.decors.house, town.decors.home, town.decors.build].filter(Boolean);
+  const currentDecor = () => ['house', 'home', 'build'].includes(town.zone) ? town.decors[town.zone] : null;
   const owner = rec => owners.get(rec) || decors().find(d => d.entries.includes(rec));
   const floorHeight = rec => owner(rec)?.cfg.freeBuild ? yardLevel(rec.e)*YARD_LEVEL_HEIGHT : 0;
   const context = rec => { const decor=rec ? owner(rec) : currentDecor() || town.decors.house; return {decor, y:rec ? floorHeight(rec) : decor?.cfg.freeBuild ? town.pos.y : 0}; };
@@ -270,6 +302,57 @@ export function installHomeInteractions(game, ui) {
     ui.toast('已上床，选择“睡到明早”或“下床”');
     return true;
   }
+  function kitchenPanel(rec) {
+    let modal;
+    const body = h('div', { class: 'home-kitchen', style: { maxHeight: 'calc(100dvh - 8rem)', overflowY: 'auto', width: 'min(36rem, 90vw)' } });
+    const itemName = (id) => CROP[id]?.name || FRUIT[id]?.name || id;
+    const render = () => {
+      body.replaceChildren(
+        h('h2', {}, '田园私房料理台'),
+        h('p', { class: 'fine', style: { marginBottom: '0.8rem' } }, '用后院收获的新鲜作物与果实烹制暖心茶点，比直接出售原料赚得更多噗灵！'),
+        h('div', { class: 'dl-list' }, RECIPES.map((r) => {
+          const canCook = r.cost.every(([id, need]) => (S.crops[id] || 0) >= need);
+          return h('div', { class: 'dl-task' + (canCook ? ' ready' : '') },
+            h('div', { class: 'tx' },
+              h('b', {}, r.name),
+              h('span', { class: 'dl-sub' }, r.desc),
+              h('div', { style: { display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginTop: '0.35rem', fontSize: '0.76rem' } },
+                ...r.cost.map(([id, need]) => {
+                  const have = S.crops[id] || 0;
+                  return h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '0.2rem', color: have >= need ? '#4b8c63' : '#b6687a', fontWeight: '700' } },
+                    h('img', { src: cropIco(id), alt: '', style: { width: '1.35rem', height: '1.35rem' } }),
+                    `${itemName(id)} ${have}/${need}`);
+                }))),
+            h('button', {
+              class: 'btn sm ' + (canCook ? 'gold' : 'alt'),
+              disabled: !canCook,
+              onclick: (e) => {
+                if (!r.cost.every(([id, need]) => (S.crops[id] || 0) >= need)) return;
+                for (const [id, need] of r.cost) {
+                  S.crops[id] -= need;
+                  if (S.crops[id] <= 0) delete S.crops[id];
+                }
+                if (!S.live.kitchen) S.live.kitchen = {};
+                S.live.kitchen[r.id] = (S.live.kitchen[r.id] || 0) + 1;
+                addCoins(r.coins, 'kitchen');
+                stat('sold', 1);
+                save();
+                audio.sfx('fanfare');
+                const rect = e.currentTarget.getBoundingClientRect();
+                ui.flyCoins(rect.left + rect.width / 2, rect.top, 6);
+                ui.toast(`烹制成功：「${r.name}」香气四溢！ +${fmt(r.coins)} 噗灵`, { kind: 'live-reward', icon: coinIco() });
+                render();
+              },
+            }, canCook ? `烹制 +${r.coins}` : `售 +${r.coins}`));
+        })));
+    };
+    render();
+    town.face(rec.obj.position.x, rec.obj.position.z);
+    town.act('work', 0.6);
+    modal = ui.modal(body, { ribbon: 'HOME KITCHEN', cls: 'live-modal' });
+    return modal;
+  }
+
   function activate(rec) {
     sync();
     if (!available() || !present(rec) || !SUPPORTED.has(rec.e.id)) return false;
@@ -288,6 +371,57 @@ export function installHomeInteractions(game, ui) {
       ui.toast(`${DECO[id].name}已${rec.e.lightOn ? '打开' : '关闭'}`); return true;
     }
     if (id === 'bed') return bedState ? rest(rec) : enterBed(rec, p);
+    if (id === 'kitchen_stove' || id === 'fridge' || id === 'kitchen_island') { kitchenPanel(rec); return true; }
+    if (id === 'flower_vase') {
+      const curIdx = VASE_FLOWERS.findIndex((f) => f.id === (rec.e.flower || 'rose'));
+      const next = VASE_FLOWERS[(curIdx + 1) % VASE_FLOWERS.length];
+      rec.e.flower = next.id;
+      applyDecorVariant(rec.obj._furnitureShape ? rec.obj._furnitureShape.model : rec.obj, rec.e);
+      town.renderOptimizer?.invalidateDecor();
+      save();
+      audio.sfx('sparkle');
+      town.face(rec.obj.position.x, rec.obj.position.z);
+      town.act('carry', 0.5);
+      ui.toast(`玻璃插花瓶换上了「${next.name}」`);
+      return true;
+    }
+    if (id === 'photo_frame' || id === 'easel') {
+      const curIdx = photoThemeIndex(rec.e.photo);
+      const next = PHOTO_THEMES[(curIdx + 1) % PHOTO_THEMES.length];
+      rec.e.photo = next.id;
+      applyDecorVariant(rec.obj._furnitureShape ? rec.obj._furnitureShape.model : rec.obj, rec.e);
+      town.renderOptimizer?.invalidateDecor();
+      save();
+      audio.sfx('tab');
+      town.face(rec.obj.position.x, rec.obj.position.z);
+      town.act('cheer', 0.6);
+      ui.toast(`画框切换为「${next.name}」风景`);
+      return true;
+    }
+    if (id === 'fountain' || id === 'goldfountain' || id === 'wishing') {
+      town.face(rec.obj.position.x, rec.obj.position.z); town.act('cheer', 0.8); audio.sfx('water');
+      ui.toast('清澈的水花在阳光下闪闪发光，心情也跟着明朗起来'); return true;
+    }
+    if (id === 'momohut') {
+      town.face(rec.obj.position.x, rec.obj.position.z); town.act('cheer', 0.8); audio.sfx('pop');
+      ui.toast('大喵在小窝门口伸了个懒腰，满足地眯起眼睛'); return true;
+    }
+    if (id === 'birdbath') {
+      town.face(rec.obj.position.x, rec.obj.position.z); town.act('carry', 0.7); audio.sfx('water');
+      ui.toast('给飞鸟浴盆添了些清水，小鸟们一定会喜欢'); return true;
+    }
+    if (id === 'gramophone') {
+      town.face(rec.obj.position.x, rec.obj.position.z); town.act('twirl', 0.9); audio.sfx('quest');
+      ui.toast('留声机缓缓转动，流淌出午后慵懒的爵士旋律'); return true;
+    }
+    if (id === 'beehive') {
+      town.face(rec.obj.position.x, rec.obj.position.z); town.act('cheer', 0.7);
+      ui.toast('甜心蜂箱嗡嗡作响，正在为周围 5 米内的田块加速授粉 (+10% 生长与额外收成)'); return true;
+    }
+    if (id === 'scarecrow') {
+      town.face(rec.obj.position.x, rec.obj.position.z); town.act('wave', 0.7);
+      ui.toast('大喵稻草人精神抖擞地守护着菜地，周围田块更容易长出闪耀与巨大作物！'); return true;
+    }
     if (id === 'catbed') { town.face(rec.obj.position.x, rec.obj.position.z); town.act('cheer', 0.8); ui.toast('大喵钻进小窝打了个滚，尾巴都翘起来了'); return true; }
     if (id === 'coffee') { town.face(rec.obj.position.x, rec.obj.position.z); town.act('carry', 0.7); ui.toast('沏一杯热茶，坐下来慢慢享用'); return true; }
     if (id === 'dining') { town.face(rec.obj.position.x, rec.obj.position.z); town.act('carry', 0.7); ui.toast('餐桌已摆好：今天也要好好吃饭'); return true; }
@@ -316,6 +450,33 @@ export function installHomeInteractions(game, ui) {
   const standIt = { id: 'homeFurniture_stand', r: 2, prio: 10, label: '起身', sub: '也可以直接移动', act: stand };
   const bedDown = { id: 'homeFurniture_bed_down', r: 2, prio: 12, label: '下床', sub: '回到床边', act: stand };
   const bedSleep = { id: 'homeFurniture_bed_sleep', r: 2, prio: 11, label: '睡到明早', sub: '小镇日历前进一天', act: () => rest(bedState.rec) };
+  const labelFor = (rec) => {
+    const id = rec.e.id;
+    if (SEATS[id]) return '坐一会儿';
+    if (LAMPS.has(id)) return `${rec.e.lightOn === false ? '打开' : '关闭'}小灯`;
+    if (id === 'bed') return '上床休息';
+    if (id === 'vanity' || id === 'wardrobe') return '打开衣柜 · 换装';
+    if (id === 'kitchen_stove' || id === 'fridge' || id === 'kitchen_island') return '烹制田园料理';
+    if (id === 'flower_vase') return '更换瓶中鲜花';
+    if (id === 'photo_frame' || id === 'easel') return '切换画框风景';
+    if (id === 'fountain' || id === 'goldfountain' || id === 'wishing') return '欣赏水景 · 许愿';
+    if (id === 'momohut') return '看看大喵的小窝';
+    if (id === 'birdbath') return '添一点清水';
+    if (id === 'gramophone') return '播放留声机';
+    if (id === 'beehive') return '查看蜂箱授粉范围';
+    if (id === 'scarecrow') return '查看稻草人守护';
+    if (id === 'sideboard') return '打开餐边柜';
+    if (id === 'piano') return '弹奏钢琴 · 自由演奏';
+    if (id === 'catbed') return '陪大喵玩一会儿';
+    if (id === 'coffee') return '泡杯热茶';
+    if (id === 'dining') return '在餐桌用餐';
+    if (id === 'tv') return '打开电视';
+    if (id === 'fireplace') return '看看壁炉';
+    if (id === 'windowseat') return '在飘窗边发会儿呆';
+    if (id === 'teacart') return '泡一壶茶';
+    if (id === 'musicbox') return '听星光八音盒';
+    return '取一本书 · 阅读';
+  };
   const wrappedAllInter = function () {
     const list = baseAllInter.call(this); ensureSynced();
     if (!available()) return list;
@@ -325,7 +486,7 @@ export function installHomeInteractions(game, ui) {
       const rec = record.rec;
       if (distance(rec.obj.position, this.pos) > 5) continue;
       const point = approach(rec); if (!point) continue;
-      Object.assign(record.it, { x: point.x, z: point.z, label: SEATS[rec.e.id] ? '坐一会儿' : LAMPS.has(rec.e.id) ? `${rec.e.lightOn === false ? '打开' : '关闭'}小灯` : rec.e.id === 'bed' ? '上床休息' : (rec.e.id === 'vanity' || rec.e.id === 'wardrobe') ? '打开衣柜 · 换装' : rec.e.id === 'sideboard' ? '打开餐边柜' : rec.e.id === 'piano' ? '弹奏钢琴 · 自由演奏' : rec.e.id === 'catbed' ? '陪大喵玩一会儿' : rec.e.id === 'coffee' ? '泡杯热茶' : rec.e.id === 'dining' ? '在餐桌用餐' : rec.e.id === 'tv' ? '打开电视' : rec.e.id === 'fireplace' ? '看看壁炉' : rec.e.id === 'windowseat' ? '在飘窗边发会儿呆' : rec.e.id === 'teacart' ? '泡一壶茶' : rec.e.id === 'musicbox' ? '听星光八音盒' : '取一本书 · 阅读' });
+      Object.assign(record.it, { x: point.x, z: point.z, label: labelFor(rec) });
       list.push(record.it);
     }
     return list;

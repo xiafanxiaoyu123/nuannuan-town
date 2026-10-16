@@ -8,6 +8,7 @@ import { floorTex } from '../world/decor.js';
 import { decorIcon } from '../core/icons.js';
 import { live } from '../live/api.js';
 import { LOCAL_PLAY } from '../core/local-play-mode.js';
+import { SWATCHABLE_IDS, SWATCH_FAMILIES } from '../shared/home-themes.js';
 import { priceTag } from './components/price-tag.js';
 import { click } from './components/actions.js';
 export { refreshDecor, refreshDecorPreview, refreshDecorCamera } from './decor-refresh.js';
@@ -76,6 +77,14 @@ export function setDecorFocus(rec) {
   const d = DECO[rec.e.id];
   this.dfIcon.src = decorIcon(rec.e.id);
   this.dfName.textContent = d.name;
+  if (this.dfSwatch) {
+    const canSwatch = SWATCHABLE_IDS.has(d.id);
+    this.dfSwatch.classList.toggle('hide', !canSwatch);
+    if (canSwatch) {
+      const fam = SWATCH_FAMILIES[Number(rec.e.swatch) || 0] || SWATCH_FAMILIES[0];
+      this.dfSwatch.textContent = `换色·${fam.name}`;
+    }
+  }
   this.dfReplace.classList.toggle('hide', !this.game.town.decor.cfg.freeBuild || !['yard_wall','yard_door','yard_window'].includes(d.id));
   this.dfSell.replaceChildren(LOCAL_PLAY ? h('span', {}, '移除') : priceTag(decorSellPrice(d.id)));
 }
@@ -87,6 +96,9 @@ export function setDecorMode(on) {
     const indoor = !!this.game.town.decor.cfg.indoor;
     this.decorIndoor = indoor;
     this.decorCategory = 'all';
+    this.decorOwnedOnly = false;
+    this.decorSearch = '';
+    if (this.decorSearchInput) this.decorSearchInput.value = '';
     for (const el of this.decorSlots) {
       const both = DECO[el._id].indoor === 'both';
       el.classList.toggle('hide', (!both && !!DECO[el._id].indoor !== indoor) || (!LOCAL_PLAY && !!DECO[el._id].only && !(S.decor[el._id] > 0)));

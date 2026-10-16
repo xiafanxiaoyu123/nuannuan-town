@@ -5,16 +5,47 @@
   "description": "暖暖的方块小镇：使用 Three.js 构建的非官方同人模拟经营游戏",
   "license": "MIT",
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=24"
   },
   "scripts": {
     "start": "node server.js",
     "start:api": "node server-api.js",
-    "build": "python tools/build_dist.py",
-    "check": "node tools/check-source.cjs",
-    "test": "node --test tools/qa/canon_record_checks.cjs tools/qa/local_play_isolation_checks.cjs && node tools/qa/daily_save_checks.cjs"
+    "build": "python -B -X utf8 tools/build_dist.py",
+    "check": "node tools/engineering_check.cjs",
+    "test": "node --test tools/qa/canon_record_checks.cjs tools/qa/local_play_isolation_checks.cjs && node tools/qa/daily_save_checks.cjs",
+    "check:build": "python -B -X utf8 tools/check_candidate.py",
+    "dev": "node tools/tasks.cjs dev",
+    "dev:workbench": "node tools/tasks.cjs dev:workbench",
+    "qa:save": "node tools/tasks.cjs qa:save",
+    "qa:daily": "node tools/tasks.cjs qa:daily",
+    "qa:daily-module": "node tools/tasks.cjs qa:daily-module",
+    "qa:diagnostics": "node tools/tasks.cjs qa:diagnostics",
+    "qa:draw": "node tools/tasks.cjs qa:draw",
+    "qa:cloud": "node tools/tasks.cjs qa:cloud",
+    "qa:backend": "node tools/backend_checks.cjs",
+    "qa:backend-game-save": "node tools/tasks.cjs qa:backend-game-save",
+    "qa:backend-contract": "node tools/tasks.cjs qa:backend-contract",
+    "qa:backend-security": "node tools/tasks.cjs qa:backend-security",
+    "qa:backend-payment": "node tools/tasks.cjs qa:backend-payment",
+    "qa:dependencies": "node tools/tasks.cjs qa:dependencies",
+    "qa:town-module": "node tools/tasks.cjs qa:town-module",
+    "qa:decor-module": "node tools/tasks.cjs qa:decor-module",
+    "qa:decor-drag": "node tools/tasks.cjs qa:decor-drag",
+    "qa:town-static": "node tools/tasks.cjs qa:town-static",
+    "qa:scene": "node tools/tasks.cjs qa:scene",
+    "qa:decor-fit": "node tools/tasks.cjs qa:decor-fit",
+    "qa:ui-presentation": "node tools/tasks.cjs qa:ui-presentation",
+    "profile": "node tools/profile.cjs",
+    "profile:town": "node tools/town_draw_profile.cjs",
+    "qa:engineering": "python -B -X utf8 tools/qa/engineering_checks.py",
+    "build:esm": "node tools/tasks.cjs build:esm",
+    "build:web": "node tools/tasks.cjs build:web",
+    "check:source": "node tools/check-source.cjs"
   },
   "dependencies": {
-    "three": "^0.170.0"
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
   }
 }

@@ -75,6 +75,12 @@ export function updatePlayer(town, dt) {
       town.pos.x += mx * sp * dt;
       town.pos.z += mz * sp * dt;
       town.resolve(town.pos, 0.36);
+      if (town.moveTo && Math.hypot(town.pos.x - ox, town.pos.z - oz) < sp * dt * 0.2) {
+        // 寻路直线受阻时尝试沿切向微滑，减少卡在桌角/花坛边缘
+        const sx = ox - mz * sp * dt * 0.65, sz = oz + mx * sp * dt * 0.65;
+        town.pos.x = sx; town.pos.z = sz;
+        town.resolve(town.pos, 0.36);
+      }
     }
     const moved = Math.hypot(town.pos.x - ox, town.pos.z - oz);
     if (town.moveTo) town.moveTo.stuck += moved < sp * dt * 0.25 ? dt : -town.moveTo.stuck;
@@ -114,7 +120,10 @@ export function updatePlayer(town, dt) {
     }
   } else town.momoJob = null;
   const dx = bx - mp.x, dz = bz - mp.z, d = Math.hypot(dx, dz);
-  if (d > 0.5) {
+  if (d > 22) {
+    mp.x = bx; mp.z = bz;
+    m.targetMove = 0;
+  } else if (d > 0.5) {
     const sp = Math.min(7.5, d * 3.2);
     mp.x += (dx / d) * sp * dt;
     mp.z += (dz / d) * sp * dt;

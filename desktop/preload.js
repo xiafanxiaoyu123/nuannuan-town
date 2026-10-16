@@ -60,3 +60,4 @@ contextBridge.exposeInMainWorld('NikkiDesktop', Object.freeze({
 // account.js reads this before its module body runs. Exposing a plain string
 // keeps the API endpoint configurable without exposing ipcRenderer or env.
 contextBridge.exposeInMainWorld('__NIKKI_API_BASE__', requestBase);
+

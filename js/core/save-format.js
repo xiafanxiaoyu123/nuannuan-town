@@ -8,6 +8,7 @@ import { isYardStructure, MAX_YARD_LEVEL, validateYardLayout, buildInteriorCheck
 import { BUILD_LOT } from '../world/build-constants.js';
 import { PAID_PHOTO_POSE_IDS } from '../live/photo-poses.js';
 import { MOMO_CLOAK_IDS } from '../models/momo-cloaks.js';
+import { prepareCompatibleSave, photoThemeIndex } from '../shared/save-compat.js';
 
 export const SAVE_FILE_FORMAT = 'nikki-block-town-save';
 export const SAVE_FILE_VERSION = 1;
@@ -84,6 +85,9 @@ function placements(v, at, legacy = false, interior = housePlan(1), allowLegacyB
     if (DECO[p.id].indoorOnly && !indoor && !build) fail(a, '厨房和卫浴家具仅限室内使用');
     if (isYardStructure(p.id) && !build && !(yard && allowLegacyBuilding && oldStructure)) fail(a, '建筑构件只能在建造岛搭建');
     optional(p, 'lightOn', (value, key) => { if (typeof value !== 'boolean') fail(key, '灯光开关应为布尔值'); }, a + '.lightOn');
+    optional(p, 'swatch', (value, key) => num(value, key, 0, 10), a + '.swatch');
+    optional(p, 'flower', (value, key) => str(value, key, 40), a + '.flower');
+    optional(p, 'photo', (value, key) => { if (photoThemeIndex(value) < 0) fail(key, '画作主题无效'); }, a + '.photo');
     if (!legacy && bounds) { const [w, d] = DECO[p.id].size, rotated = (p.rot || 0) % 2; if (p.gx + (rotated ? d : w) > bounds[0] || p.gz + (rotated ? w : d) > bounds[1]) fail(a, '家具超出区域边界'); }
   });
   if (!legacy && yard && allowLegacyBuilding && v.some(p => isYardStructure(p.id) || (p.level ?? 0) !== 0)) legacyYardSupport(v, at);
@@ -119,7 +123,13 @@ function floors(v, at, legacy = false, interior = housePlan(1)) {
 function cropState(p, at) {
   obj(p, at); num(p.t0, at + '.t0', 0, Number.MAX_SAFE_INTEGER, false);
   if (p.tree !== undefined) { if (!FRUIT[p.tree]) fail(at, '果树品种无效'); optional(p, 'last', (v, a) => num(v, a, 0, Number.MAX_SAFE_INTEGER, false), at + '.last'); optional(p, 'wep', str, at + '.wep'); }
-  else { if (!CROP[p.crop] || FRUIT[p.crop]) fail(at, '作物品种无效'); num(p.dur, at + '.dur', 1, Number.MAX_SAFE_INTEGER, false); optional(p, 'watered', flag, at + '.watered'); }
+  else {
+    if (!CROP[p.crop] || FRUIT[p.crop]) fail(at, '作物品种无效');
+    num(p.dur, at + '.dur', 1, Number.MAX_SAFE_INTEGER, false);
+    optional(p, 'watered', flag, at + '.watered');
+    optional(p, 'fertilized', flag, at + '.fertilized');
+    optional(p, 'shiny', flag, at + '.shiny');
+  }
 }
 function walls(v, at, interior) {
   const entries = arr(v, at, interior.maxWalls), occupied = new Set();
@@ -150,7 +160,17 @@ function layouts(v, interior, allowLegacyBuilding = false, allowLegacyHeight = f
 function validateLive(l, interior) {
   obj(l, 'live');
   fields(l, ['day'], str, 'live'); fields(l, ['chest'], flag, 'live');
-  for (const k of ['sign', 'book', 'project', 'visit', 'story', 'storyClaimed', 'residents', 'canon', 'fun', 'granted', 'photo', 'nonoy']) optional(l, k, obj, `live.${k}`);
+  for (const k of ['sign', 'book', 'project', 'visit', 'story', 'storyClaimed', 'residents', 'canon', 'fun', 'granted', 'photo', 'nonoy', 'spotlight', 'stamp', 'market', 'welcome', 'kitchen', 'roomSets']) optional(l, k, obj, `live.${k}`);
+  if (l.market) {
+    optional(l.market, 'week', str, 'live.market.week');
+    optional(l.market, 'orders', (value, at) => arr(value, at, 100).forEach((order, i) => {
+      const a = `${at}[${i}]`; obj(order, a);
+      fields(order, ['id', 'title', 'desc', 'stat', 'seed', 'decor'], str, a);
+      fields(order, ['base', 'coins', 'seedCount', 'carriedProgress', 'prog', 'cur'], num, a);
+      optional(order, 'need', (n, key) => num(n, key, 1), a + '.need');
+      fields(order, ['claimed'], flag, a);
+    }), 'live.market.orders');
+  }
   optional(l, 'daily', (v, a) => arr(v, a, DAILY_TASK_COUNT).forEach((t, i) => {
     const at = `${a}[${i}]`; obj(t, at); const def = dailyDefinition(t.id); if (!def) fail(at, '订单类型无效');
     num(t.n, at + '.n', 1); fields(t, ['base'], num, at);
@@ -210,6 +230,9 @@ function validateLive(l, interior) {
 
 export function validateSaveData(d, options = {}) {
   obj(d, '根节点'); jsonTree(d);
+  // 先查原始 JSON 的危险字段/资源预算，再做已发布合法字段的幂等兼容。
+  // 调用者使用返回值；传入对象和正在运行的玩家状态均不被改写。
+  d = prepareCompatibleSave(d);
   if (d.v !== undefined) { num(d.v, 'v', 1); if (d.v > 3) throw new Error('这是较新版本的存档，请先更新游戏后再导入'); }
   // 有效的早期版本也包含这些核心字段，避免把无关 JSON 当成一个新档。
   for (const key of ['coins', 'owned', 'outfit', 'shops', 'placed']) if (!Object.hasOwn(d, key)) fail(key, '缺失，文件可能不是小镇存档');
@@ -310,6 +333,6 @@ export function parseSaveFile(text) {
     if (parsed.formatVersion !== SAVE_FILE_VERSION) throw new Error('存档文件格式版本不支持，请先更新游戏');
     data = parsed.data; exportedAt = typeof parsed.exportedAt === 'string' && Number.isFinite(Date.parse(parsed.exportedAt)) ? parsed.exportedAt : null;
   }
-  validateSaveData(data, { allowLegacyBuilding: true });
+  data = validateSaveData(data, { allowLegacyBuilding: true });
   return { data, exportedAt, oldVersion: data.v || 1 };
 }

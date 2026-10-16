@@ -15,8 +15,8 @@ r = subprocess.run(['npx', '--no-install', 'electron-packager', '.', NAME, '--pl
                     '--icon', 'icon.ico', '--ignore=install.log', '--ignore=node_modules', '--ignore=package-lock.json', '--prune=false', '--no-tmpdir'], cwd=D, shell=(os.name == 'nt'))
 if r.returncode: sys.exit(r.returncode)
 folder = os.path.join(windows_stage, f'{NAME}-win32-x64')
-print('Windows execution integrity:', verify_windows_execution_label(os.path.join(folder, NAME + '.exe')))
-print('Windows portable entry:', install_portable_launcher(ROOT, folder, NAME))
+print('Windows 执行完整性:', verify_windows_execution_label(os.path.join(folder, NAME + '.exe')))
+print('Windows 长路径入口:', install_portable_launcher(ROOT, folder, NAME))
 zp = os.path.join(out, f'{NAME}-Windows.zip')
 if os.path.exists(zp): os.remove(zp)
 with zipfile.ZipFile(zp, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as z:

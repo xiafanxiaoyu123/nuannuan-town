@@ -136,8 +136,8 @@ module.exports = function createBilling({ db, entitlementView, userView, service
         .run(randomUUID(),order.user_id,feature,now,until,'payment',now,now);
     }
   }
-  function apply(order, { eventId, transactionId, state, paid, closed }) {
-    if ((paid || order.transaction_id) && (!transactionId || (order.transaction_id && order.transaction_id !== transactionId))) throw error('支付交易号不匹配',400);
+  function apply(order, { eventId, transactionId, state, paid, closed, refundReview = false }) {
+    if ((paid || refundReview || order.transaction_id) && (!transactionId || (order.transaction_id && order.transaction_id !== transactionId))) throw error('支付交易号不匹配',400);
     db.exec('BEGIN IMMEDIATE');
     try {
       const current = rowFor(order.out_trade_no);
@@ -155,6 +155,11 @@ module.exports = function createBilling({ db, entitlementView, userView, service
       if (transactionId) db.prepare('UPDATE billing_orders SET transaction_id=COALESCE(transaction_id,?) WHERE id=?').run(transactionId,order.id);
       if (['REFUNDED','REFUND_REVIEW'].includes(current.status)) {
         // Once refund review is required, stale success/closed messages cannot reverse it.
+      } else if (refundReview) {
+        // REFUND means a refund was initiated, not that any full/partial amount
+        // succeeded. Queue reconciliation; retain rights and refunded_at until
+        // the actual refund result is reviewed. Works for pre-snapshot paid orders too.
+        db.prepare("UPDATE billing_orders SET status='REFUND_REVIEW',trade_state=?,updated_at=? WHERE id=?").run(state,now,order.id);
       } else if (paid && current.status === 'CLOSED') {
         // Notifications can arrive out of order; a previously closed trade needs review.
         db.prepare("UPDATE billing_orders SET status='REFUND_REVIEW',transaction_id=?,trade_state=?,updated_at=? WHERE id=?").run(transactionId,state,now,order.id);
@@ -193,7 +198,7 @@ module.exports = function createBilling({ db, entitlementView, userView, service
     const config=wechat.config(),order=rowFor(data.out_trade_no||'');
     assertBinding(order,'wechat_native',config);
     if (data.appid !== config.appid || data.mchid !== config.mchid || data.amount?.total !== order.amount_fen || data.amount?.currency !== 'CNY') throw error('微信订单主体或金额不匹配',400);
-    return apply(order,{eventId:`wechat:${eventId}`,transactionId:data.transaction_id,state:data.trade_state,paid:data.trade_state==='SUCCESS',closed:data.trade_state==='CLOSED'});
+    return apply(order,{eventId:`wechat:${eventId}`,transactionId:data.transaction_id,state:data.trade_state,paid:data.trade_state==='SUCCESS',closed:data.trade_state==='CLOSED',refundReview:data.trade_state==='REFUND'});
   }
   function notifyWechat(raw,headers) {
     const checked=wechat.configured({callback:true});
