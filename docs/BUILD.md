@@ -57,16 +57,21 @@ npm run start:api
 
 ## Windows 桌面版
 
-需要 Windows、根目录的网页构建环境，以及桌面工程的 npm 依赖。桌面依赖由 `desktop/package-lock.json` 锁定。
+需要 Windows、Python 3.12+、根目录的网页构建环境，以及桌面工程的 npm 依赖。桌面依赖由 `desktop/package-lock.json` 锁定。Windows 长路径入口由原生自包含启动器提供，构建依赖见 `requirements-windows-build.txt`；玩家无需安装 Python。
 
 ```sh
 npm ci
 npm run build
 npm --prefix desktop ci
+python -m pip install -r requirements-windows-build.txt
 python tools/exe_build.py
 ```
 
-输出位于 `release/`，为 Windows x64 文件夹与 ZIP。脚本会重建 `desktop/dist/` 并覆盖同名构建产物。Electron 下载需要访问其发布源。此命令不进行 Windows 代码签名，也不上传或发布产物。
+ZIP 输出位于 `release/`，Windows x64 运行目录为日志中记录的独立系统临时目录。脚本重建 `desktop/dist/`，以新暂存目录构建并检查 EXE 的 Windows 完整性标签，避免源工作区低完整性标记被误判为路径问题。Electron 下载需要访问其发布源。此命令不进行 Windows 代码签名，也不上传或发布产物。
+
+完整解压后直接运行 `暖暖的方块小镇.exe`。原生入口支持中文、空格及长路径，并逐文件校验、原子准备运行包到 `%LOCALAPPDATA%/NikkiTown/Runtime/`，不要求玩家移动解压目录。保留 Electron 渲染沙箱、原应用名、`app://game` 来源、userData 位置与存档键。运行缓存只包含程序文件；坏缓存会隔离后重新校验准备，不迁移或删除玩家进度。分发时保留 `launcher-LICENSES.txt` 及 Electron 原有许可证。
+
+Windows 强制低完整性标记会降低进程权限，并不是目录层数或中文兼容问题；应用不会通过提权或关闭整体沙箱绕过系统安全策略。专项 Node 检查入口 `tools/qa/windows_packaged_startup.cjs <exe> <新证据目录>` 只用隔离游客资料；测试历史包可显式传入经审阅的 `--expected-stage-sha=` 指纹，不能以当前正在编辑的源码判断旧包。
 
 客户端配置自己的资源更新清单、公钥和 API 地址后才能使用对应服务。更新私钥必须由部署者自行保存，不能加入仓库；清单和资源更新流程应在自己的环境独立验收。
 

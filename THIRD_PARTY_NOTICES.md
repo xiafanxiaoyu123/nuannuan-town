@@ -53,7 +53,11 @@ The following direct dependencies are declared by the native projects. Their own
 | `@electron/packager` | BSD-2-Clause | <https://github.com/electron/packager> |
 | `@capacitor/core`, `@capacitor/cli`, `@capacitor/android` | MIT | <https://github.com/ionic-team/capacitor> |
 | Gradle wrapper / Gradle | Apache-2.0 | <https://github.com/gradle/gradle> |
+| Python runtime in Windows portable entry | PSF License and included component notices | <https://www.python.org/> |
+| PyInstaller bootloader | GPL with the bootloader exception | <https://pyinstaller.org/en/stable/license.html> |
 
 Android SDK, AndroidX, Android Gradle Plugin, and other dependencies are fetched by the Android toolchain and retain their respective licenses. This short inventory is not a replacement for the full notices of a packaged application. Electron builds include their upstream `LICENSE` and `LICENSES.chromium.html`; retain these with any redistributed runtime.
 
 The Gradle 8.14.3 license and notices accompanying the included wrapper are preserved in [GRADLE-LICENSE.txt](docs/licenses/GRADLE-LICENSE.txt) and [GRADLE-NOTICE.txt](docs/licenses/GRADLE-NOTICE.txt).
+
+The Windows portable entry bundles its Python runtime. Packaged builds include `launcher-LICENSES.txt` with the Python license and PyInstaller's full license/exception. Keep this file when redistributing the Windows package.
