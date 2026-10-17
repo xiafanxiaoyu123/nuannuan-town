@@ -111,6 +111,17 @@
   font: 700 .82rem var(--font-b); white-space: nowrap; pointer-events: auto;
   isolation: isolate; touch-action: manipulation;
 }
+
+/* 专为裁缝铺把大喵绝招挪到按键区旁边 */
+.ghud.tailor .gmomo-skill {
+  top: auto !important;
+  bottom: 8rem !important; /* 往上抬一点 */
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important; /* 居中 */
+}
+
+
 .gmomo-skill > i { position: absolute; inset: 0; z-index: -1; background: #ffe0b0; transform-origin: left; }
 .gmomo-skill > b { font-size: 1.1rem; line-height: 1; }
 .gmomo-skill.ready { color: #7a4d00; box-shadow: inset 0 0 0 2px #eab448, 0 3px 0 #d5a252; }
