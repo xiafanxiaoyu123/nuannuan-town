@@ -107,16 +107,20 @@ export function buildHUD() {
     fpsTickAt = now;
     this.updateFpsReadout();
   });
-  window.addEventListener?.('keydown', (e) => {
-    if (e.code === 'F3' && !e.repeat && !e.defaultPrevented && !e.isComposing && !e.ctrlKey && !e.metaKey && !e.altKey &&
-        !e.target?.closest?.('input, textarea, select, button, a, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="button"]')) {
-      e.preventDefault();
-      S.settings.showFps = !S.settings.showFps;
-      save();
-      this.syncFpsVisibility();
-      this.toast(S.settings.showFps ? '实时帧率显示已开启 (F3)' : '实时帧率显示已隐藏 (F3)', { life: 1800 });
-    }
-  });
+
+  //帧率计数器开关（F3，不过我感觉好像没必要动态开关就注释掉了）
+  // window.addEventListener?.('keydown', (e) => {
+  //   if (e.code === 'F3' && !e.repeat && !e.defaultPrevented && !e.isComposing && !e.ctrlKey && !e.metaKey && !e.altKey &&
+  //       !e.target?.closest?.('input, textarea, select, button, a, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="button"]')) {
+  //     e.preventDefault();
+  //     S.settings.showFps = !S.settings.showFps;
+  //     save();
+  //     this.syncFpsVisibility();
+  //     this.toast(S.settings.showFps ? '帧率显示已开启 (F3)' : '帧率显示已隐藏 (F3)', { life: 1800 });
+  //   }
+  // });
+
+
   // 装修界面
   this.decorList = dragScroll(h('div', { class: 'list' }));
   this.decorInfo = h('div', {});

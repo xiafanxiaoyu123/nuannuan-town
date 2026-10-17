@@ -237,12 +237,16 @@ export class MiniGame {
     // 大喵应援主动技能按钮
     this.momoSkillFill = h('i');
     this.momoSkillText = h('span', {}, '大喵 0%');
+
+    // 生成按钮
     this.momoSkillBtn = h('button', {
       type: 'button',
       class: 'gmomo-skill',
-      title: `${MOMO_HINTS[this.id]}；攒满后按 G 键或点击`,
+      title: `${MOMO_HINTS[this.id]}；攒满后按 ${this.momoSkillKey === 'Space' ? '空格' : 'G'} 键或点击`,
       onclick: () => this.triggerMomoSkill(),
     }, this.momoSkillFill, h('b', {}, '🐾'), this.momoSkillText);
+
+
     this.syncMomoSkill();
     this.bonusIntro = h('div', { class: 'gbonus-intro' + (bn.n ? ' on' : ''), style: { '--c': bn.style.color } },
       h('span', {}, `本店偏爱「${sn}」风格 · 工坊熟练 Lv.${this.masteryLv}`),
@@ -261,12 +265,15 @@ export class MiniGame {
       h('button', { class: 'btn alt sm gquit', onclick: () => { audio.sfx('click'); if (this.state === 'play') this.finish(); } }, '提前打烊'),
       ...extra, this.bonusIntro, this.countEl);
     ui.root.append(this.hudEl);
+
     this.on(window, 'keydown', (e) => {
-      if (!e.repeat && e.code === 'KeyG' && this.playing) {
+      const key = this.momoSkillKey || 'KeyG'; // 默认 G，谁设了就用谁的
+      if (!e.repeat && e.code === key && this.playing) {
         e.preventDefault();
         this.triggerMomoSkill();
       }
     });
+
     const lh = this.game.liveHooks;
     lh && lh.onGameHUD && lh.onGameHUD(this);
   }
@@ -281,7 +288,11 @@ export class MiniGame {
     this.momoSkillFill.style.transform = `scaleX(${pct / 100})`;
     this.momoSkillBtn.classList.toggle('ready', ready);
     this.momoSkillBtn.disabled = !ready || !usable;
-    this.momoSkillText.textContent = ready ? (usable ? '大喵绝招 (G)' : '等待时机 (G)') : `大喵 ${pct}%`;
+
+    const keyLabel = (this.momoSkillKey || 'KeyG') === 'Space' ? '空格' : 'G';
+    this.momoSkillText.textContent = ready ? (usable ? `大喵绝招 (${keyLabel})` : `等待时机 (${keyLabel})`) : `大喵 ${pct}%`;
+
+
     this.momoSkillBtn.setAttribute('aria-label', `大喵应援 ${pct}%：${MOMO_HINTS[this.id]}${ready && !usable ? '，等待可用时机' : ''}`);
   }
   canMomoSkill() { return false; }

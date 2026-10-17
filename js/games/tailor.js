@@ -11,7 +11,7 @@ import { TAILOR_LANES, tailorKeyLane, fourLaneChart } from './tailor-lanes.js';
 import { FABRIC, LANE_X, buildTailorStage, createStageNote, renderStageNote, animateTailorStage, fitTailorCamera, projectTailorInput, disposeTailorNotes } from './tailor-stage.js';
 const LANE_COL = TAILOR_LANES.map(lane => lane.color);
 const NOTE_EXIT_DELAY = 3 / 5.2; // 沿用旧谱面越过判定后的回收时机
-const LEAD = 2.3; // 提前出现的秒数
+const LEAD = 0.7; // 提前出现的秒数
 const TEMPLATES = [
   [[0, 4], [0, 4], [0, 2, 4], [0, 4, 6]],
   [[0, 2, 4, 6], [0, 4, 6], [0, 2, 4], [0, 3, 4, 6]],
@@ -40,6 +40,14 @@ export class TailorGame extends MiniGame {
     this.refAspect = 1.75;
     this.build();
     this.mount();
+
+
+
+    // Key Override
+
+    this.momoSkillKey = 'Space'; // 音游专属：用空格
+
+
   }
 
   build() {

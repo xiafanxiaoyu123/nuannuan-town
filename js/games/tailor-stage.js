@@ -149,13 +149,24 @@ export function createStageNote(g, lane) {
   const root = group();
   const head = new THREE.Mesh(g.noteGeometry, g.noteMaterials[lane]);
   const thread = new THREE.Mesh(g.noteGeometry, g.threadMaterials[lane]);
+  
+  // --- 新增：脚（尾部纽扣） ---
+  const tail = new THREE.Mesh(g.noteGeometry, g.noteMaterials[lane]);
+  // ---------------------------
+  
   thread.renderOrder = 1; head.renderOrder = 2;
-  root.add(thread, head); g.noteGroup.add(root);
-  return { root, head, thread };
+  tail.renderOrder = 2; // 和头同一层级
+  
+  // 把尾巴也加进 root
+  root.add(thread, head, tail); 
+  g.noteGroup.add(root);
+  
+  // 返回的时候带上它
+  return { root, head, thread, tail }; 
 }
 
 export function renderStageNote(g, note, localY, tailLength) {
-  const { head, thread, root } = note.visual;
+  const { head, thread, tail, root } = note.visual; // 解构出 tail
   const z = FABRIC.farZ + localY / FABRIC.unit;
   const size = g.noteSize / FABRIC.unit;
   head.position.set(LANE_X[note.lane], FABRIC.y + 0.006, z);
@@ -163,11 +174,24 @@ export function renderStageNote(g, note, localY, tailLength) {
   const { x: sx, z: sz } = g.workstation.scale, unit = Math.min(sx, sz);
   head.scale.set(size * unit / sx, 1, size * unit / sz);
   // 裁到布面两端，绝不让长针脚飞出桌外或穿过布卷。
+  // 画线的部分
   const begin = Math.max(FABRIC.farZ, z - tailLength / FABRIC.unit);
   const end = Math.min(FABRIC.nearZ, z);
   thread.position.set(LANE_X[note.lane], FABRIC.y + 0.003, (begin + end) / 2);
   thread.scale.set(size * 0.4 * unit / sx, 1, Math.max(0.001, end - begin));
   thread.visible = note.dur > 0 && end > begin;
+
+    // --- 新增：尾巴的渲染逻辑 ---
+  if (note.dur > 0) {
+    // 尾巴的位置就在线的末端（begin处）
+    tail.position.set(LANE_X[note.lane], FABRIC.y + 0.006, begin);
+    tail.scale.set(size * unit / sx, 1, size * unit / sz);
+    // 如果尾巴跑到布面外了，就隐藏
+    tail.visible = begin >= FABRIC.farZ + size / 2 && begin <= FABRIC.nearZ - size / 2;
+  } else {
+    tail.visible = false;
+  }
+
   head.visible = z >= FABRIC.farZ + size / 2 && z <= FABRIC.nearZ - size / 2;
   root.visible = note.state !== 'sewn' && (note.state !== 'miss' || note.fade > 0.2);
 }
@@ -206,7 +230,9 @@ export function fitTailorCamera(g, width, height) {
   const top = portrait ? 140 : 104, bottom = height - 76, left = portrait ? Math.min(28, Math.max(14, Math.round(width * 0.06))) : 30, right = width - 14;
   const target = new THREE.Vector3(0, 1.4, 0);
   // 操作视角优先展示整个布面；提高俯角仍保留透视，机头位置须配合全路线遮挡检查。
-  const pitch = 68 * Math.PI / 180, up = Math.sin(pitch), forward = Math.cos(pitch);
+  const CameraPitchAngle = 45;
+
+  const pitch = CameraPitchAngle * Math.PI / 180, up = Math.sin(pitch), forward = Math.cos(pitch);
   const bounds = [
     [-3.3, FABRIC.y, -4.3], [3.3, FABRIC.y, -4.3],
     [-3.3, FABRIC.y, 3.6], [3.3, FABRIC.y, 3.6],
@@ -242,7 +268,7 @@ export function projectTailorInput(g, width, height) {
   const column = p => [(p.x + p.w) * width / 2, (p.w - p.y) * height / 2, 0, p.w].map(v => v / origin.w);
   g.laneField.style.width = PLANE_W + 'px'; g.laneField.style.height = PLANE_H + 'px';
   g.laneField.style.transform = `matrix3d(${[...column(x), ...column(y), 0, 0, 1, 0, ...column(origin)].join(',')})`;
-  g.noteSize = 90;
+  g.noteSize = 150;
   g.laneField.style.setProperty('--note-size', g.noteSize + 'px');
   const { x: sx, z: sz } = g.workstation.scale, unit = Math.min(sx, sz);
   g.laneField.style.setProperty('--note-width', (g.noteSize * unit / sx) + 'px');
