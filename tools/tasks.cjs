@@ -14,6 +14,7 @@ const suites = {
   'qa:cloud': 'tools/qa/cloud_sync_lifecycle_checks.js',
   'qa:momo-gameplay': 'tools/qa/momo_gameplay_checks.cjs',
   'qa:fortune-save': 'tools/qa/fortune_save_checks.cjs',
+  'qa:style-contest': 'tools/qa/style_contest_checks.cjs',
   'qa:backend-game-save': 'tools/qa/backend_game_save_checks.cjs',
   'qa:backend-contract': 'tools/qa/backend_contract_checks.cjs',
   'qa:backend-security': 'tools/qa/backend_security_checks.cjs',

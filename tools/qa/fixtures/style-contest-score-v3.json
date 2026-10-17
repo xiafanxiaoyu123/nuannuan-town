@@ -1,0 +1,7 @@
+{
+  "schema": "nuannuan-style-contest-score-baseline-v1",
+  "source": "js/ui/wardrobe.js before 2026-10-17 contest hotfix",
+  "sourceSha256": "3d3feeb6b495c84dbb21e771cadb49d60c68d4290f451f25e60e6fa54b5bcbea",
+  "note": "Original scoring function. Stable numeric oracle independent of the extracted production module; themes are supplied by each fixture test.",
+  "scoreFunction": "function() {\r\n      let pts = 0, mainCnt = 0, subCnt = 0;\r\n      const sets = {};\r\n      for (const k of CATS5) {\r\n        const id = S.owned.includes(this.preview[k]) ? this.preview[k] : S.outfit[k];\r\n        const c = CLOTH[id];\r\n        if (!c || c.acc === 'none' || c.back === 'none') continue;\r\n        if (c.set) sets[c.set] = (sets[c.set] || 0) + 1;\r\n        if (c.style === theme.main) { pts += 20; mainCnt++; }\r\n        else if (c.style === theme.sub) { pts += 13; subCnt++; }\r\n        else pts += 7;\r\n      }\r\n      const maxSet = Math.max(0, ...Object.values(sets));\r\n      if (maxSet >= 5) pts += 18;\r\n      else if (maxSet >= 3) pts += 10;\r\n      if (S.momoCloak && S.momoCloak !== 'classic') pts += 12;\r\n      else pts += 6;\r\n      const rank = pts >= 85 ? 'S' : pts >= 60 ? 'A' : 'B';\r\n      const reward = rank === 'S' ? 120 : rank === 'A' ? 85 : 55;\r\n      return { pts: Math.min(120, pts), mainCnt, subCnt, maxSet, rank, reward };\r\n    }"
+}

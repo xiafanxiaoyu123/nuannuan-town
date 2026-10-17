@@ -16,7 +16,7 @@ QA_NAMES = {
     "admin_workbench_checks.js", "admin_console_checks.js", "admin_session_checks.js",
     "admin_service_settings_checks.js", "mail_system_checks.js",
     "backend_game_save_checks.cjs", "backend_contract_checks.cjs", "backend_security_checks.cjs", "backend_payment_checks.cjs",
-    "momo_gameplay_checks.cjs", "fortune_save_checks.cjs",
+    "momo_gameplay_checks.cjs", "fortune_save_checks.cjs", "style_contest_checks.cjs",
     "mail_improvements_checks.js", "alipay_adapter_checks.js", "alipay_billing_checks.js",
     "audit_regression_checks.js", "save_transfer_checks.js", "house_save_checks.js",
     "daily_save_checks.cjs", "tutorial_save_checks.js", "festival_activity_rules_checks.js",
