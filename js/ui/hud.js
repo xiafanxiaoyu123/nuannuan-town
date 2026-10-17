@@ -1,6 +1,6 @@
 // 游戏 HUD、任务指引、触屏控制显示与种子栏。由 UI 显式转发，this 始终是原来的 ui 单例。
 // 由 ui.js 的具名方法使用 .apply(this, arguments) 调用；不安装原型、不创建单例。
-import { h, fmt, tween, clamp, dragScroll } from '../core/util.js';
+import { h, fmt, tween, clamp, dragScroll, lerp } from '../core/util.js';
 import { app } from '../core/app.js';
 import { audio } from '../core/audio.js';
 import { S, save, beauty, activeRoomSets } from '../core/state.js';
@@ -20,6 +20,7 @@ import { SVG, svg } from './components/svg.js';
 import { priceTag } from './components/price-tag.js';
 import { click } from './components/actions.js';
 import { setClass, captureContent, matchesContent } from './components/presentation.js';
+
 
 export function applyControls() {
   if (!this.joy) return;
@@ -102,7 +103,7 @@ export function buildHUD() {
   app.hooks?.push(() => {
     if (!S.settings?.showFps) return;
     const now = performance.now();
-    if (now - fpsTickAt < 250) return;
+    if (now - fpsTickAt < 50) return;
     fpsTickAt = now;
     this.updateFpsReadout();
   });
@@ -486,9 +487,12 @@ export function updateFpsReadout() {
   const raw = app.fpsAvg;
   const cap = app.capNow || app.fpsCap || 60;
   const fps = Number.isFinite(raw) && raw > 0 ? Math.round(raw) : '—';
-  if (this._shownFps !== fps) {
-    this._shownFps = fps;
-    this.fpsNumEl.textContent = String(fps);
+
+  this.fps_lerp = lerp(this.fps_lerp, fps, 0.2) | 0;
+
+  if (this._shownFps !== this.fps_lerp) {
+    this._shownFps = this.fps_lerp;
+    this.fpsNumEl.textContent = Math.round(this.fps_lerp);
   }
   const state = fps === '—' ? 'unknown' : fps >= Math.min(50, cap * 0.85) ? 'good' : fps >= 30 ? 'warn' : 'low';
   if (this._fpsState !== state) {
