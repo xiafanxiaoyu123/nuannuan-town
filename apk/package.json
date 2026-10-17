@@ -1,6 +1,6 @@
 {
   "name": "nikki-block-town-apk",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "private": true,
   "description": "暖暖的方块小镇 · Android 打包工程（Capacitor）",
   "dependencies": {

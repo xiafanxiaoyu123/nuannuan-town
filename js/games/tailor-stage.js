@@ -149,20 +149,20 @@ export function createStageNote(g, lane) {
   const root = group();
   const head = new THREE.Mesh(g.noteGeometry, g.noteMaterials[lane]);
   const thread = new THREE.Mesh(g.noteGeometry, g.threadMaterials[lane]);
-  
+
   // --- 新增：脚（尾部纽扣） ---
   const tail = new THREE.Mesh(g.noteGeometry, g.noteMaterials[lane]);
   // ---------------------------
-  
+
   thread.renderOrder = 1; head.renderOrder = 2;
   tail.renderOrder = 2; // 和头同一层级
-  
+
   // 把尾巴也加进 root
-  root.add(thread, head, tail); 
+  root.add(thread, head, tail);
   g.noteGroup.add(root);
-  
+
   // 返回的时候带上它
-  return { root, head, thread, tail }; 
+  return { root, head, thread, tail };
 }
 
 export function renderStageNote(g, note, localY, tailLength) {
@@ -181,7 +181,7 @@ export function renderStageNote(g, note, localY, tailLength) {
   thread.scale.set(size * 0.4 * unit / sx, 1, Math.max(0.001, end - begin));
   thread.visible = note.dur > 0 && end > begin;
 
-    // --- 新增：尾巴的渲染逻辑 ---
+  // --- 新增：尾巴的渲染逻辑 ---
   if (note.dur > 0) {
     // 尾巴的位置就在线的末端（begin处）
     tail.position.set(LANE_X[note.lane], FABRIC.y + 0.006, begin);
@@ -231,7 +231,6 @@ export function fitTailorCamera(g, width, height) {
   const target = new THREE.Vector3(0, 1.4, 0);
   // 操作视角优先展示整个布面；提高俯角仍保留透视，机头位置须配合全路线遮挡检查。
   const CameraPitchAngle = 45;
-
   const pitch = CameraPitchAngle * Math.PI / 180, up = Math.sin(pitch), forward = Math.cos(pitch);
   const bounds = [
     [-3.3, FABRIC.y, -4.3], [3.3, FABRIC.y, -4.3],
@@ -284,6 +283,8 @@ export function projectTailorInput(g, width, height) {
     key.style.left = (keyLeft + keyWidth * i + 1) + 'px'; key.style.top = a.y + 'px';
     key.style.width = (keyWidth - 2) + 'px';
   });
+  // 技能按钮跟随实际按键投影，留出44px触摸高度和8px间距。
+  g.hudEl.style.setProperty('--tailor-key-top', a.y + 'px');
   const far = project(0, FABRIC.y, FABRIC.farZ);
   g.board.style.setProperty('--runway-top', far.y + 'px');
 }

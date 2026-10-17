@@ -114,13 +114,12 @@
 
 /* 专为裁缝铺把大喵绝招挪到按键区旁边 */
 .ghud.tailor .gmomo-skill {
-  top: auto !important;
-  bottom: 8rem !important; /* 往上抬一点 */
+  top: max(96px, calc(var(--tailor-key-top, 80vh) - 52px)) !important;
+  bottom: auto !important;
   left: 50% !important;
   right: auto !important;
   transform: translateX(-50%) !important; /* 居中 */
 }
-
 
 .gmomo-skill > i { position: absolute; inset: 0; z-index: -1; background: #ffe0b0; transform-origin: left; }
 .gmomo-skill > b { font-size: 1.1rem; line-height: 1; }

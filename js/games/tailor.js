@@ -38,16 +38,10 @@ export class TailorGame extends MiniGame {
     this.heldTouches = new Map();
     this.awaitHoldResume = false;
     this.refAspect = 1.75;
+    // Key Override（在 mount 前设置以确保按钮 title 与初始文案同步为空格）
+    this.momoSkillKey = 'Space'; // 音游专属：用空格
     this.build();
     this.mount();
-
-
-
-    // Key Override
-
-    this.momoSkillKey = 'Space'; // 音游专属：用空格
-
-
   }
 
   build() {

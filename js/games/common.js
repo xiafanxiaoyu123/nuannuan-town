@@ -243,10 +243,22 @@ export class MiniGame {
       type: 'button',
       class: 'gmomo-skill',
       title: `${MOMO_HINTS[this.id]}；攒满后按 ${this.momoSkillKey === 'Space' ? '空格' : 'G'} 键或点击`,
-      onclick: () => this.triggerMomoSkill(),
+      onclick: (e) => {
+        // Some WebViews emit a delayed compatibility click after touch pointerup.
+        if (e?.detail && performance.now() - (this._momoTouchAt ?? -Infinity) < 700) return;
+        this.triggerMomoSkill();
+      },
     }, this.momoSkillFill, h('b', {}, '🐾'), this.momoSkillText);
-
-
+    this.on(this.momoSkillBtn, 'pointerdown', (e) => {
+      if (e.pointerType !== 'touch') this._momoTouchAt = -Infinity;
+    });
+    this.on(this.momoSkillBtn, 'pointerup', (e) => {
+      if (e.pointerType !== 'touch' || !this.momoSkillBtn.contains(document.elementFromPoint(e.clientX, e.clientY))) return;
+      if (this.triggerMomoSkill()) {
+        this._momoTouchAt = performance.now();
+        e.preventDefault();
+      }
+    });
     this.syncMomoSkill();
     this.bonusIntro = h('div', { class: 'gbonus-intro' + (bn.n ? ' on' : ''), style: { '--c': bn.style.color } },
       h('span', {}, `本店偏爱「${sn}」风格 · 工坊熟练 Lv.${this.masteryLv}`),
@@ -268,6 +280,7 @@ export class MiniGame {
 
     this.on(window, 'keydown', (e) => {
       const key = this.momoSkillKey || 'KeyG'; // 默认 G，谁设了就用谁的
+      if (e.defaultPrevented || e.target?.closest?.('input,textarea,select,[contenteditable="true"]')) return;
       if (!e.repeat && e.code === key && this.playing) {
         e.preventDefault();
         this.triggerMomoSkill();
@@ -282,17 +295,16 @@ export class MiniGame {
     const pct = Math.min(100, Math.max(0, Math.floor(this.momoEnergy || 0)));
     const ready = pct >= 100;
     const usable = ready && this.playing && !this._momoCasting && typeof this.onMomoSkill === 'function' && this.canMomoSkill();
-    const display = `${pct}:${!!this.playing}:${!!usable}`;
+    const keyCode = this.momoSkillKey || 'KeyG';
+    const keyLabel = keyCode === 'Space' ? '空格' : /^Key[A-Z]$/.test(keyCode) ? keyCode.slice(3) : keyCode;
+    const display = `${pct}:${!!this.playing}:${!!usable}:${keyLabel}`;
     if (this._momoDisplay === display) return;
     this._momoDisplay = display;
     this.momoSkillFill.style.transform = `scaleX(${pct / 100})`;
     this.momoSkillBtn.classList.toggle('ready', ready);
     this.momoSkillBtn.disabled = !ready || !usable;
-
-    const keyLabel = (this.momoSkillKey || 'KeyG') === 'Space' ? '空格' : 'G';
+    this.momoSkillBtn.title = `${MOMO_HINTS[this.id]}；攒满后按 ${keyLabel} 键或点击`;
     this.momoSkillText.textContent = ready ? (usable ? `大喵绝招 (${keyLabel})` : `等待时机 (${keyLabel})`) : `大喵 ${pct}%`;
-
-
     this.momoSkillBtn.setAttribute('aria-label', `大喵应援 ${pct}%：${MOMO_HINTS[this.id]}${ready && !usable ? '，等待可用时机' : ''}`);
   }
   canMomoSkill() { return false; }

@@ -21,7 +21,6 @@ import { priceTag } from './components/price-tag.js';
 import { click } from './components/actions.js';
 import { setClass, captureContent, matchesContent } from './components/presentation.js';
 
-
 export function applyControls() {
   if (!this.joy) return;
   const c = controls(), size = Math.min(c.joySize, Math.max(80, innerWidth * 0.38), Math.max(80, innerHeight * 0.34));
@@ -107,20 +106,16 @@ export function buildHUD() {
     fpsTickAt = now;
     this.updateFpsReadout();
   });
-
-  //帧率计数器开关（F3，不过我感觉好像没必要动态开关就注释掉了）
-  // window.addEventListener?.('keydown', (e) => {
-  //   if (e.code === 'F3' && !e.repeat && !e.defaultPrevented && !e.isComposing && !e.ctrlKey && !e.metaKey && !e.altKey &&
-  //       !e.target?.closest?.('input, textarea, select, button, a, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="button"]')) {
-  //     e.preventDefault();
-  //     S.settings.showFps = !S.settings.showFps;
-  //     save();
-  //     this.syncFpsVisibility();
-  //     this.toast(S.settings.showFps ? '帧率显示已开启 (F3)' : '帧率显示已隐藏 (F3)', { life: 1800 });
-  //   }
-  // });
-
-
+  window.addEventListener?.('keydown', (e) => {
+    if (e.code === 'F3' && !e.repeat && !e.defaultPrevented && !e.isComposing && !e.ctrlKey && !e.metaKey && !e.altKey &&
+        !e.target?.closest?.('input, textarea, select, button, a, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="button"]')) {
+      e.preventDefault();
+      S.settings.showFps = !S.settings.showFps;
+      save();
+      this.syncFpsVisibility();
+      this.toast(S.settings.showFps ? '实时帧率显示已开启 (F3)' : '实时帧率显示已隐藏 (F3)', { life: 1800 });
+    }
+  });
   // 装修界面
   this.decorList = dragScroll(h('div', { class: 'list' }));
   this.decorInfo = h('div', {});
@@ -491,12 +486,18 @@ export function updateFpsReadout() {
   const raw = app.fpsAvg;
   const cap = app.capNow || app.fpsCap || 60;
   const fps = Number.isFinite(raw) && raw > 0 ? Math.round(raw) : '—';
-
-  this.fps_lerp = lerp(this.fps_lerp, fps, 0.2) | 0;
-
-  if (this._shownFps !== this.fps_lerp) {
-    this._shownFps = this.fps_lerp;
-    this.fpsNumEl.textContent = Math.round(this.fps_lerp);
+  let shown = '—';
+  if (fps === '—') {
+    this.fps_lerp = undefined;
+  } else {
+    this.fps_lerp = Number.isFinite(this.fps_lerp)
+      ? (Math.abs(fps - this.fps_lerp) < 0.5 ? fps : lerp(this.fps_lerp, fps, 0.2))
+      : fps;
+    shown = Math.round(this.fps_lerp);
+  }
+  if (this._shownFps !== shown) {
+    this._shownFps = shown;
+    this.fpsNumEl.textContent = String(shown);
   }
   const state = fps === '—' ? 'unknown' : fps >= Math.min(50, cap * 0.85) ? 'good' : fps >= 30 ? 'warn' : 'low';
   if (this._fpsState !== state) {
