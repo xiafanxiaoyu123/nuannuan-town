@@ -123,8 +123,7 @@ export function installCraneRide(game, stand, bird) {
       if (!ride) return;
       const entrance = smooth(ride.elapsed / RISE), exit = smooth((CRANE_RIDE_SECONDS - ride.elapsed) / RISE);
       const blend = Math.min(entrance, exit);
-      const portrait = camera.aspect < 1;
-      follow.copy(point).add(new THREE.Vector3(portrait ? 11 : 9, portrait ? 8 : 6.5, portrait ? 14 : 11));
+      follow.copy(point).add(new THREE.Vector3(9, 6.5, 11));
       look.copy(point).y += 0.9;
       aim.position.copy(follow); aim.lookAt(look); aim.rotateY(Math.PI);
       camera.position.copy(ride.cameraPosition).lerp(follow, blend);

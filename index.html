@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="css/modal-layout.css" />
   <link rel="stylesheet" href="css/result-layout.css" />
   <link rel="stylesheet" href="css/diagnostics.css" />
+  <link rel="stylesheet" href="css/landscape.css" />
   <script type="importmap">
     { "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }
   </script>
@@ -35,6 +36,15 @@
       <p>正在搭建方块小镇…</p>
     </div>
   </div>
+  <section id="landscape-gate" class="landscape-gate" role="dialog" aria-modal="true" aria-labelledby="landscape-title" tabindex="-1">
+    <div class="landscape-card">
+      <div class="landscape-device" aria-hidden="true">↻</div>
+      <h1 id="landscape-title">请横屏游玩</h1>
+      <p data-landscape-message>将设备横过来，或把窗口调宽，即可继续游玩。</p>
+      <button type="button" data-landscape-enter>横屏全屏游玩</button>
+      <p class="landscape-note" role="status" aria-live="polite" data-landscape-status>游戏已暂停，横屏后继续。</p>
+    </div>
+  </section>
   <noscript>这个游戏需要启用 JavaScript 与 WebGL。</noscript>
   <script>
     // 捕获主模块加载/解析失败，以及慢设备上的启动超时；正常进入游戏后自动失效。

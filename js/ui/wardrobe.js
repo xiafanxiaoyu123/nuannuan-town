@@ -178,13 +178,7 @@ export class Wardrobe {
       h('div', { class: 'panel card' },
         h('div', { class: 'head' },
           h('div', {}, h('h2', {}, shop ? '搭配小屋' : '我的衣橱'), h('p', {}, shop ? '点选服饰即可试穿' : '已拥有的服饰可以直接穿戴')),
-          h('div', { class: 'whead-actions' }, h('div', { class: 'pill coin' }, h('img', { src: coinIco() }), this.coinEl),
-            h('button', { class: 'wgrab', 'aria-label': '展开服饰列表', 'aria-expanded': 'false', onclick: (event) => {
-              audio.sfx('tab'); const expanded = this.el.classList.toggle('tall');
-              event.currentTarget.setAttribute('aria-expanded', String(expanded));
-              event.currentTarget.setAttribute('aria-label', expanded ? '收起服饰列表' : '展开服饰列表');
-              event.currentTarget.textContent = expanded ? '收起' : '展开';
-            } }, '展开'))),
+          h('div', { class: 'whead-actions' }, h('div', { class: 'pill coin' }, h('img', { src: coinIco() }), this.coinEl))),
         h('div', { class: 'wbody' },
           h('aside', { class: 'wrail', 'aria-label': '服饰分类和工具' }, h('div', { class: 'wnav' }, this.subjectTabs, this.tabs), this.toolsButton),
           h('div', { class: 'wlist' }, this.filterBar, this.grid, this.toolsEl)), this.foot));

@@ -142,6 +142,18 @@ class App {
   }
 
   setBackground(hidden) {
+    this.backgroundHidden = !!hidden;
+    this.syncSuspension();
+  }
+
+  setOrientationBlocked(blocked) {
+    this.orientationBlocked = !!blocked;
+    this.syncSuspension();
+  }
+
+  syncSuspension() {
+    // 页面后台和横屏提示各自持有暂停原因，任一解除都不能越过另一原因。
+    const hidden = !!this.backgroundHidden || !!this.orientationBlocked;
     if (!!this.suspended === hidden) return;
     this.suspended = hidden;
     this.acc = 0;
@@ -158,6 +170,7 @@ class App {
       if (this.view?.stick) this.view.stick.x = this.view.stick.y = 0;
     } else {
       if (this.backgroundView === this.view) this.view.resume();
+      else this.view?.resumeAfterSuspension?.();
       if (this.backgroundMusic && !this.view?.paused) audio.resumeMusic();
       this.backgroundView = null; this.backgroundMusic = false;
     }

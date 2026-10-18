@@ -531,7 +531,7 @@ export function buildSeeds() {
 }
 
 export function tapSeed(i, tree) {
-  const compact = window.matchMedia('(pointer: coarse), (max-height: 560px), (max-aspect-ratio: 1/1)').matches;
+  const compact = window.matchMedia('(pointer: coarse), (max-height: 560px)').matches;
   if (compact && !this.seedbar.classList.contains('open')) { audio.sfx('tab'); this.seedbar.classList.add('open'); return; }
   if (tree) this.game.town.farm.pickSapling(i); else this.game.town.farm.pickSeed(i);
   this.seedbar.classList.remove('open');

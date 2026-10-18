@@ -8,7 +8,6 @@ import { CLOTHES, FRUIT } from '../data.js';
 import { S, save, hasSave } from '../core/state.js';
 import { TUTORIALS } from '../data.js';
 import { addCoins } from '../core/state.js';
-import { applyOrient, isNativeApp, isMobileDevice } from '../core/orient.js';
 import { live } from '../live/api.js';
 import { controls } from '../core/preferences.js';
 import { controlsPanel, performancePanel } from './preferences.js';
@@ -70,30 +69,6 @@ export function settingsPanel() {
   });
   fpsSeg.append(...fpsButtons);
   renderFpsSeg();
-  // 桌面浏览器也有 screen.orientation，不能据此显示“跟随手机”。
-  // 原生桥和移动设备 UA 保留 fine 指针 Android / iPad 的方向设置。
-  const canOrient = isMobileDevice();
-  const oseg = h('div', { class: 'seg' });
-  const curO = () => S.settings.orient || 'auto';
-  let orientPending = false;
-  const renderO = () => oseg.replaceChildren(...[['auto', '跟随手机'], ['land', '固定横屏'], ['port', '固定竖屏']].map(([k, n]) =>
-    h('button', { class: curO() === k ? 'on' : '', disabled: orientPending, onclick: click(async () => {
-      if (orientPending) return;
-      const previous = curO();
-      orientPending = true; renderO();
-      let ok = false;
-      try { ok = await applyOrient(k); } catch { /* 原生或浏览器拒绝时保留旧设置 */ }
-      orientPending = false;
-      if (!ok) {
-        // 锁定失败时不把“看起来已选中、实际没生效”的状态写进存档。
-        S.settings.orient = previous === 'auto' && !S.settings.orient ? '' : previous;
-        save(); renderO();
-        this.toast(isNativeApp() ? '方向切换未完成，请重试；原设置已保留。' : '当前浏览器不支持锁定方向，可用手机安装版固定横屏或竖屏。', { kind: 'warn', life: 4200 });
-        return;
-      }
-      S.settings.orient = k; save(); renderO();
-    }, 'tab') }, n)));
-  renderO();
   let saveInfo;
   const hm = (t) => { const d = new Date(t); return t ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : '--:--'; };
   const renderSave = () => { saveInfo.textContent = `每 5 分钟自动存档 · 上次 ${hm(S.savedAt)}`; };
@@ -108,7 +83,6 @@ export function settingsPanel() {
     h('label', {}, '画面', seg),
     h('label', {}, '帧率显示', fpsSeg),
     h('p', { class: 'fine', style: { marginTop: '0.5rem' } }, '精致：开启光影后期；均衡：关闭后期特效（手机默认）；省电：降低分辨率。主动选择精致会保留到下次启动，但会增加性能开销。帧率、清晰度和抗锯齿可在画面与性能里单独调整。模型细节与阴影精度在下次打开游戏时生效。'),
-    canOrient && h('label', {}, '屏幕方向', oseg),
     h('div', { class: 'settings-links' },
       h('button', { class: 'btn sm account-entry', onclick: click(() => { m.close(true); this.accountPanel(); }) }, accountSummary()),
       h('button', { class: 'btn alt sm', 'data-settings-open': 'help', onclick: click(() => { m.close(true); this.helpPanel(); }) }, '玩法帮助 · 全部教程'),

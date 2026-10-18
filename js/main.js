@@ -13,7 +13,7 @@ import { FishGame } from './games/fish.js';
 import { ui } from './ui/ui.js';
 import { cropIco, coinIco, clothIcon } from './core/icons.js';
 import { fmt, pick, tween, ease } from './core/util.js';
-import { applyOrient, isNativeApp } from './core/orient.js';
+import { installLandscapeGate } from './ui/landscape-gate.js';
 import { installLive } from './live/install.js';
 import { live } from './live/api.js';
 import { THREE } from './core/kit.js';
@@ -356,12 +356,10 @@ const game = {
 async function boot() {
   load();
 
-  // 屏幕方向默认跟随系统；需要固定横屏/竖屏时再在设置中选择。
-  // 这样拿着手机躺玩时不会被旧的空设置强制锁回横屏。
-  if (isNativeApp()) applyOrient(S.settings.orient || 'auto');
   // iPhone 上双指捏合会缩放整个网页：拦掉（游戏里的捏合缩放是自己处理的）
   for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
   app.init(document.getElementById('stage'));
+  installLandscapeGate(app);
   audio.setVolumes(S.settings.music, S.settings.sfx);
   game.town = new Town();
   game.wardrobe = new Wardrobe(game);

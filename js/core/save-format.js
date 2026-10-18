@@ -307,6 +307,7 @@ export function validateSaveData(d, options = {}) {
   }
   optional(d, 'settings', (s, at) => {
     obj(s, at); fields(s, ['music', 'sfx'], (v, a) => num(v, a, 0, 1, false), at);
+    // orient 仅供旧版档案/旧客户端兼容；新客户端迁移会移除该偏好。
     for (const [key, values] of Object.entries({ quality: ['high', 'mid', 'low'], orient: ['', 'auto', 'land', 'port'], moveSide: ['left', 'right'], fpsLimit: ['auto', 30, 60, 90, 120, 'unlimited'], renderScale: [0.75, 1, 1.25, 1.5], antiAlias: ['auto', 'off', 'fxaa', 'msaa2', 'msaa4'], daySeconds: [320, 640, 960] })) {
       optional(s, key, (v, a) => { if (!values.includes(v)) fail(a, '选项无效'); }, at + '.' + key);
     }

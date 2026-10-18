@@ -1,5 +1,4 @@
-// 屏幕方向：auto 跟随手机 / land 固定横屏 / port 固定竖屏。
-// Android 等待 UI 线程和布局确认；网页只在浏览器允许时锁定。
+// 游戏统一横屏；原生等待宿主确认，浏览器不支持锁定时交由旋转提示引导。
 let requestSerial = 0;
 
 function nativeRequest(native, mode) {
@@ -20,26 +19,21 @@ function nativeRequest(native, mode) {
   });
 }
 
-export function applyOrient(mode) {
-  mode = mode === 'portrait' ? 'port' : mode === 'landscape' ? 'land' : mode === 'follow' ? 'auto' : mode;
-  mode = mode || 'auto';
-  if (!['auto', 'land', 'port'].includes(mode)) return Promise.resolve(false);
+export function applyOrient({ fullscreen = false } = {}) {
   const native = window.NikkiNative;
-  if (native && typeof native.setOrientationRequest === 'function') return nativeRequest(native, mode);
+  if (native && typeof native.setOrientationRequest === 'function') return nativeRequest(native, 'land');
   if (native && native.setOrientation) {
-    try { return Promise.resolve(native.setOrientation(mode)).then(value => value !== false, () => false); }
-    catch (e) { return Promise.resolve(false); }
+    try { return Promise.resolve(native.setOrientation('land')).then(value => value !== false, () => false); }
+    catch { return Promise.resolve(false); }
   }
-  const so = window.screen && window.screen.orientation;
-  if (mode === 'auto') {
-    try { so && so.unlock && so.unlock(); } catch (e) { /* 没锁过 */ }
-    return Promise.resolve(true);
-  }
-  if (!so || !so.lock) return Promise.resolve(false);
-  const want = mode === 'land' ? 'landscape-primary' : 'portrait-primary';
+  const so = window.screen?.orientation;
   const el = document.documentElement;
-  const full = document.fullscreenElement ? Promise.resolve() : el.requestFullscreen ? el.requestFullscreen() : Promise.reject(new Error('no fullscreen'));
-  return full.then(() => so.lock(want)).then(() => true).catch(() => false);
+  // 只有玩家点了提示按钮才请求全屏，不在打开网页时抢占窗口。
+  let full;
+  try { full = fullscreen && !document.fullscreenElement && el.requestFullscreen ? el.requestFullscreen() : Promise.resolve(); }
+  catch { return Promise.resolve(false); }
+  return Promise.resolve(full).then(() => so?.lock ? so.lock('landscape') : Promise.reject(new Error('orientation unavailable')))
+    .then(() => true, () => false);
 }
 export const isNativeApp = () => !!(window.NikkiNative && (window.NikkiNative.setOrientationRequest || window.NikkiNative.setOrientation));
 

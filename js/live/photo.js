@@ -313,8 +313,7 @@ export const photo = {
         town.rig.yaw = P.yaw; // 轮盘 / 方向键按镜头方向走
         if (!moving) { town.faceTarget = P.yaw; pl.root.rotation.y = P.yaw; }
         const hy = p.y + 1.12;
-        // 竖屏画面窄，同样的距离脸会撑满，按宽高比把相机再拉远一些
-        const dist = P.dist * Math.max(1, Math.min(2.4, 1.25 / cam.aspect));
+        const dist = P.dist;
         cam.position.set(p.x + sy * cp * dist, Math.max(p.y + 0.25, hy + 0.08 + sp * dist), p.z + cy * cp * dist);
         cam.lookAt(p.x, hy - Math.min(0.4, (P.dist - 2.0) * 0.12), p.z);
       } else {

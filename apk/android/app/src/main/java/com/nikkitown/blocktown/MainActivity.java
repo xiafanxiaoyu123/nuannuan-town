@@ -37,7 +37,7 @@ public class MainActivity extends BridgeActivity {
     private volatile String updateAvailableVersion = "";
     private volatile String updateReleaseNotes = "";
     private volatile String updateError = "";
-    private volatile String orientationMode = "auto";
+    private static final String ORIENTATION_MODE = "land";
     private int orientationRequestSerial = 0;
     private volatile int requestedFrameRate = 0;
     private volatile float preferredFrameRate = 0;
@@ -80,9 +80,7 @@ public class MainActivity extends BridgeActivity {
         // navigation start. Register before super.load(), with no reload.
         WebView webView = findViewById(com.getcapacitor.android.R.id.webview);
         webView.addJavascriptInterface(createNativeInterface(), "NikkiNative");
-        orientationMode = normalizeOrientation(getPreferences(MODE_PRIVATE).getString("screenOrientation", "auto"));
-        if (orientationMode == null) orientationMode = "auto";
-        setRequestedOrientation(orientationValue(orientationMode));
+        applyLandscapeOrientation();
         super.load();
     }
 
@@ -90,14 +88,14 @@ public class MainActivity extends BridgeActivity {
         return new Object() {
             @JavascriptInterface
             public void setOrientation(final String mode) {
-                requestOrientation(mode, "");
+                requestLandscapeOrientation("");
             }
             @JavascriptInterface
             public void setOrientationRequest(final String mode, final String requestId) {
-                requestOrientation(mode, requestId);
+                requestLandscapeOrientation(requestId);
             }
             @JavascriptInterface
-            public String getOrientation() { return orientationMode; }
+            public String getOrientation() { return ORIENTATION_MODE; }
             // 把拍下的照片直接存进系统相册（图库里的「暖暖的方块小镇」）
             @JavascriptInterface
             public boolean savePhoto(final String base64, final String name) {
@@ -227,53 +225,36 @@ public class MainActivity extends BridgeActivity {
         };
     }
 
-    private static String normalizeOrientation(String mode) {
-        if ("port".equals(mode) || "portrait".equals(mode)) return "port";
-        if ("land".equals(mode) || "landscape".equals(mode)) return "land";
-        if (mode == null || mode.isEmpty() || "auto".equals(mode) || "follow".equals(mode)) return "auto";
-        return null;
+    private void applyLandscapeOrientation() {
+        // Orientation is no longer a player preference. Remove old auto/portrait
+        // values when upgrading, and allow either landscape side of the device.
+        getPreferences(MODE_PRIVATE).edit().remove("screenOrientation").apply();
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
     }
 
-    private static int orientationValue(String mode) {
-        // Fixed choices must not continue responding to the rotation sensor.
-        return "port".equals(mode) ? ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            : "land".equals(mode) ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-            : ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR;
-    }
-
-    private void requestOrientation(String input, String requestId) {
-        final String mode = normalizeOrientation(input);
+    private void requestLandscapeOrientation(String requestId) {
+        // Keep the bridge signatures for older cached web resources, but never
+        // let their former auto/portrait requests restore unsupported layouts.
         runOnUiThread(() -> {
-            if (mode == null || (!"auto".equals(mode) && isInMultiWindowMode())) {
-                emitOrientationResult(requestId, mode, false);
-                return;
-            }
             final int serial = ++orientationRequestSerial;
-            final int previous = getRequestedOrientation();
             try {
-                setRequestedOrientation(orientationValue(mode));
-                verifyOrientation(serial, mode, requestId, previous, 20);
-            } catch (RuntimeException error) { emitOrientationResult(requestId, mode, false); }
+                applyLandscapeOrientation();
+                verifyOrientation(serial, requestId, 20);
+            } catch (RuntimeException error) { emitOrientationResult(requestId, ORIENTATION_MODE, false); }
         });
     }
 
-    private void verifyOrientation(int serial, String mode, String requestId, int previous, int attempts) {
-        if (serial != orientationRequestSerial) { emitOrientationResult(requestId, mode, false); return; }
-        int current = getResources().getConfiguration().orientation;
-        boolean applied = "auto".equals(mode)
-            || ("port".equals(mode) && current == Configuration.ORIENTATION_PORTRAIT)
-            || ("land".equals(mode) && current == Configuration.ORIENTATION_LANDSCAPE);
+    private void verifyOrientation(int serial, String requestId, int attempts) {
+        if (serial != orientationRequestSerial) { emitOrientationResult(requestId, ORIENTATION_MODE, false); return; }
+        boolean applied = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
         if (applied) {
-            orientationMode = mode;
-            getPreferences(MODE_PRIVATE).edit().putString("screenOrientation", mode).apply();
-            emitOrientationResult(requestId, mode, true);
+            emitOrientationResult(requestId, ORIENTATION_MODE, true);
         } else if (attempts > 0) {
-            getBridge().getWebView().postDelayed(() -> verifyOrientation(serial, mode, requestId, previous, attempts - 1), 100);
+            getBridge().getWebView().postDelayed(() -> verifyOrientation(serial, requestId, attempts - 1), 100);
         } else {
-            // System/OEM restrictions can reject fixed orientation. Keep the
-            // last working preference instead of showing a false success.
-            setRequestedOrientation(previous);
-            emitOrientationResult(requestId, mode, false);
+            // Multi-window/OEM restrictions may prevent rotation. Report that
+            // honestly while keeping the landscape-only request in force.
+            emitOrientationResult(requestId, ORIENTATION_MODE, false);
         }
     }
 
@@ -292,6 +273,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onResume() {
         super.onResume();
+        applyLandscapeOrientation();
         applyFrameRatePreference();
         if (getBridge() != null) getBridge().getWebView().evaluateJavascript(
             "window.dispatchEvent(new Event('nuannuan:app-resume'))", null);

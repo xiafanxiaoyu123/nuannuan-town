@@ -207,10 +207,9 @@ export function animateTailorStage(g, dt, flow, pulse) {
 }
 
 export function fitTailorCamera(g, width, height) {
-  const portrait = width <= height;
-  // 竖屏延长送布台，横屏加宽四轨。只改变表现坐标，不改谱面长度、到线时间或判定。
-  const sx = portrait ? 1 : THREE.MathUtils.clamp(2.4 - (width - 900) / 750, 1.8, 2.4);
-  const sz = portrait ? THREE.MathUtils.clamp((height - 200) / width * 1.04, 1, 1.7) : 1;
+  // 按横屏可用宽度调整四轨。只改变表现坐标，不改谱面长度、到线时间或判定。
+  const sx = THREE.MathUtils.clamp(2.4 - (width - 900) / 750, 1.8, 2.4);
+  const sz = 1;
   const unit = Math.min(sx, sz);
   g.workstation.scale.set(sx, 1, sz);
   for (const mount of g.ringMounts) mount.scale.set(unit / sx, 1, unit / sz);
@@ -218,16 +217,16 @@ export function fitTailorCamera(g, width, height) {
   for (const rod of g.needleRig.children) rod.scale.z = 1 / sz;
   for (const bobbin of g.bobbins) bobbin.scale.set(1 / sx, 1, 1 / sz);
   // 为桌侧留出真实站位和看见脚部的视线，不能只把角色中心塞进画面。
-  const companionX = 3.475 * sx + (portrait ? 0.85 : 1.25);
+  const companionX = 3.475 * sx + 1.25;
   g.nikki.root.position.set(-companionX, 0, -1.8 * sz); g.nikki.root.rotation.y = 0.45;
   if (g.mannequin) { g.mannequin.position.set(-companionX, 0, -3.7 * sz); g.mannequin.rotation.y = 0.35; }
   g.momo.root.position.set(companionX, 0, -3.5 * sz); g.momo.root.rotation.y = -0.3;
   g.basket.position.set(companionX, 0, -0.1 * sz);
   g.workstation.updateMatrixWorld(true);
   const camera = g.camera;
-  camera.aspect = width / height; camera.fov = portrait ? 85 : 65;
+  camera.aspect = width / height; camera.fov = 65;
   camera.clearViewOffset(); camera.updateProjectionMatrix();
-  const top = portrait ? 140 : 104, bottom = height - 76, left = portrait ? Math.min(28, Math.max(14, Math.round(width * 0.06))) : 30, right = width - 14;
+  const top = 104, bottom = height - 76, left = 30, right = width - 14;
   const target = new THREE.Vector3(0, 1.4, 0);
   // 操作视角优先展示整个布面；提高俯角仍保留透视，机头位置须配合全路线遮挡检查。
   const CameraPitchAngle = 45;

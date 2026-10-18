@@ -4,8 +4,10 @@ export const RENDER_SCALES = [0.75, 1, 1.25, 1.5];
 export const ANTI_ALIAS_MODES = ['auto', 'off', 'fxaa', 'msaa2', 'msaa4'];
 
 export function normalizeGraphicsSettings(settings = {}) {
+  // 方向已是全局横屏规则；兼容旧档，但不再保存方向偏好。
+  const { orient: _legacyOrient, ...current } = settings;
   return {
-    ...settings,
+    ...current,
     quality: ['low', 'mid', 'high'].includes(settings.quality) ? settings.quality : 'high',
     // 旧存档的 high 是历史默认值；只有玩家主动选择才在手机上开启精致。
     qualityExplicit: settings.qualityExplicit === true,

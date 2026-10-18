@@ -28,9 +28,12 @@
 .wardrobe .wtools-toggle { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: none; min-height: 48px; gap: 2px; border-radius: 12px; padding: 5px 2px; background: #f4e7f5; color: #84547c; font-size: max(12px, .8rem); pointer-events: auto; }
 .wardrobe .wtools-toggle svg { width: 18px; height: 18px; }
 .wardrobe .wtools-toggle.on { background: #e9d8f3; box-shadow: inset 0 0 0 2px #d5b7e6; }
-.wardrobe .wlist { position: relative; display: flex; flex: 1; min-width: 0; min-height: 0; }
-.wardrobe .wgrid { width: 100%; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 7px; padding: 4px 4px 6px; overscroll-behavior: contain; touch-action: pan-y; }
-.wardrobe .wgrid[hidden], .wardrobe .wtools[hidden] { display: none !important; }
+.wardrobe .wlist { position: relative; display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+/* 筛选固定在衣服列表上方；窄横屏横向滚动，按钮不随列表拉长。 */
+.wardrobe .wfilters { display: flex; flex: 0 0 auto; flex-wrap: nowrap; align-items: center; gap: 5px; width: 100%; min-width: 0; padding: 2px 1px 6px; overflow-x: auto; overflow-y: hidden; box-sizing: border-box; scrollbar-width: thin; overscroll-behavior-x: contain; touch-action: pan-x; }
+.wardrobe .wfilter-chip { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; align-self: center; min-width: 0; height: 32px; min-height: 32px; padding: 0 11px; box-sizing: border-box; white-space: nowrap; font-size: 12px; line-height: 1.2; touch-action: pan-x; }
+.wardrobe .wgrid { flex: 1 1 0; min-height: 0; width: 100%; overflow-x: hidden; overflow-y: auto; box-sizing: border-box; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 7px; padding: 4px 4px 6px; overscroll-behavior: contain; touch-action: pan-y; }
+.wardrobe .wfilters[hidden], .wardrobe .wgrid[hidden], .wardrobe .wtools[hidden] { display: none !important; }
 .wardrobe .wgrid .item { min-width: 0; padding: 4px 4px 6px; border-radius: 13px; }
 .wardrobe .wgrid .item .pic { min-width: 0; border-radius: 10px; }
 .wardrobe .wgrid .item .setn { font-size: max(12px, .82rem); line-height: 1.4; margin-top: 2px; }
@@ -46,7 +49,7 @@
 .wardrobe .wleft { left: max(12px, env(safe-area-inset-left, 0px)); top: max(12px, env(safe-area-inset-top, 0px)); }
 .wardrobe .wleft .btn { min-height: 42px; padding: 0 15px; font-size: max(13px, 1rem); }
 .wardrobe .whint { left: 18.5%; bottom: 18px; max-width: 35%; white-space: normal; text-align: center; font-size: max(11px, .8rem); }
-.wardrobe .wtools { min-width: 0; width: 100%; overflow: auto; overscroll-behavior: contain; touch-action: pan-y; padding: 4px 6px 10px; }
+.wardrobe .wtools { flex: 1 1 0; min-height: 0; min-width: 0; width: 100%; box-sizing: border-box; overflow: auto; overscroll-behavior: contain; touch-action: pan-y; padding: 4px 6px 10px; }
 .wardrobe .wtools-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 10px; }
 .wardrobe .wtools-head h3 { margin: 0; font-size: max(15px, 1.05rem); }
 .wardrobe .wtools-close { min-height: 40px; padding: 0 10px; border-radius: 12px; background: #ffedf4; font-size: max(12px, .85rem); }
@@ -68,7 +71,6 @@
 .wardrobe .momo-free { display: block; padding: 4px; margin: 0; line-height: 1.5; font-size: max(11px, .75rem); }
 .wardrobe.momo-mode .wfoot { flex-wrap: nowrap; }
 .wardrobe .momo-detail { flex-basis: auto; }
-.wardrobe .wgrab { display: none; }
 @media (min-aspect-ratio: 1.05/1) and (max-height: 540px) {
   .wardrobe .panel { top: max(7px, env(safe-area-inset-top, 0px)); bottom: max(7px, env(safe-area-inset-bottom, 0px)); right: max(7px, env(safe-area-inset-right, 0px)); padding: 9px; gap: 6px; }
   .wardrobe .head p { display: none; }
@@ -85,23 +87,7 @@
   .wardrobe .wgrid .item.sel, .wardrobe .wgrid .item:hover { transform: none; }
   .wardrobe .wfoot { min-height: 48px; padding: 4px 7px; }
 }
-@media (max-aspect-ratio: 1.05/1) {
-  .wardrobe .panel { top: 36%; left: max(7px, env(safe-area-inset-left, 0px)); right: max(7px, env(safe-area-inset-right, 0px)); bottom: max(7px, env(safe-area-inset-bottom, 0px)); width: auto; padding: 10px; gap: 7px; }
-  .wardrobe.tall .panel { top: max(62px, calc(env(safe-area-inset-top, 0px) + 54px)); }
-  .wardrobe .head p { display: none; }
-  .wardrobe .wrail { flex-basis: 58px; gap: 5px; }
-  .wardrobe .wbody { gap: 7px; }
-  .wardrobe .wgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-  .wardrobe .wgrid .item { padding: 3px 3px 5px; }
-  .wardrobe .wgrid .item .pic { max-height: 94px; }
-  .wardrobe .wgrid .item .dot { display: none; }
-  .wardrobe .wgrid .item.worn::after { font-size: 10px; }
-  .wardrobe .wgrab { display: block; min-height: 40px !important; height: 40px !important; width: 42px; margin: 0; padding: 0; border-radius: 11px; background: #ffedf4; font-size: 12px; color: #a3557a; }
-  .wardrobe .whint { display: none; }
-  .wardrobe .wsubjects button { font-size: 12px; }
-  .wardrobe .wfoot .info b, .wardrobe .momo-detail b { font-size: 12px; }
-  .wardrobe .wtools .wbonus > div { grid-template-columns: 1fr; }
-}
+
 @media (max-width: 700px) and (min-aspect-ratio: 1.05/1) {
   .wardrobe .panel { width: 66vw; }
   .wardrobe .wgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

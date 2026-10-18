@@ -56,6 +56,6 @@ export function createPlayerDefaults() {
     stats: {},
     quest: 0,
     clock: 0.22,
-    settings: normalizeGraphicsSettings({ music: 0.6, sfx: 0.8, quality: 'high', orient: '' }),
+    settings: normalizeGraphicsSettings({ music: 0.6, sfx: 0.8, quality: 'high' }),
   };
 }

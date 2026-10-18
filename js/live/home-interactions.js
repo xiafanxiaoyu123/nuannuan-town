@@ -29,12 +29,12 @@ const SUPPORTED = new Set([
   ...Object.keys(SEATS), ...LAMPS, ...READERS,
   'bed', 'vanity', 'wardrobe', 'sideboard', 'piano', 'catbed', 'dining', 'coffee',
   'tv', 'fireplace', 'windowseat', 'teacart', 'musicbox',
-  'kitchen_stove', 'fridge', 'kitchen_island', 'flower_vase', 'photo_frame',
+  'kitchen_stove', 'kitchen_fridge', 'kitchen_island', 'flower_vase', 'photo_frame',
   'fountain', 'goldfountain', 'wishing', 'momohut', 'birdbath', 'easel', 'gramophone', 'beehive', 'scarecrow',
 ]);
 const RECIPES = [
   { id: 'strawberry_tart', name: '草莓鲜果挞', desc: '香脆塔皮铺满刚摘的甜草莓，酸甜可口', cost: [['strawberry', 2], ['wheat', 1]], coins: 95 },
-  { id: 'pumpkin_soup', name: '奶油南瓜浓汤', desc: '金黄浓郁的热汤，喝完整个人都暖洋洋的', cost: [['pumpkin', 1], ['carrot', 1]], coins: 85 },
+  { id: 'pumpkin_soup', name: '奶油南瓜浓汤', desc: '金黄浓郁的热汤，喝完整个人都暖洋洋的', cost: [['pumpkin', 1], ['wheat', 1]], coins: 85 },
   { id: 'blueberry_muffin', name: '蓝莓蜜糖松饼', desc: '爆浆冰晶蓝莓配清甜果肉，下午茶绝配', cost: [['blueberry', 2], ['apple', 1]], coins: 105 },
   { id: 'lemon_tea', name: '香水柠檬花果茶', desc: '清香柠檬片与蜜桃慢煮，满屋都是果香', cost: [['lemon', 1], ['peach', 1]], coins: 110 },
   { id: 'moon_cake', name: '月见星光糕', desc: '用夜里盛开的月见花与甜樱桃细细蒸制', cost: [['moonflower', 1], ['cherry', 1]], coins: 155 },
@@ -336,7 +336,7 @@ export function installHomeInteractions(game, ui) {
         }, hostedToday ? '今日已招待' : canHost ? '摆盘招待 +80' : '需先烹制料理'));
       body.replaceChildren(
         h('h2', {}, '田园私房料理台'),
-        h('p', { class: 'fine', style: { marginBottom: '0.6rem' } }, '用后院收获的新鲜作物与果实烹制暖心茶点，比直接出售原料赚得更多噗灵！'),
+        h('p', { class: 'fine', style: { marginBottom: '0.6rem' } }, '用后院收获的新鲜作物与果实烹制暖心茶点，完成料理可获得噗灵，也能解锁下午茶招待。'),
         teaBanner,
         h('div', { class: 'dl-list' }, RECIPES.map((r) => {
           const canCook = r.cost.every(([id, need]) => (S.crops[id] || 0) >= need);
@@ -399,7 +399,7 @@ export function installHomeInteractions(game, ui) {
       ui.toast(`${DECO[id].name}已${rec.e.lightOn ? '打开' : '关闭'}`); return true;
     }
     if (id === 'bed') return bedState ? rest(rec) : enterBed(rec, p);
-    if (id === 'kitchen_stove' || id === 'fridge' || id === 'kitchen_island') { kitchenPanel(rec); return true; }
+    if (id === 'kitchen_stove' || id === 'kitchen_fridge' || id === 'kitchen_island') { kitchenPanel(rec); return true; }
     if (id === 'flower_vase') {
       const curIdx = VASE_FLOWERS.findIndex((f) => f.id === (rec.e.flower || 'rose'));
       const next = VASE_FLOWERS[(curIdx + 1) % VASE_FLOWERS.length];
@@ -484,7 +484,7 @@ export function installHomeInteractions(game, ui) {
     if (LAMPS.has(id)) return `${rec.e.lightOn === false ? '打开' : '关闭'}小灯`;
     if (id === 'bed') return '上床休息';
     if (id === 'vanity' || id === 'wardrobe') return '打开衣柜 · 换装';
-    if (id === 'kitchen_stove' || id === 'fridge' || id === 'kitchen_island') return '烹制田园料理';
+    if (id === 'kitchen_stove' || id === 'kitchen_fridge' || id === 'kitchen_island') return '烹制田园料理';
     if (id === 'flower_vase') return '更换瓶中鲜花';
     if (id === 'photo_frame' || id === 'easel') return '切换画框风景';
     if (id === 'fountain' || id === 'goldfountain' || id === 'wishing') return '欣赏水景 · 许愿';

@@ -1,0 +1,26 @@
+/* 唯一的竖向视口规则：提示转横屏，不提供竖屏游戏布局。 */
+.landscape-gate {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+  place-items: center;
+  box-sizing: border-box;
+  overflow: auto;
+  background: radial-gradient(ellipse at top, #fff2ed, #f7e8f1 70%);
+  color: #624455;
+  text-align: center;
+  touch-action: manipulation;
+}
+.landscape-gate[hidden] { display: none !important; }
+.landscape-required .landscape-gate { display: grid; }
+.landscape-card { width: min(100%, 380px); padding: 28px 22px; box-sizing: border-box; border: 1px solid #e8cddd; border-radius: 24px; background: #fffcf8; box-shadow: 0 12px 40px #93637a18; }
+.landscape-device { margin: 0 auto 20px; width: 88px; height: 48px; display: grid; place-items: center; border: 3px solid #d880a6; border-radius: 12px; color: #bc5b86; font-size: 36px; line-height: 1; }
+.landscape-card h1 { margin: 0 0 14px; font-size: 24px; }
+.landscape-card p { font-size: 15px; line-height: 1.75; margin: 0 0 20px; }
+.landscape-card button { min-height: 44px; max-width: 100%; border: 0; padding: 11px 22px; border-radius: 24px; color: #fff; background: #cc7198; font: inherit; cursor: pointer; }
+.landscape-card button:focus-visible { outline: 3px solid #78465e; outline-offset: 4px; }
+.landscape-card button:disabled { opacity: .65; }
+.landscape-card .landscape-note { margin: 16px 0 0; font-size: 13px; color: #806775; }
+@media (max-aspect-ratio: 1/1) { .landscape-gate { display: grid; } }

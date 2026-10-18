@@ -172,8 +172,7 @@ export class FishGame extends MiniGame {
     this.nikki.setPose('cheer');
     this.tipText('甩竿！');
     audio.sfx('whoosh');
-    const portrait = window.innerWidth <= window.innerHeight;
-    const from = new THREE.Vector3(1.6, 1.6, 0.3), to = new THREE.Vector3(portrait ? rand(3.3, 4.3) : rand(4.2, 5.6), WATER_Y, rand(0.2, 1));
+    const from = new THREE.Vector3(1.6, 1.6, 0.3), to = new THREE.Vector3(rand(4.2, 5.6), WATER_Y, rand(0.2, 1));
     if (this.hotspot) this.hotspot.position.set(to.x, WATER_Y + 0.025, to.z);
     this.tween({ dur: 0.55, ease: ease.linear, update: (k) => { this.bobber.position.lerpVectors(from, to, k); this.bobber.position.y += Math.sin(k * Math.PI) * 2.2; }, done: () => {
       if (this.dead || this.state !== 'play') return;

@@ -161,7 +161,15 @@ export class MiniGame {
     return true;
   }
   resume(force = false) {
-    if (!this.paused) return false;
+    if (!this.paused || this.dead) { this.pendingResume = null; return false; }
+    // 倒数、长按恢复等异步回调不能越过后台/旋转暂停。只记录实际
+    // 请求过的恢复，不把原来手动暂停或等待选卡的局面自动恢复。
+    if (app.suspended) {
+      this.pendingResume = { force: force || !!this.pendingResume?.force };
+      return false;
+    }
+    force = force || !!this.pendingResume?.force;
+    this.pendingResume = null;
     if (this.onResume?.(force) === false && !force) return false;
     this.paused = false;
     this.syncMomoSkill();
@@ -169,20 +177,29 @@ export class MiniGame {
     this.hudEl.querySelector('.gquit').disabled = false;
     return true;
   }
+  resumeAfterSuspension() {
+    if (!this.pendingResume) return false;
+    return this.resume(this.pendingResume.force);
+  }
+  async waitForAppResume() {
+    while (app.suspended && !this.dead) await wait(0.1);
+    return !this.dead;
+  }
   // 暂停之后回到游戏前先数 3、2、1（选完强化时用），手慢也来得及接上节奏；倒数期间仍然是暂停状态
   async resumeCountdown() {
     if (!this.paused) return false;
     if (this.resuming) return this.resuming;
     this.resuming = (async () => {
       for (const t of ['3', '2', '1']) {
-        if (this.dead || !this.paused) break;
+        if (this.dead || !this.paused || !(await this.waitForAppResume())) break;
         this.countEl.replaceChildren(h('span', {}, t));
         audio.sfx('tick');
         await wait(0.6);
       }
+      const ready = await this.waitForAppResume();
       if (!this.dead) this.countEl.replaceChildren();
       this.resuming = null;
-      return this.dead ? false : this.resume();
+      return ready ? this.resume() : false;
     })();
     return this.resuming;
   }
@@ -423,12 +440,12 @@ export class MiniGame {
 
   async countdown() {
     for (const t of ['3', '2', '1']) {
-      if (this.dead) return;
+      if (!(await this.waitForAppResume())) return;
       this.countEl.replaceChildren(h('span', {}, t));
       audio.sfx('tick');
       await wait(0.75);
     }
-    if (this.dead) return;
+    if (!(await this.waitForAppResume())) return;
     this.countEl.replaceChildren(h('span', { class: 'go' }, '开店啦!'));
     audio.sfx('go');
     this.state = 'play';
@@ -436,6 +453,7 @@ export class MiniGame {
     this.onStart && this.onStart();
     this.bonusIntro.classList.add('out');
     await wait(0.8);
+    if (!(await this.waitForAppResume())) return;
     this.countEl.replaceChildren();
     this.bonusIntro.remove();
   }
@@ -465,6 +483,7 @@ export class MiniGame {
     ui.tutorials?.cancelView(this);
     this.resume(true);
     this.dead = true;
+    this.pendingResume = null;
     this.stopMomoCheer();
     this.resolve?.('exit');
     this.perkChoice?.cancel?.();

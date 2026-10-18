@@ -71,7 +71,7 @@ export function controlsPanel(ui) {
     body.append(h('div', { class: 'preference-control' }, h('div', { class: 'preference-heading' }, h('label', { for: range.id }, label), output),
       h('div', { class: 'preference-range' }, range), h('div', { class: 'preference-limits', 'aria-hidden': 'true' }, h('span', {}, format(min)), h('span', {}, format(max)))));
   }
-  body.append(h('p', { class: 'fine' }, '摇杆尺寸和边距会按当前屏幕自动避让，防止挡住另一侧按钮。横竖屏切换后会重新适配。'),
+  body.append(h('p', { class: 'fine' }, '摇杆尺寸和边距会按当前屏幕自动避让，防止挡住另一侧按钮。横屏下会随窗口大小重新适配。'),
     h('button', { class: 'btn alt sm', 'data-reset-controls': '', style: { marginTop: '1.4rem' }, onclick: () => {
     for (const key of ['moveSide', ...fields.map(f => f[0])]) delete S.settings[key];
     refresh(); side.render(); resetRanges.forEach(render => render()); ui.toast('操作与显示已恢复默认');

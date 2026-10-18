@@ -136,7 +136,7 @@ svg .fill { fill: currentColor; stroke-width: 1.4; }
 .bedbar { position: absolute; left: 50%; bottom: 2.6rem; transform: translate(-50%, 1rem) scale(0.92); display: flex; align-items: center; gap: 0.55rem; padding: 0.45rem; border-radius: 1.2rem; background: rgba(255, 250, 243, 0.94); box-shadow: var(--shadow), inset 0 0 0 0.14rem #fff; opacity: 0; pointer-events: none; transition: transform 0.25s var(--ease-pop), opacity 0.2s; z-index: 4; }
 .bedbar.on { transform: translate(-50%, 0) scale(1); opacity: 1; pointer-events: auto; }
 .bedbar .btn { min-height: 3.1rem; padding: 0 1.25rem; white-space: nowrap; }
-@media (max-aspect-ratio: 1/1) { .bedbar { bottom: 3.2rem; max-width: calc(100vw - 1rem); } .bedbar .btn { min-height: 2.9rem; padding: 0 1rem; } }
+
 @media (max-height: 560px) and (orientation: landscape) { .bedbar { bottom: 1.6rem; } .bedbar .btn { min-height: 2.6rem; font-size: 0.92rem; padding: 0 0.9rem; } }
 @keyframes kb { 50% { transform: translateY(-0.14rem); } }
 
@@ -396,54 +396,7 @@ svg .fill { fill: currentColor; stroke-width: 1.4; }
 .gprog i { display: block; height: 100%; background: var(--lav); border-radius: 1rem; }
 
 /* ——— 小屏适配 ——— */
-@media (max-aspect-ratio: 1/1) {
-  .title { padding: 0 7vw 18vh; justify-content: flex-end; background: linear-gradient(0deg, rgba(255, 240, 246, 0.92) 0%, rgba(255, 240, 246, 0.6) 40%, rgba(255, 240, 246, 0) 62%); }
-  .title .legal { left: 7vw; right: 7vw; bottom: 2vh; }
-  .title .ver { display: none; }
-  .quest { top: auto; bottom: 11.5rem; width: 14.5rem; }
-  /* 竖屏把右上角入口排成网格，避免一列按钮在矮屏上被推出底部。 */
-  .hud-tr { top: max(4.9rem, calc(env(safe-area-inset-top, 0px) + 3.9rem)); right: max(0.55rem, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: repeat(3, minmax(3rem, 1fr)); width: min(11.6rem, calc(100vw - 1rem)); gap: 0.25rem 0.2rem; align-items: start; justify-items: center; }
-  .hud-tr .ibtn { width: 3.55rem; min-width: 0; font-size: 0.68rem; gap: 0.16rem; }
-  .hud-tr .ibtn > span:first-child { width: 2.85rem; height: 2.85rem; border-radius: 0.95rem; }
-  .decorbar .side { display: none; }
-  .decortop { gap: 0.6rem; padding-left: 1.1rem; }
-  .decortop p { display: none; }
-  .lanekey { padding: 0.9rem 1.2rem 0.9rem 0.8rem; }
-  .hud-tl .beauty, .clock, .hint { display: none; }
-  .shop { grid-template-columns: 1fr; }
-  .shop .art { max-width: 13rem; margin: 0 auto; }
-  .home .grid { grid-template-columns: 1fr; }
-  .bigcard { flex-direction: row; text-align: left; }
-  .bigcard > img { width: 5rem; height: 5rem; }
-  .wardrobe .panel { left: 0.5rem; right: 0.5rem; top: 46%; bottom: max(0.5rem, env(safe-area-inset-bottom, 0px)); width: auto; }
-  .wstyles, .whint { display: none; }
-  .gbar .slot { width: 4.2rem; }
-  .gbar .slot > img { width: 3rem; height: 3rem; }
-  .gtimer { width: 9rem; }
-  .gtop .name { display: none; }
-}
 
-/* 部分移动浏览器的地址栏会让 aspect 规则短暂失效；窄竖屏再补一层尺寸约束。 */
-@media (max-width: 600px) and (orientation: portrait) {
-  .veil { padding: max(0.55rem, env(safe-area-inset-top, 0px)) max(0.55rem, env(safe-area-inset-right, 0px)) max(0.55rem, env(safe-area-inset-bottom, 0px)) max(0.55rem, env(safe-area-inset-left, 0px)); align-items: center; }
-  .modal { box-sizing: border-box; width: min(100%, calc(100vw - 1.1rem)); max-width: 100%; max-height: min(94dvh, calc(100dvh - 1.1rem)); overflow: hidden; }
-  .modal > :last-child { max-height: calc(100dvh - 5.2rem); overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: thin; }
-  .settings-links { grid-template-columns: 1fr 1fr; gap: 0.45rem; }
-  .settings-links .btn { min-width: 0; min-height: 2.9rem; padding: 0 0.45rem; font-size: 0.84rem; }
-  .settings label { grid-template-columns: 4.7rem minmax(0, 1fr); gap: 0.55rem; }
-  .home .grid, .home .grid:has(> :nth-child(4)) { grid-template-columns: 1fr; }
-  .home:has(.bigcard) { max-height: calc(100dvh - 4.4rem); overflow-y: auto; }
-  .bedbar { bottom: max(3.2rem, calc(env(safe-area-inset-bottom, 0px) + 2.6rem)); max-width: calc(100vw - 1.1rem); flex-wrap: wrap; justify-content: center; }
-  .bedbar .btn { flex: 1 1 9rem; min-width: 8.5rem; max-width: 100%; padding: 0 0.7rem; font-size: 0.92rem; }
-  .hud-tr { top: max(4.9rem, calc(env(safe-area-inset-top, 0px) + 3.9rem)); }
-  .decorbar { padding-left: max(0.45rem, env(safe-area-inset-left, 0px)); padding-right: max(0.45rem, env(safe-area-inset-right, 0px)); padding-bottom: max(0.55rem, env(safe-area-inset-bottom, 0px)); }
-  .decorbar > .card:not(.dfocus) { max-height: min(42dvh, 22rem); overflow: hidden; }
-  .decorbar .list { min-height: 0; overflow-x: auto; }
-  .photo-top { padding-left: max(0.7rem, env(safe-area-inset-left, 0px)); padding-right: max(0.7rem, env(safe-area-inset-right, 0px)); }
-  .photo-tip { max-width: 58vw; overflow: hidden; text-overflow: ellipsis; }
-  .photo-bar { bottom: max(1rem, calc(env(safe-area-inset-bottom, 0px) + 0.7rem)); padding-left: max(0.5rem, env(safe-area-inset-left, 0px)); padding-right: max(0.5rem, env(safe-area-inset-right, 0px)); }
-  .photo-bar .pbtn { min-width: 0; padding: 0 0.65rem; font-size: 0.82rem; }
-}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }
@@ -492,14 +445,6 @@ svg .fill { fill: currentColor; stroke-width: 1.4; }
 .caught { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%); padding: 0.8rem 1.6rem 1rem; border-radius: 1.6rem; text-align: center; animation: modalin 0.4s var(--ease-pop); }
 .caught img { width: 7rem; height: 7rem; display: block; margin: 0 auto; }
 .caught b { font-family: var(--font-d); font-weight: 400; font-size: 1.3rem; display: block; }
-@media (max-aspect-ratio: 1/1) {
-  .mboard { grid-template-columns: repeat(6, 2.7rem); grid-auto-rows: 2.7rem; }
-  .mcell img { width: 2.5rem; height: 2.5rem; }
-  .mgen { width: 4.2rem; }
-  .mgen img { width: 2.6rem; height: 2.6rem; }
-  .mbin { display: none; }
-  .fishbar { right: 6%; }
-}
 
 /* ——— 装修栏分页 / 地面材质 ——— */
 .dtabs { display: flex; flex-direction: column; gap: 0.35rem; justify-content: center; }
@@ -627,7 +572,6 @@ svg .fill { fill: currentColor; stroke-width: 1.4; }
   .wfoot { margin-top: 0.4rem; padding: 0.4rem 0.7rem; }
   .wstyles { display: none; }
 }
-@media (max-aspect-ratio: 1/1) { .wbonus span { font-size: 0.66rem; } .gbonus-intro { white-space: normal; width: 86vw; } }
 
 /* ——— 视角模式 ——— */
 .ibtn.on > span:first-child { background: var(--pink2); color: #fff; box-shadow: 0 0.26rem 0 var(--pink3), var(--shadow-s); }
@@ -639,7 +583,6 @@ svg .fill { fill: currentColor; stroke-width: 1.4; }
 .cambar.dismissed { display: none; }
 .cambar .camclose { white-space: nowrap; }
 .hud:has(.cambar.on) .hint { opacity: 0; }
-@media (max-aspect-ratio: 1/1) { .cambar p { display: none; } }
 
 /* ——— 任务指引的收起 ——— */
 .quest.hide { opacity: 0; transform: translateX(-120%); pointer-events: none !important; }
@@ -698,13 +641,7 @@ svg .fill { fill: currentColor; stroke-width: 1.4; }
 .yardico i:nth-child(1) { width: 62%; height: 58%; } .yardico i:nth-child(2) { width: calc(100% - 0.6rem); height: 58%; } .yardico i:nth-child(3) { width: calc(100% - 0.6rem); height: 76%; } .yardico i:nth-child(4) { width: calc(100% - 0.6rem); height: calc(100% - 0.6rem); }
 .yardico i.on { background: rgba(255, 255, 255, 0.35); }
 .yardico i.next { box-shadow: inset 0 0 0 0.16rem #ffc94d; background: rgba(255, 201, 77, 0.28); animation: bump 1.4s var(--ease-pop) infinite; }
-@media (max-aspect-ratio: 1/1) {
-  .questtab { top: auto; bottom: 11.5rem; left: 0.9rem; }
-  .ach-list { grid-template-columns: 1fr; }
-  .home .grid:has(> :nth-child(4)) { grid-template-columns: 1fr; }
-  .home:has(.bigcard) { max-height: 80dvh; overflow-y: auto; }
-  .yardico { width: 5rem; height: 5rem; }
-}
+
 @media (max-height: 560px) and (orientation: landscape) {
   .ach { max-height: calc(100dvh - 4.4rem); }
   .ach-head h2 { font-size: 1.5rem; } .ach-head p { display: none; }
@@ -731,13 +668,6 @@ svg .fill { fill: currentColor; stroke-width: 1.4; }
   .cafebar .gtray span img { width: 2.4rem; height: 2.4rem; }
   .cafebar .btn { padding: 0 0.8rem; min-height: 2.6rem; }
 }
-@media (max-aspect-ratio: 1/1) {
-  .cafebar { flex-wrap: wrap; justify-content: center; }
-  .cafebar .sep { display: none; }
-  .cafebar .gfoods { grid-template-columns: repeat(min(3, var(--n)), 1fr); width: 100%; justify-items: center; }
-  .cafebar .slot { width: 100%; max-width: 6.4rem; }
-  .gbar.merge { transform: translateX(-50%) scale(0.92); transform-origin: bottom center; }
-}
 
 /* ——— 装修操作条 ——— */
 .decorbar { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
@@ -752,14 +682,7 @@ svg .fill { fill: currentColor; stroke-width: 1.4; }
 .dfocus .btn .price { margin-left: 0.2rem; }
 .dfx { width: 2.3rem; height: 2.3rem; flex: none; display: grid; place-items: center; border-radius: 50%; color: var(--ink2); background: var(--blush); }
 .dfx svg { width: 1.1rem; height: 1.1rem; }
-@media (max-aspect-ratio: 1/1) {
-  .decorbar .side { display: flex !important; flex-direction: row; position: absolute; right: 1rem; top: -3.4rem; padding: 0; }
-  .decorbar .side .btn { min-height: 2.6rem; padding: 0 0.9rem; box-shadow: var(--shadow-s); }
-  .decorbar { padding: 0 0.5rem 0.6rem; }
-  .dfocus { flex-wrap: wrap; justify-content: center; border-radius: 1.4rem !important; }
-  .dfocus .who { width: 100%; justify-content: center; }
-  .dtip { margin-right: auto; max-width: 55vw; font-size: 0.72rem; }
-}
+
 @media (max-height: 560px) and (orientation: landscape) {
   .decorbar .slot { flex: 0 0 4.4rem; width: 4.4rem; }
   .decorbar .slot > img { width: 2.7rem; height: 2.7rem; }
@@ -799,7 +722,7 @@ svg .fill { fill: currentColor; stroke-width: 1.4; }
 .reqcard.cool { text-align: center; }
 .reqcard.cool h3 { color: var(--ink2); }
 .reqcard .fine { font-size: 0.78rem; color: var(--ink2); }
-@media (max-aspect-ratio: 1/1) { .reqs { top: auto; bottom: 15.5rem; left: 0.9rem; width: 14.5rem; } .quest.hide ~ .reqs { top: auto; bottom: 14rem; } }
+
 @media (max-height: 560px) and (orientation: landscape) { .reqs { top: 9.6rem; width: 14.5rem; } .quest.hide ~ .reqs { top: 7.6rem; } .reqline:nth-child(n+3) { display: none; } .reqcard .say { margin-bottom: 0.5rem; font-size: 0.88rem; } }
 
 /* ——— 咖啡屋的收钱按钮：不再晃动，点得到 ——— */
@@ -808,7 +731,7 @@ svg .fill { fill: currentColor; stroke-width: 1.4; }
 
 /* ——— 种子栏：手机上收成左下角的一个小按钮 ——— */
 .traylab { display: none; }
-@media (pointer: coarse), (max-height: 560px), (max-aspect-ratio: 1/1) {
+@media (pointer: coarse), (max-height: 560px) {
   .tray { left: 0.8rem; bottom: 0.8rem; transform: translate(0, 1.2rem); padding: 0.35rem; gap: 0.3rem; flex-wrap: wrap; align-items: center; max-width: 13.2rem; border-radius: 1.2rem; }
   .tray.on { transform: none; }
   .tray .slot { display: none; width: 3.9rem; padding: 0.2rem 0.1rem 0.25rem; border-radius: 0.9rem; }
@@ -825,14 +748,14 @@ svg .fill { fill: currentColor; stroke-width: 1.4; }
 .decortop .dup svg { width: 1.1rem; height: 1.1rem; }
 .rsell { margin: 0.7rem 0 0.2rem; }
 .rrow .btn { min-height: 2.3rem; padding: 0 0.9rem; flex: none; }
-@media (max-aspect-ratio: 1/1) { .decortop { gap: 0.5rem; flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 1rem); border-radius: 1.4rem; } }
+
 @media (max-height: 560px) and (orientation: landscape) { .decortop { top: 0.6rem; padding: 0.4rem 0.5rem 0.4rem 1.1rem; gap: 0.7rem; } .decortop .btn { min-height: 2.5rem; padding: 0 0.9rem; } }
 
 /* ——— 种子栏的两种内容：普通田 = 种子，果树田 = 树苗 ——— */
 .tray .tslot { display: none; }
 .tray.trees .slot:not(.tslot) { display: none !important; }
 .tray.trees .tslot { display: flex; }
-@media (pointer: coarse), (max-height: 560px), (max-aspect-ratio: 1/1) {
+@media (pointer: coarse), (max-height: 560px) {
   .tray.trees .tslot { display: none; }
   .tray.trees .tslot.sel, .tray.trees.open .tslot { display: flex; }
 }
@@ -863,7 +786,7 @@ svg .fill { fill: currentColor; stroke-width: 1.4; }
 .glives i { position: static !important; width: 1.05rem !important; height: 1.05rem; border-radius: 0.3rem !important; background: #eadfe6 !important; transform: rotate(45deg) !important; opacity: 1 !important; }
 .glives i.on { background: var(--pink2) !important; }
 .gtimer.hurt { animation: shake 0.35s; }
-@media (max-aspect-ratio: 1/1) { .modes { grid-template-columns: 1fr; } .ggoal { display: none; } }
+
 @media (max-height: 560px) and (orientation: landscape) { .modes { gap: 0.5rem; margin-bottom: 0.6rem; } .mode { padding: 0.5rem 0.7rem 0.6rem; gap: 0.3rem; } .mode p { display: none; } .shop .tagline, .shop .stats { display: none; } .ggoal { height: 2.5rem; } }
 
 /* ——— 视角模式的提示条可以收起：收起后缩到右下角，只留两个小按钮 ——— */
@@ -885,7 +808,7 @@ svg .fill { fill: currentColor; stroke-width: 1.4; }
 /* 挖孔 / 刘海屏：画面铺满，界面两侧让开安全区 */
 .hud-tl, .quest, .reqs, .questtab, .gcombo, .wleft { margin-left: env(safe-area-inset-left, 0px); }
 .hud-tr, .gquit { margin-right: env(safe-area-inset-right, 0px); }
-@media (pointer: coarse), (max-height: 560px), (max-aspect-ratio: 1/1) { .tray { margin-left: env(safe-area-inset-left, 0px); } }
+@media (pointer: coarse), (max-height: 560px) { .tray { margin-left: env(safe-area-inset-left, 0px); } }
 .cambar.min { margin-right: env(safe-area-inset-right, 0px); }
 
 /* ——— 1.3.1 ——— */
@@ -914,18 +837,10 @@ html, body, #ui, #ui * { touch-action: manipulation; }
   .gbar.merge .mgens .mgen { width: 4.9rem; }
   .mghost { width: 4.8rem; height: 4.8rem; }
 }
-@media (max-aspect-ratio: 1/1) {
-  .gbar.merge { --cell: calc((100vw - 2.6rem) / 6 - 0.3rem); flex-wrap: wrap; justify-content: center; width: calc(100vw - 0.8rem); transform: translateX(-50%); }
-  .gbar.merge .mboard { order: 1; }
-  .gbar.merge .mgens { order: 2; flex-direction: row; flex: 1; }
-  .gbar.merge .mgens .mgen { flex: 1; width: auto; min-height: 4.6rem; }
-  .gbar.merge .mbin { order: 3; width: 5rem; }
-  .mghost { width: 5.4rem; height: 5.4rem; }
-}
 
 .gorders { z-index: 3; } /* 花店客人的订单气泡永远在棋盘上面 */
 @media (max-width: 720px) { .gtop .name { display: none; } }
-.decorbar:not(.on) .side { display: none !important; } /* 竖屏时装修的旋转按钮不该漏到别的界面上 */
+.decorbar:not(.on) .side { display: none !important; } /* 装修关闭后，旋转按钮不能出现在其他界面。 */
 
 /* ——— 存档与秘密面板 ——— */
 .saverow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
@@ -937,7 +852,7 @@ html, body, #ui, #ui * { touch-action: manipulation; }
 .cheatgrid .bigcard { padding: 0.8rem 0.6rem; }
 .cheatgrid .bigcard b { font-size: 1.05rem; }
 .cheatgrid .bigcard p { min-height: 0; font-size: 0.76rem; }
-@media (max-aspect-ratio: 1/1) { .cheatgrid { grid-template-columns: 1fr 1fr; } }
+
 @media (max-height: 560px) and (orientation: landscape) { .settings { width: min(44rem, 92vw); } .settings label { margin-top: 0.6rem; } }
 
 /* ——— 1.4 ——— */
@@ -990,45 +905,6 @@ html, body, #ui, #ui * { touch-action: manipulation; }
 .decor-camera-panel .btn[aria-pressed="true"], .decor-camera-panel [data-decor-camera="done"] { background: var(--pink2); color: white; }
 .decor-camera-panel [data-decor-camera="done"] { margin-left: .2rem; }
 .decorbar .dtip { margin: 0; max-width: 100%; text-align: center; }
-@media (max-aspect-ratio: 1/1) {
-  .decor-camera-panel { max-width: calc(100vw - 1rem); padding: 0.35rem; gap: 0.25rem; }
-  .decor-camera-panel .btn { min-height: 38px; padding: 0 0.75rem; font-size: 0.9rem; }
-}
-
-/* 衣橱 / 搭配小屋 · 竖屏重排：说明文字收起来，把高度让给衣服；一行四件，顶部小把手可以把列表拉高 */
-.wgrab { display: none; }
-@media (max-aspect-ratio: 1/1) {
-  .wardrobe .panel { top: 40%; left: 0.5rem; right: 0.5rem; bottom: max(0.5rem, env(safe-area-inset-bottom, 0px)); padding: 0.4rem 0.7rem 0.6rem; border-radius: 1.5rem; transition: top 0.35s var(--ease-out); }
-  .wardrobe.tall .panel { top: 4.8rem; }
-  .wgrab { display: grid; place-items: center; align-self: center; width: 5rem; height: 1.3rem; margin-bottom: 0.1rem; pointer-events: auto; }
-  .wgrab i { width: 2.6rem; height: 0.32rem; border-radius: 1rem; background: #f0d6d8; }
-  .wardrobe .head { margin-bottom: 0.4rem; }
-  .wardrobe .head h2 { font-size: 1.3rem; }
-  .wardrobe .head p, .wbonus p, .wfoot .info p { display: none; }
-  .wardrobe .head .pill { height: 2.2rem; }
-  .wbonus { padding: 0.25rem; margin-bottom: 0.35rem; border-radius: 0.9rem; }
-  .wbonus > div { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 0.25rem; }
-  .wbonus span { flex-direction: row; justify-content: center; gap: 0.25rem; padding: 0.22rem 0.1rem; font-size: 0.64rem; white-space: nowrap; }
-  .wbonus span i { display: none; }
-  .wbonus span b { font-size: 0.82rem; }
-  .setfx { margin-bottom: 0.35rem; padding: 0.3rem 0.6rem; font-size: 0.68rem; gap: 0.4rem; white-space: nowrap; overflow: hidden; }
-  .setfx b { font-size: 0.72rem; }
-  .wardrobe .tabs { margin-bottom: 0.45rem; padding: 0.22rem; }
-  .wardrobe .tabs button { height: 2.1rem; font-size: 0.92rem; }
-  .wgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.4rem; padding: 0.2rem 0.2rem 0.4rem; }
-  .item { padding: 0.22rem 0.22rem 0.35rem; border-radius: 0.9rem; min-width: 0; }
-  .item .pic { border-radius: 0.7rem; }
-  .item .setn { font-size: 0.82rem; line-height: 1.25; min-height: 2.5em; margin-top: 0.1rem; white-space: normal; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-  .item .price { font-size: 0.74rem; } .item .price img { width: 0.9rem; height: 0.9rem; }
-  .item .own { font-size: 0.64rem; }
-  .item .dot { left: 0.3rem; top: 0.3rem; height: 0.95rem; padding: 0 0.3rem; font-size: 0.54rem; }
-  .item.worn::after { content: "穿着"; right: 0.3rem; top: 0.3rem; height: 0.95rem; padding: 0 0.3rem; font-size: 0.54rem; }
-  .wfoot { margin-top: 0.4rem; padding: 0.45rem 0.6rem; border-radius: 1rem; gap: 0.5rem; }
-  .wfoot .info b { font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .wfoot .btn { min-height: 2.5rem; padding: 0 1.1rem; font-size: 1rem; white-space: nowrap; }
-  .wleft { left: 0.7rem; top: 0.7rem; }
-  .wleft .btn { min-height: 2.5rem; padding: 0 1rem; font-size: 0.95rem; }
-}
 
 /* 后院：大喵自动浇水的开关 */
 .momosw { position: absolute; right: 1.4rem; top: 7.4rem; margin-right: env(safe-area-inset-right, 0px); display: none; align-items: center; gap: 0.4rem; height: 2.5rem; padding: 0 0.5rem 0 0.75rem; border-radius: 99rem; background: var(--cream); box-shadow: var(--shadow-s), inset 0 0 0 0.14rem #fff; font-family: var(--font-d); font-size: 0.9rem; color: var(--ink); pointer-events: auto; white-space: nowrap; }
@@ -1039,7 +915,7 @@ html, body, #ui, #ui * { touch-action: manipulation; }
 .momosw i::after { content: ""; position: absolute; top: 0.18rem; left: 1.22rem; width: 1.1rem; height: 1.1rem; border-radius: 50%; background: #fff; box-shadow: 0 0.1rem 0.2rem rgba(0, 0, 0, 0.2); transition: left 0.25s var(--ease-pop); }
 .momosw.off i { background: #d9cfc9; } .momosw.off i::after { left: 0.18rem; } .momosw.off b { color: var(--ink2); } .momosw.off svg { color: var(--ink2); }
 .hud.off .momosw { display: none; }
-@media (max-aspect-ratio: 1/1), (max-height: 560px) { .momosw { top: 6.2rem; right: 0.8rem; height: 2.2rem; font-size: 0.8rem; } .momosw span { display: none; } }
+@media (max-height: 560px) { .momosw { top: 6.2rem; right: 0.8rem; height: 2.2rem; font-size: 0.8rem; } .momosw span { display: none; } }
 
 /* 任务栏：显示正在追踪的一条，点开是全部任务 */
 .quest { cursor: pointer; }
@@ -1070,11 +946,9 @@ html, body, #ui, #ui * { touch-action: manipulation; }
 .tk-note { margin: 0.7rem 0 0; font-size: 0.74rem; }
 @media (max-height: 560px) and (orientation: landscape) { .tasks { max-height: 78dvh; } .tk-btns { flex-direction: row; } }
 
-/* 竖屏和小屏也要有回收格：棋盘堆满时能把用不上的拖进去清掉 */
-@media (max-aspect-ratio: 1/1) { .gbar.merge .mbin { display: grid; min-height: 3.6rem; } .gbar.merge .mbin br { display: none; } }
+/* 小屏保留回收格：棋盘堆满时能清掉用不上的花。 */
+
 @media (max-height: 560px) and (orientation: landscape) { .gbar.merge .mbin { display: grid; } }
-/* 竖屏：大喵浇水开关放左上，不压右边那一列按钮 */
-@media (max-aspect-ratio: 1/1) { .momosw { right: auto; left: 0.9rem; top: 4.6rem; margin-left: env(safe-area-inset-left, 0px); } .momosw span { display: inline; } }
 
 /* 后院：一键采集（集齐「满篮时光」） */
 .reapbtn { position: absolute; right: 1.4rem; top: 10.4rem; margin-right: env(safe-area-inset-right, 0px); display: none; align-items: center; gap: 0.4rem; height: 2.7rem; padding: 0 1rem 0 0.8rem; border-radius: 99rem; background: linear-gradient(180deg, #b6ecae, #7fcf7a); color: #23552a; box-shadow: 0 0.22rem 0 #58a856, var(--shadow-s); font-family: var(--font-d); font-size: 1rem; pointer-events: auto; white-space: nowrap; }
@@ -1083,7 +957,7 @@ html, body, #ui, #ui * { touch-action: manipulation; }
 .reapbtn b { min-width: 1.4rem; height: 1.4rem; padding: 0 0.3rem; border-radius: 1rem; background: #fff; color: #2f7a38; font: 700 0.82rem var(--font-n); display: grid; place-items: center; }
 .reapbtn.none b { display: none; } /* 集齐后按钮常亮；空田点击时给出提示。 */
 .hud.off .reapbtn { display: none; }
-@media (max-aspect-ratio: 1/1) { .reapbtn { right: auto; left: 0.9rem; top: 7.4rem; height: 2.4rem; font-size: 0.9rem; margin-left: env(safe-area-inset-left, 0px); } }
+
 @media (max-height: 560px) and (orientation: landscape) { .reapbtn { top: 8.9rem; right: 0.8rem; height: 2.3rem; font-size: 0.88rem; } }
 
 /* 衣橱：上班方案 */
@@ -1101,19 +975,16 @@ html, body, #ui, #ui * { touch-action: manipulation; }
 .work-fit { display: flex; gap: 0.3rem; margin: 0.45rem 0; } .work-fit img { width: 3rem; height: 3rem; border-radius: 0.8rem; background: var(--blush); }
 .work-none { margin: 0.5rem 0; font-size: 0.82rem; color: var(--ink2); }
 .work-btns { display: flex; flex-wrap: wrap; gap: 0.4rem; } .work-btns .btn { min-height: 2.2rem; padding: 0 0.9rem; font-size: 0.88rem; white-space: nowrap; }
-@media (max-aspect-ratio: 1/1) { .wleft { flex-direction: row; align-items: center; gap: 0.5rem; } }
-@media (max-aspect-ratio: 1/1) { .workp, .tasks { width: calc(100vw - 4rem); } }
 
 /* 手机：左下角的移动轮盘 */
 .joy { position: absolute; left: max(1.4rem, calc(env(safe-area-inset-left, 0px) + 1rem)); bottom: max(1.6rem, calc(env(safe-area-inset-bottom, 0px) + 1rem)); width: 7.6rem; height: 7.6rem; border-radius: 50%; display: none; place-items: center; background: rgba(255, 255, 255, 0.28); box-shadow: inset 0 0 0 0.16rem rgba(255, 255, 255, 0.75), 0 0.3rem 0.8rem rgba(120, 70, 95, 0.18); pointer-events: auto; touch-action: none !important; backdrop-filter: blur(3px); }
 .joy.on { display: grid; } .joy.hidden, .hud.off .joy { display: none; }
 .joy i { width: 3.3rem; height: 3.3rem; border-radius: 50%; background: linear-gradient(180deg, #fff, #ffe3ec); box-shadow: 0 0.2rem 0 #f0c9d3, 0 0.3rem 0.6rem rgba(120, 70, 95, 0.25); pointer-events: none; transition: transform 0.12s var(--ease-out); }
 .joy.held { background: rgba(255, 255, 255, 0.4); } .joy.held i { transition: none; background: linear-gradient(180deg, #ffd0de, #ff9fbd); }
-/* 轮盘占了左下角：竖屏的任务栏往上让一让 */
-@media (pointer: coarse) and (max-aspect-ratio: 1/1) { .quest { bottom: 11.2rem; } .questtab { bottom: 11.2rem; } }
+
 @media (pointer: coarse) and (max-height: 560px) and (orientation: landscape) { .joy { width: 6.6rem; height: 6.6rem; bottom: 1rem; } .joy i { width: 2.9rem; height: 2.9rem; } }
 
-/* 触屏最小命中区：视觉尺寸保持轻量，点击区域在横竖屏与 WebView 中都不低于约 36px。 */
+/* 触屏最小命中区：视觉尺寸保持轻量，点击区域在横屏与 WebView 中都不低于约 36px。 */
 @media (pointer: coarse) {
   .btn.sm,
   .seg button,
@@ -1127,7 +998,6 @@ html, body, #ui, #ui * { touch-action: manipulation; }
   .momosw { height: 2.8rem; }
   .settings input[type="range"] { height: 2.8rem; }
   .photo-zoom { width: 2.8rem; }
-  .wgrab { min-height: 2.8rem; height: 2.8rem; }
   .wardrobe .tabs button { min-height: 2.8rem; height: auto; }
 }
 /* 大喵衣橱：共用原服饰面板和手机展开操作。 */
