@@ -39,11 +39,32 @@ export function bindInput(town) {
   const MOVE = { KeyW: 1, KeyA: 1, KeyS: 1, KeyD: 1, ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1 };
   window.addEventListener('keydown', (e) => {
     if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.metaKey || e.altKey || e.target?.isContentEditable ||
-      e.target?.closest?.('input, textarea, select, button, a[href], [role="button"], [contenteditable]:not([contenteditable="false"])')) return;
+      e.target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return;
     if (!town.active || e.repeat) return;
     if (MOVE[e.code]) { town.keys.add(e.code); town.moveTo = null; e.preventDefault(); }
     if (town.noInput()) return;
-    if (e.code === 'KeyE' || e.code === 'Space' || e.code === 'Enter') { interact(town); e.preventDefault(); }
+    
+    
+    
+    if (e.code === 'KeyE' || e.code === 'Space' || e.code === 'Enter') { 
+      //Farm
+      if (e.shiftKey && town.zone === 'home') {
+        // 如果按住了 Shift，就在周围疯狂干活
+        const px = town.pos.x, pz = town.pos.z;
+        // 先尝试收获
+        
+        if (town.farm.harvestNearby(px, pz) > 0) { e.preventDefault(); return; }
+        // 没熟的就尝试浇水
+        if (town.farm.waterAll(px, pz) > 0) { e.preventDefault(); return; }
+        // 什么都没干，就尝试一键种植
+        if (town.farm.plantAll(px, pz) > 0) { e.preventDefault(); return; }
+      }
+      // 正常的单点交互
+      interact(town); 
+      e.preventDefault(); 
+    }
+    
+    
     else if (e.code === 'KeyF') {
       const list = multiPromptState.get(town)?.list;
       if (list && list.length > 1) { interact(town, 1); e.preventDefault(); }

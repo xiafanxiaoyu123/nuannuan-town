@@ -557,7 +557,27 @@ export function buildSeeds() {
   this.treeSlots = FRUITS.map((f, i) =>
     h('button', { class: 'slot tslot', title: `${f.tree}：每轮 ${f.cycle} 秒结果，${f.name}售价 ${f.sell}`, onclick: () => this.tapSeed(i, true) },
       h('span', { class: 'key' }, i + 1), h('img', { src: cropIco(f.id), alt: '' }), h('b', {}, f.tree + '苗'), priceTag(f.price)));
-  this.seedbar.append(h('span', { class: 'traylab' }, '换一种'), ...this.seedSlots, ...this.treeSlots);
+  
+    // 新增：周围一圈的快捷操作按钮
+  const quickActions = h('div', { class: 'quick-farm-actions' },
+    h('button', { class: 'slot quick-btn', title: '一键播种', onclick: () => {
+      const n = this.game.town.farm.plantAll(this.game.town.pos.x, this.game.town.pos.z);
+      if (n === 0) this.toast('周围没有空地或种子啦');
+    } }, h('b', { style: 'font-size:16px; color:var(--pink2)' }, '🌱'), h('span', { style: 'font-size:11px; font-weight:bold' }, '播种')),
+    
+    h('button', { class: 'slot quick-btn', title: '一键浇水', onclick: () => {
+      const n = this.game.town.farm.waterAll(this.game.town.pos.x, this.game.town.pos.z);
+      if (n === 0) this.toast('周围没有缺水的地');
+    } }, h('b', { style: 'font-size:16px; color:#7fc4f5' }, '💧'), h('span', { style: 'font-size:11px; font-weight:bold' }, '浇水')),
+    
+    h('button', { class: 'slot quick-btn', title: '一键收获', onclick: () => {
+      const n = this.game.town.farm.harvestNearby(this.game.town.pos.x, this.game.town.pos.z);
+      if (n === 0) this.toast('周围没有成熟的作物');
+    } }, h('b', { style: 'font-size:16px; color:var(--gold2)' }, '🧺'), h('span', { style: 'font-size:11px; font-weight:bold' }, '收获'))
+  );
+
+  
+  this.seedbar.append(h('span', { class: 'traylab' }, '换一种'), ...this.seedSlots, ...this.treeSlots, quickActions);
 }
 
 export function tapSeed(i, tree) {

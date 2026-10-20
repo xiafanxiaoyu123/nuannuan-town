@@ -36,6 +36,9 @@ export function setCloudSaveBase(base) {
 }
 
 function fresh() {
+
+
+
   return prepareLocalPlaySave({ ...createPlayerDefaults(), cafeSpecials: createCafeSpecials(), lifeDiscoveries: createLifeDiscoveries() });
 }
 

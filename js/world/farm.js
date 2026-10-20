@@ -663,4 +663,87 @@ export class Farm {
     if (this.town.frozen) this.hl.visible = false;
     this.hl.scale.setScalar((this.hlBase || 1) * (1 + Math.sin(time * 5) * 0.02));
   }
-}
+
+    // 1. 一键种植（周围 4.5 格内）
+  plantAll(px, pz) {
+    const c = CROP[S.seed];
+    if (!c) return 0;
+    let maxCanPlant = S.seeds[c.id] > 0 ? S.seeds[c.id] : Math.floor(S.coins / c.seed);
+    if (maxCanPlant <= 0) {
+      bus.emit('toast', '没有种子，噗灵也不够啦！');
+      return 0;
+    }
+
+    const emptyPlots = [];
+    for (const r of this.recs()) {
+      if (isBig(r) || this.state(r)) continue;
+      const d = Math.hypot(r.obj.position.x - px, r.obj.position.z - pz);
+      emptyPlots.push(r);
+    }
+
+    if (emptyPlots.length === 0) return 0;
+
+    let planted = 0;
+    for (const rec of emptyPlots) {
+      if (planted >= maxCanPlant) break;
+      if (this.plant(rec)) planted++;
+    }
+
+    if (planted > 0) {
+      audio.sfx('fanfare');
+    }
+    return planted;
+  }
+
+  // 2. 一键浇水（周围 4.5 格内）
+  waterAll(px, pz) {
+    let watered = 0;
+    for (const r of this.recs()) {
+      if (!this.thirsty(r)) continue;
+      const d = Math.hypot(r.obj.position.x - px, r.obj.position.z - pz);
+        if (this.applyWater(r)) watered++;
+    }
+    if (watered > 0) {
+      audio.sfx('water');
+    }
+    return watered;
+  }
+
+  // 全图一键收获（含果树）
+  harvestNearby(px, pz) {
+    let harvested = 0;
+    for (const r of this.recs()) {
+      const p = this.state(r);
+      if (!p) continue;
+      
+      let didHarvest = false;
+      
+      if (p.tree) {
+        // 果树：判断是否 ripe
+        if (treeInfo(p).ripe) {
+          this.pickFruit(r); 
+          didHarvest = true; 
+        }
+      } else {
+        // 普通田：判断是否熟了
+        if (plotStage(p) >= 3) { 
+          this.harvest(r); 
+          didHarvest = true; 
+        }
+      }
+      
+      // 👇 最关键的一步：收完之后，立刻强刷这棵树的模型 👇
+      if (didHarvest) {
+        harvested++;
+        this.refresh(r, true); // 强制重新生成 3D 模型
+      }
+    }
+    
+    if (harvested > 0) {
+      bus.emit('toast', `全图收获了 ${harvested} 块地的作物！`);
+      audio.sfx('harvest');
+      this.town.act('pick', 0.45);
+      save();
+    }
+    return harvested;
+  }}

@@ -11,13 +11,19 @@ import { TAILOR_LANES, tailorKeyLane, fourLaneChart } from './tailor-lanes.js';
 import { FABRIC, LANE_X, buildTailorStage, createStageNote, renderStageNote, animateTailorStage, fitTailorCamera, projectTailorInput, disposeTailorNotes } from './tailor-stage.js';
 const LANE_COL = TAILOR_LANES.map(lane => lane.color);
 const NOTE_EXIT_DELAY = 3 / 5.2; // 沿用旧谱面越过判定后的回收时机
-const LEAD = 0.7; // 提前出现的秒数
+
+// const LEAD = 0.3; // 提前出现的秒数
+
 const TEMPLATES = [
   [[0, 4], [0, 4], [0, 2, 4], [0, 4, 6]],
   [[0, 2, 4, 6], [0, 4, 6], [0, 2, 4], [0, 3, 4, 6]],
   [[0, 2, 4, 6], [0, 2, 4, 5, 6], [0, 3, 4, 6], [0, 1, 2, 4, 6]],
   [[0, 2, 3, 4, 6], [0, 2, 4, 5, 6], [0, 1, 2, 4, 6, 7], [0, 2, 3, 4, 6, 7]],
 ];
+
+
+
+
 
 function buttonNote() {
   return h('div', { class: 'tailor-note', 'aria-hidden': 'true' }, h('i', { class: 'tailor-thread' }), h('b', { class: 'tailor-button' }));
@@ -26,6 +32,14 @@ function buttonNote() {
 export class TailorGame extends MiniGame {
   constructor(game) {
     super(game, 'tailor', { duration: 62, stars: [0, 0, 0], lives: 8 });
+    
+    // 读取玩家设置的下落速度，默认 1.0
+    this.speedSetting = S.settings.tailorSpeed || 1.0;
+    // 根据倍率计算实际的 LEAD。速度越快，LEAD 越小（下落越快）
+    // 原版 0.7 秒。如果你选 0.5 倍速，LEAD 就是 1.4 秒；选 2.0 倍速，LEAD 就是 0.35 秒。
+    this.leadTime = 0.5 / this.speedSetting;
+
+
     if (this.endless) this.duration = this.time = 420; // 无尽：谱面一直排下去，断线 8 次打烊
     this.notes = [];
     this.stats = { perfect: 0, good: 0, miss: 0 };
@@ -40,8 +54,12 @@ export class TailorGame extends MiniGame {
     this.refAspect = 1.75;
     // Key Override（在 mount 前设置以确保按钮 title 与初始文案同步为空格）
     this.momoSkillKey = 'Space'; // 音游专属：用空格
+    
+    
     this.build();
     this.mount();
+
+
   }
 
   build() {
@@ -93,19 +111,24 @@ export class TailorGame extends MiniGame {
       }
     }
     this.on(window, 'pointerup', (e) => this.pointerUp(e), { whilePaused: true, capture: true });
+    
     this.on(window, 'pointercancel', (e) => {
-      if (this.heldPointers.has(e.pointerId)) this.interruptInputs(() => this.pointerUp(e));
+      if (this.heldPointers.has(e.pointerId)) this.pointerUp(e);
     }, { whilePaused: true, capture: true });
+
     this.on(window, 'lostpointercapture', (e) => {
-      // 只有当前捕获目标失去捕获才处理，不能让其他控件的捕获事件串轨。
-      if (this.pointerTargets.get(e.pointerId) === e.target) this.interruptInputs(() => this.pointerUp(e));
+      if (this.pointerTargets.get(e.pointerId) === e.target) this.pointerUp(e);
     }, { whilePaused: true, capture: true });
-    if (this.touchInput) for (const type of ['touchend', 'touchcancel']) {
+    
+
+        if (this.touchInput) for (const type of ['touchend', 'touchcancel']) {
       this.on(window, type, (e) => {
-        if (type === 'touchcancel' && [...e.changedTouches].some((t) => this.heldTouches.has(t.identifier))) this.interruptInputs(() => this.touchUp(e));
+        // 这里也直接改掉
+        if (type === 'touchcancel') this.touchUp(e);
         else this.touchUp(e);
       }, { whilePaused: true, passive: false, capture: true });
     }
+
     this.on(window, 'contextmenu', (e) => e.preventDefault(), { whilePaused: true });
     this.on(window, 'blur', () => this.interruptInputs(), { whilePaused: true });
     this.on(window, 'pagehide', () => this.interruptInputs(), { whilePaused: true });
@@ -143,6 +166,7 @@ export class TailorGame extends MiniGame {
     this.heldPointers.delete(e.pointerId);
     const target = this.pointerTargets.get(e.pointerId);
     this.pointerTargets.delete(e.pointerId);
+    
     try { if (target?.hasPointerCapture(e.pointerId)) target.releasePointerCapture(e.pointerId); } catch (_) { /* 已取消 */ }
     if (!this.laneHeld(lane)) this.release(lane);
     this.refreshLaneInput(lane);
@@ -337,7 +361,7 @@ export class TailorGame extends MiniGame {
     const stage = this.board.getBoundingClientRect();
     fitTailorCamera(this, stage.width, stage.height);
     projectTailorInput(this, stage.width, stage.height);
-    this.noteSpeed = (this.judgeY - this.noteSize / 2) / LEAD;
+    this.noteSpeed = (this.judgeY - this.noteSize / 2) / this.leadTime ;
     if (this.chart) this.renderNotes(this.songTime());
   }
   onResize() { this.measureLanes(); }
@@ -554,7 +578,7 @@ export class TailorGame extends MiniGame {
     animateTailorStage(this, dt, flow, pulse);
     if (st === null) return;
     if (this.endless && this.state === 'play' && this.chart.length && this.ci >= this.chart.length && st > this.chart[this.chart.length - 1].time + 3) { this.finish(); return; } // 无尽谱面排完了
-    while (this.ci < this.chart.length && this.chart[this.ci].time - st < LEAD + 0.1) this.spawnNote(this.chart[this.ci++]);
+    while (this.ci < this.chart.length && this.chart[this.ci].time - st < this.leadTime + 0.1) this.spawnNote(this.chart[this.ci++]);
     for (let i = this.notes.length - 1; i >= 0; i--) {
       // 最后一颗爱心用完会立即结算；同帧剩余音符不能继续记 Miss。
       if (!this.playing) break;

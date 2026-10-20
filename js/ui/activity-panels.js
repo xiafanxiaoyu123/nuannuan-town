@@ -124,7 +124,39 @@ export function shopPanel(id) {
     const box = h('div', { class: 'modes' });
     const jumpTo = (target) => click(() => { pick = Math.max(1, Math.min(maxUnlocked, target)); box.replaceWith(modes()); }, 'tab');
     const step = (d) => jumpTo(pick + d);
+
+    //Tailor
+    let speedValue = S.settings.tailorSpeed || 1.0;
+    const speedDisplay = h('span', { style: { fontWeight: 'bold', color: 'var(--pink2)', minWidth: '40px', textAlign: 'right' } }, `${speedValue.toFixed(1)}x`);
+    const slider = h('input', {
+      type: 'range',
+      min: '0.1',
+      max: '2.5',
+      step: '0.1',
+      value: speedValue,
+      style: { flex: 1, accentColor: 'var(--pink2)', height: '6px', cursor: 'pointer' },
+      oninput: (e) => {
+        speedValue = parseFloat(e.target.value);
+        speedDisplay.textContent = `${speedValue.toFixed(1)}x`;
+        S.settings.tailorSpeed = speedValue;
+        save(); // 实时存进存档
+      }
+    });
+
+
     box.append(
+
+        // 👇 Tailor 插入滑条容器 👇
+      id === 'tailor' && h('div', { 
+        class: 'speed-selector', 
+        style: { margin: '0 0 10px', display: 'flex', gap: '10px', alignItems: 'center', background: '#fff8eb', padding: '10px 14px', borderRadius: '12px', boxShadow: 'inset 0 0 0 1px #f0d9dc' } 
+      },
+        h('span', { style: { fontSize: '13px', color: '#8b6a7b', fontWeight: 'bold', whiteSpace: 'nowrap' } }, '下落速度'),
+        slider,
+        speedDisplay
+      ),
+      // 👆 插入结束 👆
+
       h('div', { class: 'mode lvmode' },
         h('h4', {}, '关卡模式', h('em', {}, `已过 ${cleared} / ${MAX_STAGE} 关`)),
         h('div', { class: 'stagepick' },

@@ -39,6 +39,7 @@ export function setZone(town, zone, x, z) {
   if (zone !== from) for (const d of Object.values(town.decors)) if (d.active && d.exit() === false) return false;
   town.zone = zone;
   const isl = zone === 'build' ? BUILD_ISLAND : zone === 'home' ? HOME : ISLAND;
+  
   if (x === undefined) {
     // 从哪扇门进来，就出现在对应的门口
     if (zone === 'town') { x = TOWN_HOUSE.x; z = TOWN_HOUSE.z + 4.4; }
@@ -56,6 +57,7 @@ export function setZone(town, zone, x, z) {
   bus.emit('zoneChanged', zone);
   return true;
 }
+
 
 export function wallPoint(town, cx,cy) {
   if(!town.partitions)return null;town.partitions.root.updateMatrixWorld(true);
