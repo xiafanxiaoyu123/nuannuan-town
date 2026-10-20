@@ -1,0 +1,29 @@
+name: Publish 3.0.5 release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish tagged release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v3.0.5 --repo xiafanxiaoyu123/nuannuan-town >/dev/null 2>&1; then
+            echo 'v3.0.5 already exists; nothing to do.'
+            exit 0
+          fi
+          gh release create v3.0.5 \
+            --repo xiafanxiaoyu123/nuannuan-town \
+            --target 7adce8ad3fdbfc93650e48a2ed7d6f5e85fad6e7 \
+            --title '暖暖的方块小镇 3.0.5 · 家园牧场与手作料理' \
+            --notes-file .github/release-notes-3.0.5.md \
+            --latest
