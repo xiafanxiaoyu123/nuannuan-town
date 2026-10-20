@@ -45,7 +45,9 @@
   const empty = (message) => `<div class="empty-inline">${esc(message)}</div>`;
   const loading = '<div class="loading" aria-label="正在加载"><i></i><i></i><i></i></div>';
 
-  const labels = { owned: '服饰与拥有物', seeds: '种子', crops: '作物', decor: '家具' };
+  const labels = { owned: '服饰与拥有物', seeds: '种子', crops: '作物', decor: '家具', pantry: '牧场材料', dishes: '成品料理' };
+  const quantityEntry = (type, text) => text.match(type === 'dishes' ? /^([a-z][a-z0-9_]{0,79}:(?:normal|tasty|fine):(?:plain|milky))\s*:\s*(\d+)$/ : /^([A-Za-z0-9_-]+)\s*:\s*(\d+)$/);
+  const quantityLimit = type => ['pantry', 'dishes'].includes(type) ? 999999 : 1000000;
   const outfitLabels = { hair: '发型', dress: '连衣裙/上下装', shoes: '鞋履', head: '头饰', back: '背饰' };
   const actions = {
     'gift.issue': '发放礼包',
@@ -605,7 +607,7 @@
       }
       if (amount > 0) ops.push({ type: 'coins', mode: 'add', amount });
     }
-    for (const type of ['owned', 'seeds', 'crops', 'decor']) {
+    for (const type of ['owned', 'seeds', 'crops', 'decor', 'pantry', 'dishes']) {
       const el = $(`#${prefix}-${type}`);
       const text = el.value.trim();
       if (!text) continue;
@@ -626,12 +628,12 @@
         const items = Object.create(null);
         if (entries.length > 100) fieldError(el, `${labels[type]}一次最多 100 项`);
         for (const entry of entries) {
-          const match = entry.match(/^([A-Za-z0-9_-]+)\s*:\s*(\d+)$/);
+          const match = quantityEntry(type, entry);
           if (!match) fieldError(el, `“${entry}”格式错误，请使用 ID:正整数`);
           const [, id, raw] = match;
           const amount = Number(raw);
           if (!allowed.has(id)) fieldError(el, `目录中不存在${labels[type]} ID：${id}`);
-          if (!Number.isSafeInteger(amount) || amount < 1 || amount > 1000000) fieldError(el, `${id} 数量必须是 1 到 100 万的整数`);
+          if (!Number.isSafeInteger(amount) || amount < 1 || amount > quantityLimit(type)) fieldError(el, `${id} 数量必须是 1 到 ${quantityLimit(type)} 的整数`);
           if (Object.hasOwn(items, id)) fieldError(el, `${id} 重复，请合并为一项`);
           items[id] = amount;
         }
@@ -669,13 +671,13 @@
         `);
       }
     }
-    const icons = { seeds: '🌱', crops: '🧺', decor: '🪑' };
-    for (const type of ['seeds', 'crops', 'decor']) {
+    const icons = { seeds: '🌱', crops: '🧺', decor: '🪑', pantry: '🥚', dishes: '🍽️' };
+    for (const type of ['seeds', 'crops', 'decor', 'pantry', 'dishes']) {
       const el = $(`#${prefix}-${type}`);
       if (!el || !el.value.trim()) continue;
       const entries = el.value.split(/[,，\n]+/).map((s) => s.trim()).filter(Boolean);
       for (const entry of entries) {
-        const match = entry.match(/^([A-Za-z0-9_-]+)\s*:\s*(\d+)$/);
+        const match = quantityEntry(type, entry);
         if (match) {
           const [, id, qty] = match;
           pills.push(`
@@ -703,7 +705,7 @@
         } else {
           const el = $(`#${prefix}-${opType}`);
           const rest = el.value.split(/[,，\n]+/).map((s) => s.trim()).filter((x) => {
-            const m = x.match(/^([A-Za-z0-9_-]+)\s*:/);
+            const m = quantityEntry(opType, x);
             return m ? m[1] !== targetId : Boolean(x);
           });
           el.value = rest.join(', ');
@@ -715,7 +717,7 @@
   }
 
   function bindVisualOpsListeners(prefix) {
-    for (const type of ['coins', 'owned', 'seeds', 'crops', 'decor']) {
+    for (const type of ['coins', 'owned', 'seeds', 'crops', 'decor', 'pantry', 'dishes']) {
       const el = $(`#${prefix}-${type}`);
       if (el && !el.dataset.visualBound) {
         el.dataset.visualBound = '1';
@@ -730,10 +732,10 @@
     const byType = Object.fromEntries(ops.map((op) => [op.type, op]));
     $(`#${prefix}-coins`).value = byType.coins?.amount || '';
     $(`#${prefix}-owned`).value = byType.owned?.ids?.join(', ') || '';
-    for (const type of ['seeds', 'crops', 'decor']) {
+    for (const type of ['seeds', 'crops', 'decor', 'pantry', 'dishes']) {
       $(`#${prefix}-${type}`).value = Object.entries(byType[type]?.items || {}).map(([id, n]) => `${id}:${n}`).join(', ');
     }
-    for (const type of ['coins', 'owned', 'seeds', 'crops', 'decor']) {
+    for (const type of ['coins', 'owned', 'seeds', 'crops', 'decor', 'pantry', 'dishes']) {
       const el = $(`#${prefix}-${type}`);
       if (!el) continue;
       el.setCustomValidity('');
@@ -752,6 +754,8 @@
         <label><span>种子（ID:数量）</span><input id="${prefix}-seeds" placeholder="radish:10"></label>
         <label><span>作物（ID:数量）</span><input id="${prefix}-crops" placeholder="radish:10"></label>
         <label class="span-2"><span>家具（ID:数量）</span><input id="${prefix}-decor" list="gift-decor-options" placeholder="fence:1"></label>
+        <label><span>牧场材料（ID:数量）</span><input id="${prefix}-pantry" list="gift-pantry-options" placeholder="egg:3, milk:2"></label>
+        <label><span>成品料理（菜品:品质:变体:数量）</span><input id="${prefix}-dishes" list="gift-dishes-options" placeholder="egg_custard:normal:plain:1"></label>
       </div>
       <div id="${prefix}-visual-ops" class="visual-ops-preview" aria-live="polite"></div>
     `;
@@ -778,7 +782,7 @@
           </label>
         </div>
         <div id="${prefix}-catalog-results" class="catalog-results"></div>
-        <p class="form-note">点击资源卡片即可加入上方附件。服饰每件仅添加一次；种子、作物、家具重复点击会自动累加数量。</p>
+        <p class="form-note">点击资源卡片即可加入上方附件。服饰每件仅添加一次；种子、作物、家具、牧场材料和料理重复点击会自动累加数量。料理含品质与变体，最后一段为数量。</p>
         <button type="button" class="text-button" data-catalog-reload>↻ 重新读取资源目录</button>
       </details>
     `;
@@ -827,11 +831,11 @@
       } else {
         const input = $(`#${prefix}-catalog-amount`);
         const amount = Number(input.value);
-        if (!Number.isSafeInteger(amount) || amount < 1 || amount > 1000000) fieldError(input, '添加数量必须是 1 到 100 万的整数');
+        if (!Number.isSafeInteger(amount) || amount < 1 || amount > quantityLimit(type)) fieldError(input, `添加数量必须是 1 到 ${quantityLimit(type)} 的整数`);
         let op = ops.find((x) => x.type === type);
         if (!op) ops.push(op = { type, items: {} });
         const total = Number(op.items[id] || 0) + amount;
-        if (total > 1000000) throw new Error('合并后的数量不能超过 100 万');
+        if (total > quantityLimit(type)) throw new Error(`合并后的数量不能超过 ${quantityLimit(type)}`);
         op.items[id] = total;
       }
       setOpsFields(prefix, ops);
@@ -850,7 +854,7 @@
         $(`#${prefix}-catalog-search`)?.dispatchEvent(new Event('input'));
         renderVisualOps(prefix);
       }
-      for (const [type, selector] of [['owned', '#gift-owned-options'], ['decor', '#gift-decor-options']]) {
+      for (const [type, selector] of [['owned', '#gift-owned-options'], ['decor', '#gift-decor-options'], ['pantry', '#gift-pantry-options'], ['dishes', '#gift-dishes-options']]) {
         $(selector).innerHTML = (state.catalog[type] || [])
           .map((item) => `<option value="${esc(item.id)}">${esc(item.name || item.id)}</option>`)
           .join('');
@@ -956,6 +960,8 @@
     const seedsEntries = Object.entries(d.seeds || {}).filter(([, n]) => Number(n) > 0);
     const cropsEntries = Object.entries(d.crops || {}).filter(([, n]) => Number(n) > 0);
     const decorEntries = Object.entries(d.decor || {}).filter(([, n]) => Number(n) > 0);
+    const pantryEntries = Object.entries(d.homestead?.pantry || {}).filter(([, n]) => Number(n) > 0);
+    const dishEntries = Object.entries(d.homestead?.dishes || {}).filter(([, n]) => Number(n) > 0);
 
     return `
       <div class="inventory-grid">
@@ -984,11 +990,13 @@
           </div>
         </div>
         <div class="inventory-box">
-          <strong>作物与家具 (${cropsEntries.length + decorEntries.length} 类)</strong>
+          <strong>作物、家具与厨房 (${cropsEntries.length + decorEntries.length + pantryEntries.length + dishEntries.length} 类)</strong>
           <div class="inventory-pills">
             ${[
               ...cropsEntries.map(([itemId, qty]) => `<span class="inv-pill">🧺 ${esc(resourceName('crops', itemId))} × ${fmt.format(Number(qty))}</span>`),
               ...decorEntries.map(([itemId, qty]) => `<span class="inv-pill">🪑 ${esc(resourceName('decor', itemId))} × ${fmt.format(Number(qty))}</span>`),
+              ...pantryEntries.map(([itemId, qty]) => `<span class="inv-pill">🥚 ${esc(resourceName('pantry', itemId))} × ${fmt.format(Number(qty))}</span>`),
+              ...dishEntries.map(([itemId, qty]) => `<span class="inv-pill">🍽️ ${esc(resourceName('dishes', itemId))} × ${fmt.format(Number(qty))}</span>`),
             ].join('') || '<span class="inv-pill">暂无库存</span>'}
           </div>
         </div>
@@ -1035,6 +1043,8 @@
         ${detailCard('家园等级', s ? `房屋 ${s.house} · 庭院 ${s.yardLv}` : '—')}
         ${detailCard('作物 / 种子', s ? `${fmt.format(s.cropsTotal)} / ${fmt.format(s.seedsTotal || 0)}` : '—')}
         ${detailCard('家具库存', s ? fmt.format(s.decorTotal) : '—')}
+        ${detailCard('牧场材料 / 料理库存', s ? `${fmt.format(s.pantryTotal || 0)} / ${fmt.format(s.dishesTotal || 0)}` : '—')}
+        ${detailCard('动物 / 已摆料理', s ? `${fmt.format(s.ranchAnimals || 0)} / ${fmt.format(s.placedDishes || 0)}` : '—')}
       </div>
 
       <section id="sec-overview" class="detail-section">
@@ -1681,7 +1691,7 @@
   }
 
   function mailDraft() {
-    const ids = ['kind', 'audience', 'target', 'title', 'body', 'template', 'coins', 'owned', 'seeds', 'crops', 'decor', 'expires'];
+    const ids = ['kind', 'audience', 'target', 'title', 'body', 'template', 'coins', 'owned', 'seeds', 'crops', 'decor', 'pantry', 'dishes', 'expires'];
     return Object.fromEntries(ids.map((id) => [id, $(`#mail-${id}`).value]));
   }
 
@@ -1699,7 +1709,7 @@
 
   function persistDraft() {
     const content = mailDraft();
-    if (!content.title && !content.body && !['coins', 'owned', 'seeds', 'crops', 'decor'].some((key) => content[key])) return;
+    if (!content.title && !content.body && !['coins', 'owned', 'seeds', 'crops', 'decor', 'pantry', 'dishes'].some((key) => content[key])) return;
     const ok = storage.set(draftKey, JSON.stringify({ version: 1, savedAt: Date.now(), content }));
     updateDraftBarUi(ok ? `草稿已在本机保存 · ${date(Date.now())}` : '浏览器不允许保存草稿；当前内容仍保留在页面。');
   }

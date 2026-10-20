@@ -14,6 +14,9 @@ import { prepareLocalPlaySave } from './local-play-save.js';
 import { createPlayerDefaults, createStartingPlot as plotAt } from '../shared/player-defaults.js';
 import { ROOM_SETS } from '../shared/home-themes.js';
 import { prepareCompatibleSave } from '../shared/save-compat.js';
+import { createHomestead, migrateHomestead, validateHomesteadState } from '../shared/homestead.js';
+import { createCafeSpecials, validateCafeSpecials } from '../shared/cafe-specials.js';
+import { createLifeDiscoveries, validateLifeDiscoveries } from '../shared/life-discoveries.js';
 import { diagnostics } from '../devtools/diagnostics.js';
 export { MAX_SAVE_BYTES } from './save-format.js';
 
@@ -33,7 +36,7 @@ export function setCloudSaveBase(base) {
 }
 
 function fresh() {
-  return prepareLocalPlaySave(createPlayerDefaults());
+  return prepareLocalPlaySave({ ...createPlayerDefaults(), cafeSpecials: createCafeSpecials(), lifeDiscoveries: createLifeDiscoveries() });
 }
 
 export let S = fresh();
@@ -218,6 +221,14 @@ function migrateBuildHeight(next, original) {
 // 无副作用迁移：导入预览和正常启动使用同一套规则，预览不会改当前存档。
 function migrateSave(d) {
   d = prepareCompatibleSave(d);
+  const cafeErrors = validateCafeSpecials(d);
+  if (cafeErrors.length) throw new Error('咖啡屋存档无效：' + cafeErrors[0]);
+  const discoveryErrors = validateLifeDiscoveries(d);
+  if (discoveryErrors.length) throw new Error('生活发现存档无效：' + discoveryErrors[0]);
+  if (d.homestead !== undefined) {
+    const errors = validateHomesteadState(d);
+    if (errors.length) throw new Error('牧场与厨房存档无效：' + errors[0]);
+  }
   d = { ...d }; delete d[CLOUD_BASE_FIELD]; // 手动导入/云档不能携带另一设备的同步祖先。
   const f = fresh();
   const next = { ...f, ...d, settings: { ...f.settings, ...(d.settings || {}) }, shops: { ...f.shops, ...(d.shops || {}) }, outfit: { ...f.outfit, ...(d.outfit || {}) } };
@@ -295,6 +306,11 @@ function migrateSave(d) {
   }
   migrateBuildIsland(next, d);
   migrateBuildHeight(next, d);
+  // 归一化参与云档比较，不能在这里推进现实时间。离线生产只由实际游戏运行推进。
+  next.homestead = d.homestead ?? createHomestead(d, Number.isSafeInteger(d.savedAt) && d.savedAt >= 0 ? d.savedAt : 0);
+  next.cafeSpecials = d.cafeSpecials ?? createCafeSpecials();
+  next.lifeDiscoveries = d.lifeDiscoveries ?? createLifeDiscoveries();
+  migrateHomestead(next, Number.isSafeInteger(d.savedAt) && d.savedAt >= 0 ? d.savedAt : 0);
   return prepareLocalPlaySave(next);
 }
 

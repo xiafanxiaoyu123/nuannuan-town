@@ -10,7 +10,9 @@ import { h, rand, pick } from '../core/util.js';
 import { seedIco, decorIcon, coinIco } from '../core/icons.js';
 import { gameDayNo } from '../core/gametime.js';
 import { ensureDailyFun, hasDailyMomoPet, markMomoPet, drawDailyFortune, dailyFunKey } from '../shared/momo-fortune.js';
-import { addFertilizer } from '../shared/save-compat.js';
+import { recordLifeEvent, completeStarWish } from '../core/life-discoveries-actions.js';
+import { getLifeDiscoveries } from '../shared/life-discoveries.js';
+import { gameClockHour } from '../shared/life-session.js';
 
 function today() {
   const { fun, changed } = ensureDailyFun(S);
@@ -292,6 +294,24 @@ export function installFun(game) {
   const M = { x: -20, z: 18.8 };
   const mb = put(musicBox(), M.x, M.z, 0.4, 0.75);
   let pendingMusicResume = null;
+  let listening = null;
+  const interruptListening = () => { listening = null; };
+  for (const event of ['zoneChanged', 'stateReplaced', 'reset']) bus.on(event, interruptListening);
+  window.addEventListener('blur', interruptListening);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) interruptListening(); });
+  town.ticks.push((_time, dt = .016) => {
+    const attempt = listening;
+    if (!attempt) return;
+    if (S !== attempt.source || town.zone !== 'town' || app.view !== town || app.suspended || document.hidden || town.modal || game.pianoSession || Math.hypot(town.pos.x - M.x, town.pos.z - M.z) > 4.5) { interruptListening(); return; }
+    attempt.elapsed += Math.max(0, Math.min(.1, dt));
+    if (attempt.elapsed < attempt.duration) return;
+    interruptListening();
+    const result = recordLifeEvent({ type: 'musicbox_heard' }, attempt.source);
+    if (result.ok && result.changed) {
+      fx.hearts(town.scene, town.momo.root.position.clone().setY(1.3), 4);
+      ui.toast('记住了海岸的回声。回到小屋钢琴，可以试着弹出这段旋律。', { life: 4600 });
+    }
+  });
   const resumeMusicboxTrack = () => {
     const pending = pendingMusicResume;
     if (!pending || !pending.ready) return;
@@ -303,13 +323,14 @@ export function installFun(game) {
   // A timer that finishes in the background must wait for the town to resume.
   // Otherwise blocking background playback leaves the original track muted forever.
   town.ticks.push(resumeMusicboxTrack);
-  town.inter.push({ id: 'musicbox', x: M.x + 0.3, z: M.z + 1.1, r: 1.9, label: '八音盒 · 摇一摇', sub: '听一支小摇篮曲', act: () => {
+  town.inter.push({ id: 'musicbox', x: M.x + 0.3, z: M.z + 1.1, r: 1.9, label: '八音盒 · 摇一摇', sub: () => getLifeDiscoveries(S).musicboxHeard ? '海岸的旋律，也能在小屋钢琴上弹响' : '在旁边听完一支小摇篮曲', act: () => {
     if (mb.userData.play > 0) return;
     // 播放时把小镇的背景音乐先停一下，放完再接上
     const source = S, track = audio.info, resumeTrack = !audio.musicPaused;
     audio.pauseMusic();
     const len = playLullaby();
     mb.userData.play = len;
+    listening = getLifeDiscoveries(source).musicboxHeard ? null : { source, elapsed: 0, duration: len };
     const pending = resumeTrack ? { source, track, ready: false } : null;
     pendingMusicResume = pending;
     setTimeout(() => { if (pending && pendingMusicResume === pending) { pending.ready = true; resumeMusicboxTrack(); } }, len * 1000 + 300);
@@ -319,7 +340,7 @@ export function installFun(game) {
     // 第一次听有一点点小心意，之后每天随便听
     const f = today();
     if (!f.used.music) { f.used.music = 1; save(); addCoins(10, 'fun'); stat('tunes'); ui.toast('大喵跟着旋律摇起了尾巴　+10', { icon: coinIco() }); }
-    for (let i = 0; i < 8; i++) setTimeout(() => { if (town.zone === 'town') fx.sparkle(town.scene, here(M.x + rand(-0.4, 0.4), M.z, 1.4 + rand(0, 0.6)), 3, ['#c9b6f2', '#ffd76a', '#ffffff']); }, i * 3 * BEAT * 1000);
+    for (let i = 0; i < 8; i++) setTimeout(() => { if (S === source && app.view === town && !app.suspended && town.zone === 'town') fx.sparkle(town.scene, here(M.x + rand(-0.4, 0.4), M.z, 1.4 + rand(0, 0.6)), 3, ['#c9b6f2', '#ffd76a', '#ffffff']); }, i * 3 * BEAT * 1000);
   } });
 
   // —— 弹弹蘑菇 ——
@@ -388,6 +409,7 @@ export function installFun(game) {
   town.ticks.push(bt.userData.tick);
   placeBottle();
   bus.on('reset', placeBottle);
+  bus.on('stateReplaced', placeBottle);
   // 小镇新的一天：瓶子重新漂来
   bus.on('newDay', placeBottle);
 
@@ -440,6 +462,7 @@ export function installFun(game) {
   });
   placeButterfly();
   bus.on('reset', placeButterfly);
+  bus.on('stateReplaced', placeButterfly);
   bus.on('newDay', placeButterfly);
 
   // —— 🐚 海岸拾贝壳：每天在沙滩冲上岸的虹彩海螺 ——
@@ -483,6 +506,7 @@ export function installFun(game) {
   };
   placeShell();
   bus.on('reset', placeShell);
+  bus.on('stateReplaced', placeShell);
   bus.on('newDay', placeShell);
 
   // —— 🌠 海岸观星墩：每日星光许愿 ——
@@ -503,25 +527,22 @@ export function installFun(game) {
   });
   town.inter.push({
     id: 'starWish', x: W.x, z: W.z + 0.95, r: 1.85,
-    label: () => (usedToday().starWish ? '🌠 观星许愿石 · 今日已许愿' : '🌠 观星许愿石 · 对着流星许愿'),
+    label: () => (usedToday().starWish ? '🌠 观星许愿石 · 今日已许愿' : (gameClockHour(S.clock) >= 18 || gameClockHour(S.clock) < 5) ? '🌠 观星许愿石 · 向星光许愿' : '🌠 观星许愿石 · 留一个心愿'),
     sub: '每日一次星光赐福与有机花肥',
     act: () => {
-      const g = today();
-      if (g.used.starWish) {
-        ui.toast('今天已经向星光许过愿啦，明天再来吧');
+      const source = S, result = completeStarWish(source);
+      if (!result.ok) { ui.toast(result.message, { kind: 'warn' }); audio.sfx('error'); return; }
+      if (result.already) {
+        ui.toast('今天的心愿已经留在石头上了，星光会替你保管。');
         audio.sfx('tab');
         return;
       }
-      g.used.starWish = 1;
-      addCoins(50, 'fun');
-      addFertilizer(S, 1);
-      flushSave();
       town.face(W.x, W.z);
       town.act('cheer', 0.85);
       audio.sfx('fanfare');
       fx.confetti(town.scene, here(W.x, W.z, 2.2), 20);
       fx.sparkle(town.scene, here(W.x, W.z, 1.5), 14, ['#ffe27a', '#ff9fbd', '#7fd3ee', '#ffffff']);
-      ui.toast('🌠 流星划过小镇夜空：获得 +50 噗灵与 1 袋有机花肥！', { icon: coinIco(), kind: 'live-reward' });
+      ui.toast(result.night ? '🌠 星光接住了小小心愿：获得 +50 噗灵与 1 袋有机花肥！' : '☀️ 把心愿留给晚风：获得 +50 噗灵与 1 袋有机花肥！', { icon: coinIco(), kind: 'live-reward' });
       ui.refreshAll?.();
     },
   });

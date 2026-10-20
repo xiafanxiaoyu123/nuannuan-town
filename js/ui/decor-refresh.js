@@ -19,7 +19,7 @@ function refreshHistoryState(ui, decor) {
 function refreshFilters(ui, decor) {
   if (ui.decorFilters && decor) {
     const indoor = !!decor.cfg.indoor;
-    const available = decor.cfg.freeBuild ? ['all', 'foundation', 'wall', 'roof', 'garden', 'home', 'kitchen', 'bathroom'] : indoor ? ['all', 'home', 'kitchen', 'bathroom'] : ['all', 'garden'];
+    const available = decor.cfg.freeBuild ? ['all', 'foundation', 'wall', 'roof', 'garden', 'ranch', 'home', 'kitchen', 'bathroom'] : indoor ? ['all', 'home', 'kitchen', 'bathroom'] : ['all', 'garden', 'ranch'];
     if (!available.includes(ui.decorCategory)) ui.decorCategory = 'all';
     setClass(ui.decorFilters, 'hide', ui.decorTab !== 'furn');
     for (const button of ui.decorCategories.children) {

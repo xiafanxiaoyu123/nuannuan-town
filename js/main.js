@@ -7,6 +7,8 @@ import { CROP, CLOTH, SHOPS, SHOP_MAX_LV, HOUSES, YARDS } from './data.js';
 import { Town } from './world/town.js';
 import { Wardrobe } from './ui/wardrobe.js';
 import { CafeGame } from './games/cafe.js';
+import { openCafePreparation } from './live/cafe-specials-panel.js';
+import { applyCafeSpecialAction } from './core/cafe-specials-actions.js';
 import { FlowerGame } from './games/flower.js';
 import { TailorGame } from './games/tailor.js';
 import { FishGame } from './games/fish.js';
@@ -20,6 +22,7 @@ import { THREE } from './core/kit.js';
 import { installCompanionEvents } from './live/companion-events.js';
 import { installCommunity } from './live/community.js';
 import { installHomeInteractions } from './live/home-interactions.js';
+import { installHomestead } from './world/homestead.js';
 import { tutorialRead } from './ui/tutorials.js';
 import { account } from './core/account.js';
 import { installCleanScreenshot } from './ui/clean-screenshot.js';
@@ -131,6 +134,7 @@ const game = {
     if (this.busy) return;
     this.cancelGuidance();
     this.busy = true;
+    const runSource = S;
     this.town.setModal(true);
     ui.showHUD(false);
     this.playOpts = { mode: 'level', ...(opts || {}) };
@@ -151,16 +155,32 @@ const game = {
     while (choice === 'again' || choice === 'next') {
       if (choice === 'next') this.playOpts = { mode: 'level', stage: (g0 ? g0.stage : 0) + 1 };
       else if (g0 && !this.playOpts.stage && this.playOpts.mode === 'level') this.playOpts.stage = g0.stage; // 再来一次 = 重打这一关
+      if (S !== runSource) break;
+      if (id === 'cafe') {
+        // 每一局重新选择；再次营业与下一关都不能悄悄沿用上一份备货。
+        const recovered = applyCafeSpecialAction({ type: 'recover' }, runSource);
+        if (!recovered.ok) { ui.toast(recovered.message, { kind: 'warn' }); break; }
+        const selection = await openCafePreparation(ui);
+        if (!selection || S !== runSource) break;
+        this.playOpts.cafeSpecials = selection;
+      }
       let g;
-      await ui.iris(async () => {
-        g = new GAMES[id](this);
-        app.setView(g);
-      });
+      try {
+        await ui.iris(async () => {
+          g = new GAMES[id](this);
+          app.setView(g);
+        });
+      } catch (error) {
+        if (id !== 'cafe') throw error;
+        const recovered = applyCafeSpecialAction({ type: 'recover' }, runSource);
+        ui.toast(recovered.ok ? (error.message || '营业暂时无法开始，请重新选择。') : recovered.message, { kind: 'warn' });
+        break;
+      }
       choice = await g.run();
       g0 = g;
     }
     this.playOpts = null;
-    if (S.workPrev) { S.outfit = { ...S.outfit, ...S.workPrev }; S.workPrev = null; this.town.refreshOutfit(); save(); }
+    if (S === runSource && S.workPrev) { S.outfit = { ...S.outfit, ...S.workPrev }; S.workPrev = null; this.town.refreshOutfit(); save(); }
     await ui.iris(async () => {
       app.setView(this.town);
       this.town.camSnap = true;
@@ -355,6 +375,7 @@ const game = {
 
 async function boot() {
   load();
+  const recoveredCafe = S.cafeSpecials?.pending ? applyCafeSpecialAction({ type: 'recover' }) : null;
 
   // iPhone 上双指捏合会缩放整个网页：拦掉（游戏里的捏合缩放是自己处理的）
   for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
@@ -364,6 +385,7 @@ async function boot() {
   game.town = new Town();
   game.wardrobe = new Wardrobe(game);
   ui.init(game);
+  if (recoveredCafe?.message) ui.toast(recoveredCafe.message, { kind: recoveredCafe.ok ? 'quest' : 'warn' });
   installDiagnostics({ app, ui, bus, account, saveInfo: saveDiagnostics, localPlay: LOCAL_PLAY });
 
   bus.on('openShop', (id) => game.openShop(id));
@@ -392,6 +414,10 @@ async function boot() {
     if (displayedSave === S || rebuildingSave) return;
     displayedSave = S; rebuildingSave = true;
     try {
+      if (S.cafeSpecials?.pending) {
+        const recovery = applyCafeSpecialAction({ type: 'recover' });
+        if (recovery.message) ui.toast(recovery.message, { kind: recovery.ok ? 'quest' : 'warn' });
+      }
       for (const d of Object.values(game.town.decors)) d.reload();
       game.town.farm.refreshAll();
       game.town.rebuildHouse();
@@ -435,6 +461,7 @@ async function boot() {
   installCompanionEvents(game, ui);
   installCommunity(game, ui);
   installHomeInteractions(game, ui);
+  installHomestead(game, ui);
   installCleanScreenshot(game, ui);
   // 小玩具没有自己的设置面板，在真正互动时介绍；快速重复点击只预约一次动作。
   for (const it of game.town.inter.filter(it => ['capsule','musicbox','shroom','fortune','fountain'].includes(it.id))) {

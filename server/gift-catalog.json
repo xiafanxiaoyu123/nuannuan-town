@@ -948,6 +948,54 @@
       "name": "青苔汀步石"
     },
     {
+      "id": "ranch_coop",
+      "name": "奶油鸡舍"
+    },
+    {
+      "id": "ranch_barn",
+      "name": "红顶畜棚"
+    },
+    {
+      "id": "ranch_hutch",
+      "name": "胡萝卜兔舍"
+    },
+    {
+      "id": "ranch_fence",
+      "name": "牧场原木围栏"
+    },
+    {
+      "id": "ranch_gate",
+      "name": "牧场迎宾门"
+    },
+    {
+      "id": "ranch_trough",
+      "name": "薄荷食水槽"
+    },
+    {
+      "id": "ranch_hay",
+      "name": "金色干草堆"
+    },
+    {
+      "id": "ranch_sign",
+      "name": "牧场木告示牌"
+    },
+    {
+      "id": "ranch_picnic",
+      "name": "田园野餐长桌"
+    },
+    {
+      "id": "ranch_cookstation",
+      "name": "田园料理台"
+    },
+    {
+      "id": "ranch_flower",
+      "name": "牧场雏菊花箱"
+    },
+    {
+      "id": "ranch_lantern",
+      "name": "暖光牧场灯"
+    },
+    {
       "id": "yard_slab",
       "name": "工坊木纹楼板"
     },
@@ -1226,6 +1274,390 @@
     {
       "id": "giant_moonflower",
       "name": "巨大月见花摆件"
+    }
+  ],
+  "pantry": [
+    {
+      "id": "egg",
+      "name": "新鲜鸡蛋"
+    },
+    {
+      "id": "milk",
+      "name": "鲜牛奶"
+    },
+    {
+      "id": "wool",
+      "name": "柔软羊毛"
+    },
+    {
+      "id": "egg_prime",
+      "name": "优选鸡蛋"
+    },
+    {
+      "id": "milk_prime",
+      "name": "优选牛奶"
+    },
+    {
+      "id": "wool_prime",
+      "name": "优选羊毛"
+    },
+    {
+      "id": "cheese",
+      "name": "鲜奶酪"
+    },
+    {
+      "id": "yogurt",
+      "name": "原味酸奶"
+    },
+    {
+      "id": "feed",
+      "name": "通用饲料"
+    },
+    {
+      "id": "duck_egg",
+      "name": "新鲜鸭蛋"
+    },
+    {
+      "id": "goat_milk",
+      "name": "鲜山羊奶"
+    },
+    {
+      "id": "rabbit_fur",
+      "name": "柔软兔绒"
+    },
+    {
+      "id": "alpaca_fiber",
+      "name": "蓬松羊驼绒"
+    },
+    {
+      "id": "duck_egg_prime",
+      "name": "优选鸭蛋"
+    },
+    {
+      "id": "goat_milk_prime",
+      "name": "优选山羊奶"
+    },
+    {
+      "id": "rabbit_fur_prime",
+      "name": "优选兔绒"
+    },
+    {
+      "id": "alpaca_fiber_prime",
+      "name": "优选羊驼绒"
+    }
+  ],
+  "dishes": [
+    {
+      "id": "strawberry_tart:normal:plain",
+      "name": "草莓鲜果挞 · 家常"
+    },
+    {
+      "id": "strawberry_tart:tasty:plain",
+      "name": "草莓鲜果挞 · 可口"
+    },
+    {
+      "id": "strawberry_tart:fine:plain",
+      "name": "草莓鲜果挞 · 精致"
+    },
+    {
+      "id": "strawberry_tart:normal:milky",
+      "name": "草莓鲜果挞 · 家常 · 奶香"
+    },
+    {
+      "id": "strawberry_tart:tasty:milky",
+      "name": "草莓鲜果挞 · 可口 · 奶香"
+    },
+    {
+      "id": "strawberry_tart:fine:milky",
+      "name": "草莓鲜果挞 · 精致 · 奶香"
+    },
+    {
+      "id": "pumpkin_soup:normal:plain",
+      "name": "奶油南瓜浓汤 · 家常"
+    },
+    {
+      "id": "pumpkin_soup:tasty:plain",
+      "name": "奶油南瓜浓汤 · 可口"
+    },
+    {
+      "id": "pumpkin_soup:fine:plain",
+      "name": "奶油南瓜浓汤 · 精致"
+    },
+    {
+      "id": "pumpkin_soup:normal:milky",
+      "name": "奶油南瓜浓汤 · 家常 · 奶香"
+    },
+    {
+      "id": "pumpkin_soup:tasty:milky",
+      "name": "奶油南瓜浓汤 · 可口 · 奶香"
+    },
+    {
+      "id": "pumpkin_soup:fine:milky",
+      "name": "奶油南瓜浓汤 · 精致 · 奶香"
+    },
+    {
+      "id": "blueberry_muffin:normal:plain",
+      "name": "蓝莓蜜糖松饼 · 家常"
+    },
+    {
+      "id": "blueberry_muffin:tasty:plain",
+      "name": "蓝莓蜜糖松饼 · 可口"
+    },
+    {
+      "id": "blueberry_muffin:fine:plain",
+      "name": "蓝莓蜜糖松饼 · 精致"
+    },
+    {
+      "id": "lemon_tea:normal:plain",
+      "name": "香水柠檬花果茶 · 家常"
+    },
+    {
+      "id": "lemon_tea:tasty:plain",
+      "name": "香水柠檬花果茶 · 可口"
+    },
+    {
+      "id": "lemon_tea:fine:plain",
+      "name": "香水柠檬花果茶 · 精致"
+    },
+    {
+      "id": "moon_cake:normal:plain",
+      "name": "月见星光糕 · 家常"
+    },
+    {
+      "id": "moon_cake:tasty:plain",
+      "name": "月见星光糕 · 可口"
+    },
+    {
+      "id": "moon_cake:fine:plain",
+      "name": "月见星光糕 · 精致"
+    },
+    {
+      "id": "egg_custard:normal:plain",
+      "name": "田园蒸蛋羹 · 家常"
+    },
+    {
+      "id": "egg_custard:tasty:plain",
+      "name": "田园蒸蛋羹 · 可口"
+    },
+    {
+      "id": "egg_custard:fine:plain",
+      "name": "田园蒸蛋羹 · 精致"
+    },
+    {
+      "id": "milk_pudding:normal:plain",
+      "name": "鲜奶布丁 · 家常"
+    },
+    {
+      "id": "milk_pudding:tasty:plain",
+      "name": "鲜奶布丁 · 可口"
+    },
+    {
+      "id": "milk_pudding:fine:plain",
+      "name": "鲜奶布丁 · 精致"
+    },
+    {
+      "id": "egg_sandwich:normal:plain",
+      "name": "暖心蛋蔬三明治 · 家常"
+    },
+    {
+      "id": "egg_sandwich:tasty:plain",
+      "name": "暖心蛋蔬三明治 · 可口"
+    },
+    {
+      "id": "egg_sandwich:fine:plain",
+      "name": "暖心蛋蔬三明治 · 精致"
+    },
+    {
+      "id": "cheese_pumpkin:normal:plain",
+      "name": "芝士焗南瓜 · 家常"
+    },
+    {
+      "id": "cheese_pumpkin:tasty:plain",
+      "name": "芝士焗南瓜 · 可口"
+    },
+    {
+      "id": "cheese_pumpkin:fine:plain",
+      "name": "芝士焗南瓜 · 精致"
+    },
+    {
+      "id": "apple_pancake:normal:plain",
+      "name": "苹果奶香薄饼 · 家常"
+    },
+    {
+      "id": "apple_pancake:tasty:plain",
+      "name": "苹果奶香薄饼 · 可口"
+    },
+    {
+      "id": "apple_pancake:fine:plain",
+      "name": "苹果奶香薄饼 · 精致"
+    },
+    {
+      "id": "cherry_yogurt:normal:plain",
+      "name": "樱桃酸奶杯 · 家常"
+    },
+    {
+      "id": "cherry_yogurt:tasty:plain",
+      "name": "樱桃酸奶杯 · 可口"
+    },
+    {
+      "id": "cherry_yogurt:fine:plain",
+      "name": "樱桃酸奶杯 · 精致"
+    },
+    {
+      "id": "radish_omelet:normal:plain",
+      "name": "田园萝卜蛋卷 · 家常"
+    },
+    {
+      "id": "radish_omelet:tasty:plain",
+      "name": "田园萝卜蛋卷 · 可口"
+    },
+    {
+      "id": "radish_omelet:fine:plain",
+      "name": "田园萝卜蛋卷 · 精致"
+    },
+    {
+      "id": "duck_egg_toast:normal:plain",
+      "name": "金黄鸭蛋吐司 · 家常"
+    },
+    {
+      "id": "duck_egg_toast:tasty:plain",
+      "name": "金黄鸭蛋吐司 · 可口"
+    },
+    {
+      "id": "duck_egg_toast:fine:plain",
+      "name": "金黄鸭蛋吐司 · 精致"
+    },
+    {
+      "id": "goat_moon_milk:normal:plain",
+      "name": "月光山羊奶 · 家常"
+    },
+    {
+      "id": "goat_moon_milk:tasty:plain",
+      "name": "月光山羊奶 · 可口"
+    },
+    {
+      "id": "goat_moon_milk:fine:plain",
+      "name": "月光山羊奶 · 精致"
+    },
+    {
+      "id": "berry_trifle:normal:plain",
+      "name": "莓果奶酪杯 · 家常"
+    },
+    {
+      "id": "berry_trifle:tasty:plain",
+      "name": "莓果奶酪杯 · 可口"
+    },
+    {
+      "id": "berry_trifle:fine:plain",
+      "name": "莓果奶酪杯 · 精致"
+    },
+    {
+      "id": "orange_yogurt:normal:plain",
+      "name": "甜橙酸奶碗 · 家常"
+    },
+    {
+      "id": "orange_yogurt:tasty:plain",
+      "name": "甜橙酸奶碗 · 可口"
+    },
+    {
+      "id": "orange_yogurt:fine:plain",
+      "name": "甜橙酸奶碗 · 精致"
+    },
+    {
+      "id": "peach_milk:normal:plain",
+      "name": "蜜桃鲜奶杯 · 家常"
+    },
+    {
+      "id": "peach_milk:tasty:plain",
+      "name": "蜜桃鲜奶杯 · 可口"
+    },
+    {
+      "id": "peach_milk:fine:plain",
+      "name": "蜜桃鲜奶杯 · 精致"
+    },
+    {
+      "id": "pumpkin_pie:normal:plain",
+      "name": "南瓜蛋奶派 · 家常"
+    },
+    {
+      "id": "pumpkin_pie:tasty:plain",
+      "name": "南瓜蛋奶派 · 可口"
+    },
+    {
+      "id": "pumpkin_pie:fine:plain",
+      "name": "南瓜蛋奶派 · 精致"
+    },
+    {
+      "id": "goat_cheese_tart:normal:plain",
+      "name": "山羊奶咸香挞 · 家常"
+    },
+    {
+      "id": "goat_cheese_tart:tasty:plain",
+      "name": "山羊奶咸香挞 · 可口"
+    },
+    {
+      "id": "goat_cheese_tart:fine:plain",
+      "name": "山羊奶咸香挞 · 精致"
+    },
+    {
+      "id": "apple_milk_bowl:normal:plain",
+      "name": "苹果暖奶碗 · 家常"
+    },
+    {
+      "id": "apple_milk_bowl:tasty:plain",
+      "name": "苹果暖奶碗 · 可口"
+    },
+    {
+      "id": "apple_milk_bowl:fine:plain",
+      "name": "苹果暖奶碗 · 精致"
+    },
+    {
+      "id": "lemon_cheesecake:normal:plain",
+      "name": "柠檬奶酪蛋糕 · 家常"
+    },
+    {
+      "id": "lemon_cheesecake:tasty:plain",
+      "name": "柠檬奶酪蛋糕 · 可口"
+    },
+    {
+      "id": "lemon_cheesecake:fine:plain",
+      "name": "柠檬奶酪蛋糕 · 精致"
+    },
+    {
+      "id": "cherry_egg_tart:normal:plain",
+      "name": "樱桃鸭蛋挞 · 家常"
+    },
+    {
+      "id": "cherry_egg_tart:tasty:plain",
+      "name": "樱桃鸭蛋挞 · 可口"
+    },
+    {
+      "id": "cherry_egg_tart:fine:plain",
+      "name": "樱桃鸭蛋挞 · 精致"
+    },
+    {
+      "id": "blueberry_yogurt:normal:plain",
+      "name": "蓝莓酸奶旋杯 · 家常"
+    },
+    {
+      "id": "blueberry_yogurt:tasty:plain",
+      "name": "蓝莓酸奶旋杯 · 可口"
+    },
+    {
+      "id": "blueberry_yogurt:fine:plain",
+      "name": "蓝莓酸奶旋杯 · 精致"
+    },
+    {
+      "id": "garden_quiche:normal:plain",
+      "name": "田园芝士萝卜派 · 家常"
+    },
+    {
+      "id": "garden_quiche:tasty:plain",
+      "name": "田园芝士萝卜派 · 可口"
+    },
+    {
+      "id": "garden_quiche:fine:plain",
+      "name": "田园芝士萝卜派 · 精致"
     }
   ]
 }

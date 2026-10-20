@@ -1,17 +1,15 @@
 // 自宅家具的生活互动。按装修系统当前记录查找，不保留已收回家具的互动点。
-import { S, bus, save, addCoins, stat } from '../core/state.js';
+import { S, bus, save } from '../core/state.js';
 import { app } from '../core/app.js';
 import { audio } from '../core/audio.js';
-import { h, fmt } from '../core/util.js';
-import { DECO, CLOTH, CROP, FRUIT } from '../data.js';
+import { h } from '../core/util.js';
+import { DECO, CLOTH } from '../data.js';
 import { outfitToLook } from '../models/character.js';
 import { applyDecorVariant } from '../models/props.js';
-import { cropIco, coinIco } from '../core/icons.js';
 import { canSleep, sleepUntilMorning } from '../ui/calendar.js';
 import { openPiano } from './piano.js';
 import { YARD_LEVEL_HEIGHT, yardLevel, yardSurfaceAt, yardFootprint } from '../world/yard-building.js';
 import { PHOTO_THEMES, photoThemeIndex } from '../shared/save-compat.js';
-import { ensureDailyFun, dailyFunKey } from '../shared/momo-fortune.js';
 
 const RADIUS = 0.36;
 const SEATS = {
@@ -32,13 +30,6 @@ const SUPPORTED = new Set([
   'kitchen_stove', 'kitchen_fridge', 'kitchen_island', 'flower_vase', 'photo_frame',
   'fountain', 'goldfountain', 'wishing', 'momohut', 'birdbath', 'easel', 'gramophone', 'beehive', 'scarecrow',
 ]);
-const RECIPES = [
-  { id: 'strawberry_tart', name: '草莓鲜果挞', desc: '香脆塔皮铺满刚摘的甜草莓，酸甜可口', cost: [['strawberry', 2], ['wheat', 1]], coins: 95 },
-  { id: 'pumpkin_soup', name: '奶油南瓜浓汤', desc: '金黄浓郁的热汤，喝完整个人都暖洋洋的', cost: [['pumpkin', 1], ['wheat', 1]], coins: 85 },
-  { id: 'blueberry_muffin', name: '蓝莓蜜糖松饼', desc: '爆浆冰晶蓝莓配清甜果肉，下午茶绝配', cost: [['blueberry', 2], ['apple', 1]], coins: 105 },
-  { id: 'lemon_tea', name: '香水柠檬花果茶', desc: '清香柠檬片与蜜桃慢煮，满屋都是果香', cost: [['lemon', 1], ['peach', 1]], coins: 110 },
-  { id: 'moon_cake', name: '月见星光糕', desc: '用夜里盛开的月见花与甜樱桃细细蒸制', cost: [['moonflower', 1], ['cherry', 1]], coins: 155 },
-];
 const VASE_FLOWERS = [
   { id: 'rose', name: '星光玫瑰' },
   { id: 'sunflower', name: '向日葵' },
@@ -304,81 +295,10 @@ export function installHomeInteractions(game, ui) {
     return true;
   }
   function kitchenPanel(rec) {
-    let modal;
-    const body = h('div', { class: 'home-kitchen', style: { maxHeight: 'calc(100dvh - 8rem)', overflowY: 'auto', width: 'min(36rem, 90vw)' } });
-    const itemName = (id) => CROP[id]?.name || FRUIT[id]?.name || id;
-    const render = () => {
-      const totalCooked = Object.values(S.live?.kitchen || {}).reduce((a, b) => a + (Number(b) || 0), 0);
-      const hostedToday = !!(S.live?.fun?.day === dailyFunKey(S) && S.live?.fun?.used?.teaParty);
-      const canHost = totalCooked > 0 && !hostedToday;
-      const teaBanner = h('div', { class: 'dl-task' + (canHost ? ' ready' : ''), style: { marginBottom: '0.65rem', background: 'linear-gradient(135deg, #fff6ea, #ffeef5)' } },
-        h('div', { class: 'tx' },
-          h('b', {}, '🍵 摆盘下午茶 · 招待大喵与邻里'),
-          h('span', { class: 'dl-sub' }, totalCooked > 0
-            ? `已累计烹制 ${totalCooked} 道私房茶点 · 每天可摆盘招待一次邻里`
-            : '先烹制任意一道田园茶点，即可摆盘招待大喵与邻里！')),
-        h('button', {
-          class: 'btn sm ' + (canHost ? 'gold' : 'alt'),
-          disabled: !canHost,
-          onclick: (e) => {
-            if (totalCooked <= 0) return;
-            const { fun } = ensureDailyFun(S);
-            if (fun.used.teaParty) return;
-            fun.used.teaParty = 1;
-            addCoins(80, 'kitchen');
-            save();
-            audio.sfx('fanfare');
-            const rect = e.currentTarget.getBoundingClientRect();
-            ui.flyCoins(rect.left + rect.width / 2, rect.top, 6);
-            ui.toast('🍵 下午茶招待圆满成功！大喵与邻居们送来回礼 +80 噗灵', { kind: 'live-reward', icon: coinIco() });
-            render();
-          },
-        }, hostedToday ? '今日已招待' : canHost ? '摆盘招待 +80' : '需先烹制料理'));
-      body.replaceChildren(
-        h('h2', {}, '田园私房料理台'),
-        h('p', { class: 'fine', style: { marginBottom: '0.6rem' } }, '用后院收获的新鲜作物与果实烹制暖心茶点，完成料理可获得噗灵，也能解锁下午茶招待。'),
-        teaBanner,
-        h('div', { class: 'dl-list' }, RECIPES.map((r) => {
-          const canCook = r.cost.every(([id, need]) => (S.crops[id] || 0) >= need);
-          return h('div', { class: 'dl-task' + (canCook ? ' ready' : '') },
-            h('div', { class: 'tx' },
-              h('b', {}, r.name),
-              h('span', { class: 'dl-sub' }, r.desc),
-              h('div', { style: { display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginTop: '0.35rem', fontSize: '0.76rem' } },
-                ...r.cost.map(([id, need]) => {
-                  const have = S.crops[id] || 0;
-                  return h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '0.2rem', color: have >= need ? '#4b8c63' : '#b6687a', fontWeight: '700' } },
-                    h('img', { src: cropIco(id), alt: '', style: { width: '1.35rem', height: '1.35rem' } }),
-                    `${itemName(id)} ${have}/${need}`);
-                }))),
-            h('button', {
-              class: 'btn sm ' + (canCook ? 'gold' : 'alt'),
-              disabled: !canCook,
-              onclick: (e) => {
-                if (!r.cost.every(([id, need]) => (S.crops[id] || 0) >= need)) return;
-                for (const [id, need] of r.cost) {
-                  S.crops[id] -= need;
-                  if (S.crops[id] <= 0) delete S.crops[id];
-                }
-                if (!S.live.kitchen) S.live.kitchen = {};
-                S.live.kitchen[r.id] = (S.live.kitchen[r.id] || 0) + 1;
-                addCoins(r.coins, 'kitchen');
-                stat('sold', 1);
-                save();
-                audio.sfx('fanfare');
-                const rect = e.currentTarget.getBoundingClientRect();
-                ui.flyCoins(rect.left + rect.width / 2, rect.top, 6);
-                ui.toast(`烹制成功：「${r.name}」香气四溢！ +${fmt(r.coins)} 噗灵`, { kind: 'live-reward', icon: coinIco() });
-                render();
-              },
-            }, canCook ? `烹制 +${r.coins}` : `售 +${r.coins}`));
-        })));
-    };
-    render();
     town.face(rec.obj.position.x, rec.obj.position.z);
     town.act('work', 0.6);
-    modal = ui.modal(body, { ribbon: 'HOME KITCHEN', cls: 'live-modal' });
-    return modal;
+    if (rec.e.id === 'kitchen_fridge') return game.homesteadUI.openPantry();
+    return game.homesteadUI.openKitchen(game.homesteadWorld.contextFor(rec));
   }
 
   function activate(rec) {
@@ -452,7 +372,7 @@ export function installHomeInteractions(game, ui) {
     }
     if (id === 'catbed') { town.face(rec.obj.position.x, rec.obj.position.z); town.act('cheer', 0.8); ui.toast('大喵钻进小窝打了个滚，尾巴都翘起来了'); return true; }
     if (id === 'coffee') { town.face(rec.obj.position.x, rec.obj.position.z); town.act('carry', 0.7); ui.toast('沏一杯热茶，坐下来慢慢享用'); return true; }
-    if (id === 'dining') { town.face(rec.obj.position.x, rec.obj.position.z); town.act('carry', 0.7); ui.toast('餐桌已摆好：今天也要好好吃饭'); return true; }
+    if (id === 'dining') { game.homesteadUI.openTable(game.homesteadWorld.contextFor(rec)); return true; }
     if (id === 'tv') { town.face(rec.obj.position.x, rec.obj.position.z); town.act('cheer', 0.7); ui.toast('打开电视，播放今日小镇频道'); return true; }
     if (id === 'fireplace') { town.face(rec.obj.position.x, rec.obj.position.z); town.act('cheer', 0.8); ui.toast('壁炉里的火苗暖烘烘的'); return true; }
     if (id === 'windowseat') { town.face(rec.obj.position.x, rec.obj.position.z); town.act('cheer', 0.9); ui.toast('靠在飘窗边看云，今天的风很轻'); return true; }
@@ -484,7 +404,8 @@ export function installHomeInteractions(game, ui) {
     if (LAMPS.has(id)) return `${rec.e.lightOn === false ? '打开' : '关闭'}小灯`;
     if (id === 'bed') return '上床休息';
     if (id === 'vanity' || id === 'wardrobe') return '打开衣柜 · 换装';
-    if (id === 'kitchen_stove' || id === 'kitchen_fridge' || id === 'kitchen_island') return '烹制田园料理';
+    if (id === 'kitchen_fridge') return '打开食材与成品柜';
+    if (id === 'kitchen_stove' || id === 'kitchen_island') return '烹制田园料理';
     if (id === 'flower_vase') return '更换瓶中鲜花';
     if (id === 'photo_frame' || id === 'easel') return '切换画框风景';
     if (id === 'fountain' || id === 'goldfountain' || id === 'wishing') return '欣赏水景 · 许愿';

@@ -17,16 +17,42 @@ async function main() {
     town.farm = farm; town.allInter = () => input.allInter(town); return town;
   };
   const rec = (town, x, z, id = 'plot', gx = 10, gz = 10) => {
-    const r = { e: { id, gx, gz }, obj: new THREE.Group(), farm: { holder: new THREE.Group() } }; r.obj.position.set(x, 0, z); town.decors.home.entries.push(r); return r;
+    const r = { e: { id, gx, gz }, obj: new THREE.Group(), farm: { holder: new THREE.Group() } }; r.obj.position.set(x, 0, z); town.decors.home.entries.push(r); state.S.placed.push(r.e); return r;
   };
   const ripe = () => ({ crop: 'radish', t0: h.clock.now - 1000, dur: 100, watered: true });
   const growing = watered => ({ crop: 'radish', t0: h.clock.now, dur: 100000, watered });
   const custom = (town, id, x, label = id, onAct = () => {}) => { const it = { id, x, z: 0, r: 2, label, act: onAct }; town.inter.push(it); return it; };
-  await test('附近候选按优先级排序、稳定去重，最多四个且零上限为空', () => {
+  await test('附近候选按优先级排序、稳定去重，默认保留全部且显式上限有效', () => {
     const t = freshTown(); custom(t, 'a', .2, 'same'); custom(t, 'dup', .3, 'same'); custom(t, 'b', .4); custom(t, 'c', .6); custom(t, 'd', .8); custom(t, 'e', 1);
-    assert.deepEqual(clone(input.findInters(t, 99).map(i => i.id)), ['a', 'b', 'c', 'd']); assert.equal(input.findInters(t, 0).length, 0);
+    assert.deepEqual(clone(input.findInters(t, 99).map(i => i.id)), ['a', 'b', 'c', 'd', 'e']);
+    assert.equal(input.findInters(t).length, 5); assert.equal(input.findInters(t, 4).length, 4); assert.equal(input.findInters(t, 1).length, 1); assert.equal(input.findInters(t, 0).length, 0);
     t.inter[4].prio = 2; assert.equal(input.findInter(t).id, 'd');
     t.inter = []; custom(t, 'homeFurniture_a', .2, '坐下'); custom(t, 'homeFurniture_b', .3, '坐下'); t.inter[0].sub = '长凳'; t.inter[1].sub = '沙发'; assert.equal(input.findInters(t).length, 2);
+  });
+  await test('第5和第6项进入真实提示事件并分别执行对应目标，不截断也不串索引', () => {
+    const t = freshTown(), hits = []; for (let i = 0; i < 6; i++) custom(t, 'extended' + i, .1 + i * .2, undefined, () => hits.push(i));
+    input.updatePrompts(t); assert.equal(latest.items.length, 6);
+    assert.equal(latest.items[4].act(), true); assert.equal(input.interact(t, 5), true); assert.equal(latest.items[5].act(), true);
+    assert.deepEqual(hits, [4, 5, 5]); assert.equal(input.interact(t, 6), false);
+  });
+  await test('第6项重排前仍绑定原目标，重绘后旧代次失效而新第5项可用', () => {
+    const t = freshTown(), hits = []; for (let i = 0; i < 6; i++) custom(t, 'reorder' + i, .1 + i * .2, undefined, () => hits.push(i));
+    input.updatePrompts(t); const old = latest.items[5].act; t.inter[5].prio = 3;
+    assert.equal(old(), true); assert.deepEqual(hits, [5]); input.updatePrompts(t);
+    assert.equal(latest.items[0].id, 'reorder5'); assert.equal(old(), false);
+    assert.equal(latest.items[4].id, 'reorder3'); assert.equal(latest.items[4].act(), true); assert.deepEqual(hits, [5, 3]);
+    const stale = latest.items[4].act; t.modal = true; input.updatePrompts(t); t.modal = false; input.updatePrompts(t);
+    assert.equal(stale(), false); assert.equal(latest.items[4].act(), true); assert.deepEqual(hits, [5, 3, 3]);
+  });
+  await test('第5和第6项离距、移除、同ID替换、目标状态或动作改变、换区均拒绝陈旧回调', () => {
+    const changes = [(t, it) => { it.x = 20; }, (t, it) => { t.inter = t.inter.filter(v => v !== it); },
+      (t, it, index) => { t.inter[index] = { ...it }; }, (t, it) => { it.targetState = {}; },
+      (t, it) => { it.label = 'different action'; }, t => { t.zone = 'town'; }];
+    for (const index of [4, 5]) for (const change of changes) {
+      const t = freshTown(), hits = []; for (let i = 0; i < 6; i++) custom(t, 'stale' + i, .1 + i * .2, undefined, () => hits.push(i));
+      input.updatePrompts(t); const old = latest.items[index].act; change(t, t.inter[index], index);
+      assert.equal(old(), false); assert.equal(input.interact(t, index), false); assert.deepEqual(hits, []);
+    }
   });
   await test('农田最多三候选、相同操作文案去重，候选均在实际交互半径内', () => {
     const t = freshTown(), a = rec(t, .2, 0, 'plot', 1), b = rec(t, .4, 0, 'plot', 2), c = rec(t, .6, 0, 'plot', 3), d = rec(t, .8, 0, 'plot', 4), outside = rec(t, 1.71, 0, 'plot', 5);

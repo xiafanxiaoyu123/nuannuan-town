@@ -47,8 +47,9 @@ export function buildIsland(town) {
   );
   water.rotation.x = -Math.PI / 2;
   water.position.y = -0.72;
-  // 900 米静态水面始终跨岛绘制，无需每帧重新计算其全局包围盒。
+  // 同一片海面随镜头平移，家园与工坊岛也有完整海面；不新增绘制或重新计算包围盒。
   water.userData.renderGlobal = true;
+  town.water = water;
   sc.add(water);
 
   // 道路与广场

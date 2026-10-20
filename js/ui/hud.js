@@ -53,10 +53,21 @@ export function buildHUD() {
     onclick: click(() => this.settingsPanel(), 'tab'),
   }, this.fpsDotEl, this.fpsNumEl, h('small', {}, 'FPS'));
   this.quest = h('div', { class: 'quest card', onclick: () => { audio.init(); audio.sfx('click'); taskPanel(g); } });
-  this.promptBtn = h('button', { class: 'prompt-btn primary', onclick: () => { audio.init(); g.town.interact(); } });
+  this.promptBtn = h('button', { class: 'prompt-btn primary', 'data-prompt-index': '0', onclick: () => { audio.init(); g.town.interact(); } });
   this.promptSub = h('small', { class: 'hide' });
   this.promptExtra = h('div', { class: 'prompt-extra hide', 'aria-label': '其他可交互目标' });
-  this.prompt = h('div', { class: 'prompt' }, this.promptSub, h('div', { class: 'prompt-list' }, this.promptBtn, this.promptExtra));
+  this.promptList = h('div', { class: 'prompt-list', 'aria-label': '附近可交互目标' }, this.promptBtn, this.promptExtra);
+  this.prompt = h('div', { class: 'prompt' }, this.promptSub, this.promptList);
+  const scrollHint = () => {
+    const count = Number(this.prompt.dataset.count || 0);
+    if (count <= 3) return;
+    const row = this.promptBtn.offsetHeight + parseFloat(getComputedStyle(this.promptList).rowGap || 0);
+    const first = Math.min(count - 2, 1 + Math.round(this.promptList.scrollTop / row));
+    this.promptSub.textContent = `${first}–${Math.min(count, first + 2)} / ${count}　${first + 2 < count ? '向下滑动 ▾' : '▴ 向上滑动'}`;
+  };
+  this.promptList.addEventListener('scroll', scrollHint, { passive: true });
+  this.promptList.addEventListener('wheel', e => e.stopPropagation(), { passive: true });
+  this.refreshPromptScroll = scrollHint;
   this.bedBar = h('div', { class: 'bedbar', 'aria-live': 'polite' });
   this.giantCarryBtn = h('button', { class: 'giant-carry-stow hide', 'aria-label': '收起巨大作物', onclick: click(() => g.town.farm.stowCarry()) }, '收起巨大作物');
   this.seedbar = h('div', { class: 'tray card' });
@@ -76,6 +87,7 @@ export function buildHUD() {
       (this.camBtn = ib('eye', '视角', () => this.setCamMode(!g.town.camFree))),
       ib('hanger', '衣橱', () => g.openWardrobe('closet')),
       (this.decorBtn = ib('home', '装修', () => g.openDecor())),
+      (this.ranchBtn = ib('heart', '牧场', () => g.homesteadUI?.openRanch(), 'ranch-quick')),
       (this.helpBtn = ib('flag', '帮助', () => this.helpPanel())),
       (this.mailBtn = ib('mail', '邮件', () => this.mailPanel(), 'mail-quick')),
       (this.accountBtn = ib('user', LOCAL_PLAY ? '自由试玩' : '账号', () => this.accountPanel(), 'account-quick')),
@@ -131,7 +143,7 @@ export function buildHUD() {
     (this.wallTab=h('button',{'data-decor-tab':'walls',onclick:click(()=>this.setDecorTab('walls'),'tab')},'隔断')));
   this.decorCategory = 'all';
   this.decorCategories = h('div', { class: 'decor-categories', 'aria-label': '家具分类' },
-    ...[['all', '全部'], ['foundation', '基座'], ['wall', '墙门窗'], ['roof', '屋顶'], ['garden', '庭院'], ['home', '室内'], ['kitchen', '厨房'], ['bathroom', '卫浴']].map(([id, label]) => h('button', {
+    ...[['all', '全部'], ['foundation', '基座'], ['wall', '墙门窗'], ['roof', '屋顶'], ['garden', '庭院'], ['ranch', '牧场'], ['home', '室内'], ['kitchen', '厨房'], ['bathroom', '卫浴']].map(([id, label]) => h('button', {
       type: 'button', 'data-decor-category': id, 'aria-pressed': String(id === 'all'),
       onclick: click(() => { this.decorCategory = id; this.refreshDecor(); this.decorList.scrollLeft = 0; }, 'tab'),
     }, label)));
@@ -435,18 +447,29 @@ export function setPrompt(p) {
       this.promptExtra.classList.add('hide');
       this.promptExtra.replaceChildren();
     }
+    if (this.promptList) this.promptList.scrollTop = 0;
+    this.prompt.dataset.count = '0';
     return;
   }
   const items = Array.isArray(p.items) && p.items.length > 1 ? p.items : null;
+  const entries = items || [p];
+  const rowHeight = this.promptBtn.offsetHeight + parseFloat(this.promptList ? getComputedStyle(this.promptList).rowGap || 0 : 0);
+  const oldIndex = rowHeight ? Math.round((this.promptList?.scrollTop || 0) / rowHeight) : 0;
+  const anchor = this.promptList?.querySelectorAll('.prompt-btn')[oldIndex]?.dataset.promptId;
+  const restoreIndex = anchor ? entries.findIndex(item => String(item.id || item.label) === anchor) : 0;
+  this.prompt.dataset.count = String(entries.length);
   this.prompt.classList.toggle('dis', !!p.disabled);
   this.prompt.classList.toggle('multi', !!items);
   this.promptBtn.disabled = !!p.disabled;
+  this.promptBtn.dataset.promptId = String(entries[0].id || p.label);
+  this.promptBtn.title = [p.label, p.sub].filter(Boolean).join(' · ');
+  this.promptBtn.setAttribute('aria-label', this.promptBtn.title);
   this.promptBtn.replaceChildren(
     h('span', { class: 'kbd' }, 'E'),
-    h('span', { class: 'prompt-txt' }, p.label)
+    h('span', { class: 'prompt-txt' }, p.label, p.sub ? h('em', { class: 'prompt-tag' }, ` · ${p.sub}`) : null)
   );
-  this.promptSub.classList.toggle('hide', !p.sub);
-  this.promptSub.textContent = p.sub || '';
+  this.promptSub.classList.toggle('hide', entries.length <= 3);
+  this.promptSub.textContent = entries.length > 3 ? `1–3 / ${entries.length}　向下滑动 ▾` : '';
   if (this.promptExtra) {
     if (!items) {
       this.promptExtra.classList.add('hide');
@@ -454,12 +477,15 @@ export function setPrompt(p) {
     } else {
       this.promptExtra.classList.remove('hide');
       this.promptExtra.replaceChildren(...items.slice(1).map((item, idx) => {
-        const keyHint = idx === 0 ? 'F' : String(idx + 2);
+        const keyHint = ['F', '3', '4'][idx] || '›';
         return h('button', {
           type: 'button',
           class: 'prompt-btn secondary' + (item.disabled ? ' dis' : ''),
           disabled: !!item.disabled,
           'data-prompt-index': String(idx + 1),
+          'data-prompt-id': String(item.id || item.label),
+          title: [item.label, item.sub].filter(Boolean).join(' · '),
+          'aria-label': [item.label, item.sub].filter(Boolean).join(' · '),
           onclick: () => {
             if (item.disabled) return;
             audio.init();
@@ -475,6 +501,10 @@ export function setPrompt(p) {
         ));
       }));
     }
+  }
+  if (this.promptList) {
+    this.promptList.scrollTop = Math.max(0, restoreIndex) * (this.promptBtn.offsetHeight + parseFloat(getComputedStyle(this.promptList).rowGap || 0));
+    this.refreshPromptScroll?.();
   }
 }
 

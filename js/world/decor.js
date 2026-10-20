@@ -2,6 +2,7 @@
 import { THREE, group, rboxGeo } from '../core/kit.js';
 import { DECO, FLOORS } from '../data.js';
 import { S, bus, save, flushSave } from '../core/state.js';
+import { advanceHomestead } from '../shared/homestead.js';
 import { yardLevel } from './yard-building.js';
 import { LOCAL_PLAY } from '../core/local-play-mode.js';
 import { floorTex } from './decor/surfaces.js';
@@ -102,6 +103,7 @@ export class DecorSys {
       if (!ok) return; // 未结算的临时家具不写入存档，避免绕过最终扣款。
       this.clearHistory(true);
       globalThis.__nuannuanDecorTransaction = false;
+      advanceHomestead(S, Date.now());
       flushSave();
     });
     // 已凭当前美化度拿到不可逆进度时提交装修，避免领奖后退回购买成本。
@@ -182,6 +184,7 @@ export class DecorSys {
   enter() {
     if (this.active) return false;
     if ((this.cfg.key !== 'house' && this.cfg.key !== 'home' && !this.cfg.freeBuild) || this.town.zone !== this.cfg.key) return false;
+    advanceHomestead(S, Date.now());
     this.active = true;
     this.pendingCost = 0;
     this.cameraMode = 'place';
@@ -211,6 +214,8 @@ export class DecorSys {
     this.clearHistory(true);
     globalThis.__nuannuanDecorTransaction = false;
     this.active = false;
+    // 住处的移除/重放与装修结果一起存档，关闭页面也不会继续累计无住处产量。
+    advanceHomestead(S, Date.now());
     this.cameraMode = 'place';
     this.isDown = false;
     this.pointerStart = null;

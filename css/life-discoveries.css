@@ -1,0 +1,38 @@
+/* 独立作用域，沿用奶油卡片、粉色边线与原弹窗滚动规则。 */
+.life-discoveries-modal { width: min(60rem, 94vw); }
+.life-discoveries { display: flex; flex-direction: column; gap: .85rem; min-width: 0; }
+.life-discoveries :is(h2,h3,p,small,summary,button) { overflow-wrap: anywhere; }
+.life-discoveries-head { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding-right: 2.2rem; }
+.life-discoveries-head > div { min-width: 0; }
+.life-discoveries-head h2 { margin: 0 0 .3rem; font-size: 1.5rem; }
+.life-discoveries-head p { margin: 0; line-height: 1.55; color: #8d7382; }
+.life-discoveries-count { flex: 0 0 auto; border: 2px solid #f4d6e0; background: #fff0f5; border-radius: 2rem; padding: .5rem .8rem; color: #a45576; font-weight: 800; }
+.life-discoveries-filters { display: flex; flex-wrap: wrap; gap: .5rem; }
+.life-discoveries-filters .btn { min-height: 2.8rem; white-space: normal; }
+.life-discoveries-filters [aria-pressed=true] { background: #f9dce7; border-color: #e9a9c1; color: #854b68; }
+.life-discoveries-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .8rem; align-items: start; }
+.life-discovery-card { min-width: 0; border: 2px solid #f0dfe1; border-radius: 1.1rem; background: #fffaf2; padding: .9rem; }
+.life-discovery-card.found { border-color: #edc6d6; background: #fff5f8; }
+.life-discovery-title { display: flex; gap: .7rem; align-items: center; }
+.life-discovery-title > div { min-width: 0; }
+.life-discovery-title small { color: #9b7689; }
+.life-discovery-title h3 { margin: .15rem 0 0; font-size: 1.12rem; line-height: 1.5; }
+.life-discovery-sticker { width: 2.5rem; height: 2.5rem; flex: 0 0 auto; border-radius: 50%; display: grid; place-items: center; background: #f8e8d5; color: #b08b70; font-size: 1.65rem; }
+.life-discovery-card.found .life-discovery-sticker { color: #c67094; background: #f8deea; transform: rotate(-8deg); }
+.life-discovery-card p { margin: .65rem 0; line-height: 1.65; color: #7e6976; }
+.life-discovery-hint { border-top: 1px dashed #e9d6d9; margin-top: .5rem; }
+.life-discovery-hint summary { cursor: pointer; min-height: 2.75rem; padding: .65rem 0; color: #a36884; line-height: 1.5; }
+.life-discovery-hint p { margin-top: 0; font-size: .95rem; }
+.life-discovery-date { display: block; color: #a77e91; line-height: 1.5; }
+.life-discoveries-clue,.life-discoveries-empty { margin: 0; padding: .8rem 1rem; border-radius: .8rem; background: #edf4eb; color: #6f876a; line-height: 1.6; }
+.life-discoveries-note { margin: 0; font-size: .9rem; color: #9a8390; line-height: 1.6; }
+@media (max-height: 480px) and (orientation: landscape) {
+  .life-discoveries { gap: .65rem; }
+  .life-discoveries-head h2 { font-size: 1.3rem; }
+  .life-discovery-card { padding: .7rem; }
+  .life-discoveries-grid { gap: .6rem; }
+}
+@media (max-width: 520px) {
+  .life-discoveries-head { align-items: flex-start; flex-wrap: wrap; }
+  .life-discoveries-grid { grid-template-columns: minmax(0,1fr); }
+}

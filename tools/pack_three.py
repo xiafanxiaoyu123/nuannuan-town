@@ -37,6 +37,7 @@ ROOT = default_root()
 NAME = '暖暖的方块小镇'
 PLATFORMS = ('web', 'windows', 'android')
 LABELS = {'web': '网页', 'windows': 'Windows', 'android': 'Android（调试 APK）'}
+TOOL_VERSION = '1.0.1'
 RUNNERS = {'resource_graph.py', 'build_dist.py', 'build_single.py', 'check_candidate.py'}
 
 
@@ -135,7 +136,8 @@ def build_env(found):
     env = os.environ.copy()
     # Build subprocesses must not inherit application/server overrides.
     for key in list(env):
-        if key.startswith(('AUTH_', 'ADMIN_', 'PAYMENT_', 'BILLING_', 'NIKKI_')) or key in (
+        if key.lower() in ('electron_skip_binary_download', 'electron_override_dist_path',
+                            'npm_config_electron_skip_binary_download') or key.startswith(('AUTH_', 'ADMIN_', 'PAYMENT_', 'BILLING_', 'NIKKI_')) or key in (
                 'NODE_OPTIONS', 'NODE_PATH', 'DATA_DIR', 'ESBUILD', 'ELECTRON_RUN_AS_NODE'):
             env.pop(key, None)
     env['PYTHONUTF8'] = '1'
@@ -153,6 +155,95 @@ def build_env(found):
         env['ESBUILD'] = found['esbuild']
     env['PATH'] = os.pathsep.join(paths + [env.get('PATH', '')])
     return env
+
+
+def update_key_state(root):
+    desktop = Path(root) / 'desktop'
+    try:
+        config = read_json(desktop / 'release-config.json')
+    except (OSError, ValueError) as exc:
+        return False, None, '无法读取更新配置：' + str(exc)
+    if not config.get('updateManifestUrl'):
+        return True, None, '未启用资源更新，无需更新公钥'
+    if config.get('updatePublicKey'):
+        value = config['updatePublicKey']
+        return ('-----BEGIN PUBLIC KEY-----' in value), None, '使用配置内公钥'
+    name = config.get('updatePublicKeyFile')
+    if not name:
+        return False, None, '更新已启用，但未配置公钥'
+    path = (desktop / name).resolve()
+    if not path.is_relative_to(desktop.resolve()):
+        return False, None, '公钥文件需位于 desktop 内，以便随宿主打包'
+    if not path.is_file():
+        return False, path, '缺少更新公钥：' + str(path)
+    value = path.read_text(encoding='utf-8-sig')
+    return ('-----BEGIN PUBLIC KEY-----' in value and 'PRIVATE KEY' not in value), path, str(path)
+
+
+def restore_update_key(root, log):
+    ok, target, detail = update_key_state(root)
+    if ok:
+        return
+    if target is None or target.exists():
+        log('更新公钥待处理：' + detail)
+        return
+    project = read_json(Path(root) / 'desktop/release-config.json')
+    if FROZEN:
+        support = Path(sys.executable).parent / '工程辅助文件/desktop'
+        info_path = support / 'update-key-info.json'
+        if not info_path.is_file():
+            log('便携包缺少公钥补全资料，请保留完整工程辅助文件目录')
+            return
+        info = read_json(info_path)
+        source = support / 'update-public.pem'
+    else:
+        info = read_json(ROOT / 'desktop/release-config.json')
+        source = ROOT / 'desktop' / info['updatePublicKeyFile']
+        info = {**info, 'sha256': sha(source)}
+    if (project.get('updatePublicKeyId'), project.get('updateManifestUrl')) != (info.get('updatePublicKeyId'), info.get('updateManifestUrl')):
+        log('当前工程使用自定义更新身份，不能代换公钥；请从该工程原始备份恢复：' + str(target))
+        return
+    if not source.is_file() or sha(source) != info.get('sha256'):
+        raise RuntimeError('随包公钥校验失败，请重新解压完整便携包')
+    # Exclusive creation never overwrites an existing key.
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open('xb') as stream:
+        stream.write(source.read_bytes())
+    log('已补回匹配更新身份的验签公钥：' + str(target))
+
+
+def repair_dependencies(root, platforms, extra=(), log=print):
+    root = Path(root).resolve()
+    with build_lock(root):
+        report = inspect(root, platforms, extra)
+        npm = report['tools']['npm']
+        if not npm:
+            raise RuntimeError('未找到 npm，请先添加 Node 安装目录')
+        groups = set(report['missingDependencyGroups'])
+        if not report['tools']['esbuild']:
+            groups.add('')
+        env = build_env(report['tools'])
+        for group in sorted(groups):
+            if not (root / group / 'package-lock.json').is_file():
+                raise RuntimeError('缺少锁文件：' + str(root / group / 'package-lock.json'))
+            run([npm, 'ci', '--ignore-scripts=false', '--no-audit', '--no-fund'], root / group, env, log)
+        if 'windows' in platforms:
+            restore_update_key(root, log)
+            electron = root / 'desktop/node_modules/electron/dist/electron.exe'
+            if not electron.is_file():
+                installer = root / 'desktop/node_modules/electron/install.js'
+                if not installer.is_file() or not report['tools']['node']:
+                    raise RuntimeError('缺少 Electron 官方安装入口或 Node，请先补齐 desktop 依赖')
+                log('Electron npm依赖已安装，但运行文件尚未下载；正在执行官方安装器（优先使用本机缓存）……')
+                run([report['tools']['node'], installer], root / 'desktop', env, log)
+                if not electron.is_file():
+                    raise RuntimeError('Electron 安装器结束后仍缺少 electron.exe；请检查下载日志、网络或安全软件拦截')
+                log('Electron 运行文件已安装：' + str(electron))
+        updated = inspect(root, platforms, extra)
+        remaining = [r for r in updated['checks'] if not r['ok']]
+        for row in remaining:
+            log('仍待处理：' + row['name'] + '：' + row['detail'])
+        return updated
 
 
 def missing_names(rows):
@@ -228,10 +319,15 @@ def inspect(root, platforms, extra=()):
     else:
         add('源码与资源引用闭包', False, '需先补齐 Node 与 Three.js 后才能完整检查', '补齐依赖后重新检查')
     if 'windows' in platforms:
-        for name in ('main.js', 'preload.js', 'updater.js', 'icon.ico', 'release-config.json', 'update-public.pem'):
+        if FROZEN:
+            template = Path(sys.executable).parent / '工程辅助文件/windows/portable-launcher-template.exe'
+            add('Windows / 便携启动器模板', template.is_file(), template, '请完整解压1.0.1或更新版便携包，保留工程辅助文件目录')
+        for name in ('main.js', 'preload.js', 'updater.js', 'icon.ico', 'release-config.json'):
             add('Windows / ' + name, (root / 'desktop' / name).is_file(), root / 'desktop' / name, '从主工程备份恢复此宿主文件')
+        key_ok, key_file, key_detail = update_key_state(root)
+        add('Windows / 更新验签公钥', key_ok, key_detail, '点击“补齐项目依赖”补回匹配公钥；自定义更新身份请恢复原工程公钥')
         electron = root / 'desktop/node_modules/electron/dist/electron.exe'
-        add('Electron 运行时', electron.is_file(), electron, '在 desktop 执行 npm rebuild electron，或重新安装 desktop 依赖')
+        add('Electron 运行时', electron.is_file(), electron, '点击“补齐项目依赖”执行 Electron 官方安装器；npm ci 本身不保证下载运行文件')
     if 'android' in platforms:
         add('JDK 21', found['java'], found['java'] or '未找到完整 JDK 21', '添加 JDK 所在文件夹重新搜索，或安装 JDK 21')
         add('Android SDK', found['sdk'], found['sdk'] or '未找到', '添加 Android SDK 所在文件夹，或用 Android Studio 安装 SDK')
@@ -392,6 +488,11 @@ def package(root, platforms, extra=(), emit=print):
                     for file in (root / 'desktop').iterdir():
                         if file.is_file() and file.suffix in ('.js', '.json', '.ico', '.pem') and file.name != 'package-lock.json':
                             shutil.copy2(file, host / file.name)
+                    _, key_file, _ = update_key_state(root)
+                    if key_file and key_file.is_file():
+                        target = host / key_file.relative_to(root / 'desktop')
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(key_file, target)
                     shutil.copytree(out / 'native', host / 'dist')
                     electron_version = read_json(root / 'desktop/node_modules/electron/package.json')['version']
                     cache = Path(os.environ.get('LOCALAPPDATA', str(Path.home() / 'AppData/Local'))) / 'electron/Cache'
@@ -460,7 +561,7 @@ class Desk:
         from tkinter import ttk
         self.tk, self.ttk = tk, ttk
         self.win = tk.Tk()
-        self.win.title('暖暖小镇 · 三端打包工具')
+        self.win.title('暖暖小镇 · 三端打包工具 ' + TOOL_VERSION)
         self.win.geometry('1120x820')
         self.win.minsize(920, 650)
         self.events = queue.Queue()
@@ -643,23 +744,10 @@ class Desk:
 
     def repair(self):
         def action(root, platforms, extra):
-            with build_lock(root):
-                report = inspect(root, platforms, extra)
-                npm = report['tools']['npm']
-                if not npm:
-                    raise RuntimeError('未找到 npm，请先添加 Node 安装目录')
-                groups = set(report['missingDependencyGroups'])
-                if not report['tools']['esbuild']:
-                    groups.add('')
-                if 'windows' in platforms and not (root / 'desktop/node_modules/electron/dist/electron.exe').is_file():
-                    groups.add('desktop')
-                for group in sorted(groups):
-                    if not (root / group / 'package-lock.json').is_file():
-                        raise RuntimeError('缺少锁文件：' + str(root / group / 'package-lock.json'))
-                    run([npm, 'ci', '--no-audit', '--no-fund'], root / group, build_env(report['tools']), self.emit)
-            updated = inspect(root, platforms, extra)
+            updated = repair_dependencies(root, platforms, extra, self.emit)
             self.events.put(('report', updated))
-            return '依赖安装完成，检查表已更新。' if groups else '项目依赖已存在，无需重装。'
+            count = sum(not row['ok'] for row in updated['checks'])
+            return '补齐完成，检查全部通过，可以打包。' if not count else f'已完成可自动补齐项，仍有 {count} 项待处理；见检查表和日志。'
         self.work(action)
 
     def build(self):
@@ -700,13 +788,14 @@ def main():
     parser.add_argument('--root', type=Path, default=ROOT)
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--build', action='store_true')
+    parser.add_argument('--repair', action='store_true', help='Repair dependencies and missing matching update public key')
     parser.add_argument('--platforms', nargs='+', choices=PLATFORMS, default=list(PLATFORMS))
     parser.add_argument('--search', type=Path, action='append', default=[])
     parser.add_argument('--report', type=Path, help='Write CLI result to a JSON file')
     parser.add_argument('--gui-smoke', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
-    if args.check:
-        report = inspect(args.root, args.platforms, args.search)
+    if args.check or args.repair:
+        report = repair_dependencies(args.root, args.platforms, args.search) if args.repair else inspect(args.root, args.platforms, args.search)
         if args.report:
             save_json(args.report, report)
         print(json.dumps(report, ensure_ascii=False, indent=2))

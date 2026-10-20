@@ -13,6 +13,22 @@ import { rand, pick, angleLerp } from '../../core/util.js';
 import { outfitFx } from '../../live/effects.js';
 import { festivalDialogue } from '../../live/festival-dialogue.js';
 import { TOWN_HOUSE } from './layout.js';
+import { residentRecall } from '../../shared/resident-recall.js';
+
+// A nearby resident waits only for the panel that acquired this transient lease.
+// It owns no saved state and never changes the resident's original route timers.
+const readingHolds = new WeakMap();
+const canKeepReading = (lease, town, n) => lease.source === S && lease.town === town
+  && app.view === town && town.active && town.zone === 'town' && town.camMode === 'play'
+  && town.npcs.includes(n) && n.ch.root.position.distanceTo(town.pos) < 3 && lease.isOpen();
+
+export function holdResidentForReading(town, n, isOpen) {
+  if (!town || !n || typeof isOpen !== 'function') return null;
+  const lease = { source: S, town, isOpen };
+  if (!canKeepReading(lease, town, n)) return null;
+  readingHolds.set(n, lease);
+  return () => { if (readingHolds.get(n) === lease) readingHolds.delete(n); };
+}
 
 export function buildActors(town) {
   town.player = new Character(outfitToLook(S.outfit));
@@ -54,7 +70,7 @@ export function buildActors(town) {
 export function talk(town, n) {
   const d = n.def, st = (S.npc[d.id] = S.npc[d.id] || { t: 0 });
   const p = n.ch.root.position, night = town.night > 0.6;
-  const say = (text, o = {}) => bus.emit('bubble', { obj: n.ch.root, name: d.name, text, life: o.life || 4.2, tone: STYLES[d.like].color });
+  const say = (text, o = {}) => bus.emit('bubble', { obj: n.ch.root, name: d.name, text, life: o.life || 4.2, tone: STYLES[d.like].color, ...(o.recallSource ? { recallSource: o.recallSource } : {}) });
   const coins = (v) => { addCoins(v, 'npc'); const sp = app.project(p.clone().setY(2.5), town.camera); bus.emit('float', { sx: sp.x, sy: sp.y, text: '+' + v, cls: 'coin' }); };
   const worn = Object.values(S.outfit).map((id) => CLOTH[id]).filter((c) => c && c.set);
   const fullSet = worn.length >= 3 && worn[0].set !== 'reunion' && worn.every((c) => c.set === worn[0].set) ? worn[0].set : null; // 初始套装不算
@@ -105,10 +121,12 @@ export function talk(town, n) {
   } else {
     const pool = night ? d.night.concat(d.lines.slice(0, 2)) : d.lines;
     const holiday=festivalDialogue(d.id);
-    let line = holiday || pick(pool);
+    const recall=holiday?null:residentRecall(S,d.id,{lastLine:st.last});
+    let line = holiday || recall?.text || pick(pool);
     if (!holiday && line === st.last) line = pool[(pool.indexOf(line) + 1) % pool.length];
     st.last = line;
-    say(line);
+    say(line,recall?{life:recall.life,recallSource:S}:{});
+    if(recall)pose=recall.pose;
   }
   n.ch.setPose(pose);
   n.pose = pose;
@@ -137,6 +155,15 @@ export function updateNpcs(town, dt) {
   for (const n of town.npcs) {
     const p = n.ch.root.position;
     const dp = Math.hypot(p.x - town.pos.x, p.z - town.pos.z);
+    const reading = readingHolds.get(n);
+    if (reading && canKeepReading(reading, town, n)) {
+      n.ch.targetMove = 0;
+      n.ch.setPose(n.busy > 0 ? n.pose : 'idle');
+      n.ch.root.rotation.y = angleLerp(n.ch.root.rotation.y, Math.atan2(town.pos.x - p.x, town.pos.z - p.z), 1 - Math.exp(-8 * dt));
+      if (visible) n.ch.update(dt);
+      continue;
+    }
+    if (reading) readingHolds.delete(n);
     n.greet -= dt;
     n.busy -= dt;
     if (n.follow > 0 && town.zone === 'town') {
@@ -158,7 +185,7 @@ export function updateNpcs(town, dt) {
       n.ch.targetMove = 0;
       n.ch.setPose(n.busy > 0 ? n.pose : 'wave');
       n.ch.root.rotation.y = angleLerp(n.ch.root.rotation.y, Math.atan2(town.pos.x - p.x, town.pos.z - p.z), 1 - Math.exp(-8 * dt));
-      if (n.greet <= 0 && n.busy <= 0) { n.greet = 14; fx.hearts(town.scene, p.clone().setY(1.9), 3); audio.sfx('pop', Math.random() * 3); const met = S.npc[n.def.id]; bus.emit('bubble', { obj: n.ch.root, name: n.def.name, text: met ? pick(['又见面啦！', '嗨，暖暖！', '今天也很好看！', '大喵也来啦？']) : '你好呀～', life: 2.4, tone: STYLES[n.def.like].color }); }
+      if (n.greet <= 0 && n.busy <= 0) { n.greet = 14; fx.hearts(town.scene, p.clone().setY(1.9), 3); audio.sfx('pop', Math.random() * 3); const met = S.npc[n.def.id]; bus.emit('bubble', { obj: n.ch.root, name: n.def.name, text: met ? pick(['又见面啦！', '嗨，暖暖！', '今天也很好看！', '大喵也来啦？']) : '你好呀～', life: 2.4, tone: STYLES[n.def.like].color, ambient: true }); }
     } else {
       n.ch.setPose('idle');
       if (n.wait > 0) { n.wait -= dt; n.ch.targetMove = 0; }

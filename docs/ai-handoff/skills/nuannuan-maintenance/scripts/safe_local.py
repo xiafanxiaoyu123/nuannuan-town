@@ -13,6 +13,10 @@ from preflight import MARKERS, copy_like
 
 OS_KEYS = {"path", "systemroot", "windir", "temp", "tmp", "comspec", "pathext"}
 QA_NAMES = {
+    # Homestead suites reviewed 2026-10-19: synthetic saves, isolated mail DB,
+    # and Electron runners with OS-only child environments / unique profiles.
+    "homestead_rules_checks.cjs", "homestead_models_checks.cjs", "homestead_save_checks.cjs",
+    "homestead_mail_checks.cjs", "homestead_world_checks.cjs", "homestead_ui_runner.cjs",
     "admin_workbench_checks.js", "admin_console_checks.js", "admin_session_checks.js",
     "admin_service_settings_checks.js", "mail_system_checks.js",
     "backend_game_save_checks.cjs", "backend_contract_checks.cjs", "backend_security_checks.cjs", "backend_payment_checks.cjs",

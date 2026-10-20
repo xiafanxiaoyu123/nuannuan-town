@@ -189,11 +189,11 @@ svg .fill { fill: currentColor; stroke-width: 1.4; }
 .float img { width: 1.6rem; height: 1.6rem; }
 @keyframes floatup { 0% { opacity: 0; transform: translate(-50%, -20%) scale(0.5); } 18% { opacity: 1; transform: translate(-50%, -60%) scale(1.12); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -260%) scale(1); } }
 .flycoin { position: fixed; z-index: 60; width: 1.9rem; height: 1.9rem; margin: -0.95rem; pointer-events: none; }
-.toasts { position: absolute; left: 50%; top: 5.6rem; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 0.5rem; z-index: 70; }
-.toast { display: flex; align-items: center; gap: 0.6rem; padding: 0.65rem 1.3rem; border-radius: 99rem; background: var(--cream); box-shadow: var(--shadow), inset 0 0 0 0.14rem #fff; font-weight: 700; font-size: 0.98rem; animation: toastin 0.45s var(--ease-pop); transition: opacity 0.4s, transform 0.4s; white-space: nowrap; }
+.toasts { position: absolute; width: min(40rem, calc(100vw - 2rem)); left: 50%; top: 5.6rem; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 0.5rem; z-index: 70; }
+.toast { display: flex; width: max-content; max-width: 100%; min-width: 0; justify-content: center; text-align: center; overflow-wrap: anywhere; line-height: 1.5; align-items: center; gap: 0.6rem; padding: 0.65rem 1.3rem; border-radius: 99rem; background: var(--cream); box-shadow: var(--shadow), inset 0 0 0 0.14rem #fff; font-weight: 700; font-size: 0.98rem; animation: toastin 0.45s var(--ease-pop); transition: opacity 0.4s, transform 0.4s; white-space: normal; }
 .toast.out { opacity: 0; transform: translateY(-0.8rem); }
-.toast img { width: 1.7rem; height: 1.7rem; }
-.toast.quest { background: linear-gradient(180deg, #fff6cc, #ffe28a); color: #7a4d00; font-family: var(--font-d); font-weight: 400; font-size: 1.1rem; padding: 0.8rem 1.6rem; box-shadow: 0 0.3rem 0 #e2ac2d, var(--shadow); }
+.toast img { flex-shrink: 0; width: 1.7rem; height: 1.7rem; }
+.toast.quest { position: static; width: max-content; cursor: default; background: linear-gradient(180deg, #fff6cc, #ffe28a); color: #7a4d00; font-family: var(--font-d); font-weight: 400; font-size: 1.1rem; padding: 0.8rem 1.6rem; box-shadow: 0 0.3rem 0 #e2ac2d, var(--shadow); }
 .toast.warn { background: #5b4252; color: #fff; box-shadow: var(--shadow); }
 .toast.toast-actionable { max-width: calc(100vw - 2rem); white-space: normal; flex-wrap: wrap; justify-content: center; text-align: center; }
 .toast-action { pointer-events: auto; flex-shrink: 0; border-radius: 99rem; padding: .4rem .75rem; background: var(--blush); color: var(--pink3); font-weight: 700; }
@@ -431,7 +431,7 @@ svg .fill { fill: currentColor; stroke-width: 1.4; }
 .bubble .rw { font: 700 0.74rem var(--font-n); color: var(--gold2); white-space: nowrap; }
 
 /* ——— 钓场 ——— */
-.fishbar { position: absolute; right: 22%; top: 50%; transform: translateY(-50%); display: flex; gap: 0.5rem; padding: 0.7rem; border-radius: 1.4rem; transition: opacity 0.25s, transform 0.3s var(--ease-pop); }
+.fishbar { position: absolute; right: 22%; top: 50%; width: max-content; transform: translateY(-50%); display: flex; gap: 0.5rem; padding: 0.7rem; border-radius: 1.4rem; transition: opacity 0.25s, transform 0.3s var(--ease-pop); }
 .fishbar.off { opacity: 0; transform: translateY(-50%) scale(0.85); }
 .fishbar .track { position: relative; width: 3.4rem; height: 17rem; border-radius: 1rem; background: linear-gradient(180deg, #cfeeff, #8fd0f5); overflow: hidden; box-shadow: inset 0 0 0 0.14rem #fff; }
 .fishbar .catch { position: absolute; left: 0.25rem; right: 0.25rem; border-radius: 0.7rem; background: rgba(111, 207, 159, 0.85); box-shadow: inset 0 0 0 0.16rem #fff; }
@@ -439,6 +439,11 @@ svg .fill { fill: currentColor; stroke-width: 1.4; }
 .fishbar .fishi { position: absolute; left: 50%; width: 2.8rem; height: 2.8rem; margin: -1.4rem; }
 .fishbar .prog { position: relative; width: 0.9rem; height: 17rem; border-radius: 1rem; background: var(--blush); overflow: hidden; }
 .fishbar .prog i { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(0deg, #ffc23d, #ffe38a); border-radius: 1rem; }
+/* 矮横屏给顶部信息、大喵按钮和底部提示留出空间；判定仍使用原归一化坐标。 */
+@media (max-height: 480px) and (orientation: landscape) {
+  .fishbar { right: 32%; }
+  .fishbar .track, .fishbar .prog { height: min(17rem, calc(100dvh - 15rem)); }
+}
 .fishtip { position: absolute; left: 50%; bottom: 2.2rem; transform: translateX(-50%); padding: 0.7rem 1.6rem; border-radius: 99rem; font-family: var(--font-d); font-size: 1.2rem; white-space: nowrap; }
 .fishtip.bite { background: linear-gradient(180deg, #ffe38a, #ffc23d); color: #7a4d00; animation: bump 0.3s var(--ease-pop) infinite; }
 .bite { position: absolute; transform: translate(-50%, -100%); font: 700 4rem var(--font-n); color: #fff; -webkit-text-stroke: 0.5rem #f0679a; paint-order: stroke fill; animation: bump 0.25s var(--ease-pop) infinite; pointer-events: none; }
@@ -1115,7 +1120,7 @@ html, body, #ui, #ui * { touch-action: manipulation; }
   box-shadow: 0 0 0 .16rem #fff, 0 0 .9rem #ffd76a, 0 .25rem 0 #d89614 !important;
   filter: brightness(1.08) saturate(1.15);
 }
-.fishbar { position: relative; }
+/* fishbar 的绝对定位已为性格标签提供参照，不要改成普通布局。 */
 .fish-trait {
   position: absolute; top: -1.55rem; left: 50%; transform: translateX(-50%);
   padding: .12rem .55rem; border-radius: 99rem;
@@ -1124,6 +1129,19 @@ html, body, #ui, #ui * { touch-action: manipulation; }
   font-size: .66rem; font-weight: 800; white-space: nowrap; pointer-events: none;
 }
 .fish-trait.king { background: linear-gradient(135deg, #fff6cc, #ffd76a); color: #7a4d00; box-shadow: 0 .14rem .4rem rgba(233, 165, 32, .35); }
+/* 观察卡放在收线槽左下方，保留上方HUD和底部操作提示。 */
+.fish-observe { position: absolute; left: max(1rem, var(--sal)); bottom: 6.8rem; width: min(21rem, 42vw); min-width: 0; padding: .75rem .85rem; border-radius: 1.1rem; background: #fffaf2; }
+.fish-observe-title { display: block; font-size: .85rem; line-height: 1.4; color: var(--ink); }
+.fish-observe-status { margin: .4rem 0 0; font-size: .76rem; line-height: 1.55; color: var(--ink2); }
+.fish-observe-title, .fish-observe-status, .fish-observe button { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.fish-observe-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .45rem; margin-top: .6rem; }
+.fish-observe-actions .btn { min-height: 2.5rem; padding: .45rem .5rem; font-size: .78rem; line-height: 1.35; letter-spacing: 0; }
+#ui .fish-observe button { touch-action: manipulation; }
+@media (max-height: 480px) and (orientation: landscape) {
+  .fish-observe { width: min(20rem, 42vw); bottom: 6.5rem; padding: .6rem .7rem; }
+  .fish-observe-title { font-size: .8rem; }
+  .fish-observe-status { font-size: .73rem; }
+}
 .bake-glaze-btn { margin: .1rem auto; padding: .15rem .5rem !important; min-height: 1.7rem !important; font-size: .65rem !important; white-space: nowrap; }
 .bread-slot.glazed { background: linear-gradient(135deg, #fff6fa, #fffbe8); box-shadow: inset 0 0 0 .14rem #ff9fbd; }
 

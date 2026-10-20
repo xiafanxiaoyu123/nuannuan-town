@@ -90,6 +90,7 @@ export function updateCamera(town, dt, time) {
   town.stars.position.copy(town.camera.position);
   town.waterU.time.value = time;
   town.waterU.cam.value.set(r.x, r.z);
+  if (town.water) { town.water.position.x = r.x; town.water.position.z = r.z; }
 }
 
 export function updatePostProcessing(town, dt) {

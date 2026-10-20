@@ -12,6 +12,9 @@ import { visitors } from '../live/visitors.js';
 import { coinIco } from '../core/icons.js';
 import { buildQuestProgress } from '../world/build-island-rules.js';
 import { BUILD_HOME_DOCK, BUILD_DOCK } from '../world/build-constants.js';
+import { getAnimalHousing } from '../shared/homestead.js';
+import { getHomesteadNextStep } from '../shared/homestead-next-step.js';
+import { HOME_LOT } from '../shared/world.js';
 
 // 常去的地方：指路箭头用
 const PLACES = {
@@ -36,6 +39,15 @@ export function listTasks(game) {
   if (q) out.push({ key: 'guide', group: '引导任务', tag: `${S.quest + 1}/${QUESTS.length}`, text: q.text, cur: q.cur, need: q.need, coins: q.reward, auto: true,
     loc: q.at ? () => ({ x: q.at[0], z: q.at[1], zone: q.zone, where: q.where }) : null });
   const island = buildQuestProgress(S);
+  const next = getHomesteadNextStep(S);
+  out.push({ key: 'homestead', group: '牧场与厨房', tag: next.tag, text: next.text,
+    cur: next.cur, need: next.need, ready: false,
+    loc: () => {
+      if (!next.animalId) return null;
+      const housing = getAnimalHousing(S), home = housing.homes.find(h => h.key === housing.assignments[next.animalId]);
+      return home ? { x: HOME_LOT.x0 + home.gx + 1, z: HOME_LOT.z0 + home.gz + 2, zone: 'home', where: '这位伙伴的住处' } : null;
+    },
+    open: () => game.homesteadUI?.openNextStep(), openLabel: next.label });
   out.push({ key: 'build-island', group: island.unlocked ? '海风工坊' : '海风岛剧情', tag: island.unlocked ? '免费往返' : '解锁自由建造',
     text: island.unlocked ? (game.town.zone === 'build' ? '岸边的小船 · 返回后院' : '去海风工坊岛继续搭建') : island.titleMain + '：' + island.title,
     cur: island.stage, need: 3, ready: !island.unlocked && island.canAdvance,
@@ -51,9 +63,19 @@ export function listTasks(game) {
     const d = residentLife.data(n.id);
     if (!d || d.kind !== 'task' || (d.state !== 'doing' && d.state !== 'ready')) continue;
     const ready = d.state === 'ready', step = d.steps.find((s) => s.cur < s.need) || d.steps[0];
-    out.push({ key: 'res:' + n.id, group: '居民日常', tag: n.name, color: STYLES[d.npc.like].color, text: ready ? `「${d.title}」完成了，去领奖励` : `${d.title}：${step.text}`,
+    const fieldPlan = n.id === 'he' && d.fieldwork?.plan, source = S;
+    const fieldLocation = () => {
+      if (source !== S || !fieldPlan?.valid) return null;
+      const current = residentLife.data('he')?.fieldwork?.plan;
+      const matches = target => target && ['plotKey', 'plotId', 'plantId', 'plantedAt'].every(key => target[key] === fieldPlan.target[key]);
+      if (!current?.valid || current.state !== 'doing' || !matches(current.target)) return null;
+      const target = game.homesteadWorld?.getFieldTargets?.().find(matches);
+      return target?.position ? { x: target.position.x, z: target.position.z, zone: 'home', where: fieldPlan.title || target.name } : null;
+    };
+    const fieldAvailable = !!fieldPlan && !ready && !!fieldLocation();
+    out.push({ key: 'res:' + n.id, group: '居民日常', tag: n.name, color: STYLES[d.npc.like].color, text: ready ? `「${d.title}」完成了，去领奖励` : fieldPlan && !fieldAvailable ? `${d.title}：这块田的情况变了，请重新选择` : `${d.title}：${step.text}`,
       cur: d.steps.reduce((a, s) => a + s.cur, 0), need: d.steps.reduce((a, s) => a + s.need, 0), coins: d.reward.coins || 0, rewardText: d.reward.seed ? '种子 ×' + d.reward.n : '', ready,
-      loc: ready ? null : place(STAT_PLACE[step.key]), open: () => ui.residentPanel(n.id), openLabel: ready ? '领奖励' : '详情' });
+      loc: ready ? null : fieldPlan ? fieldAvailable ? fieldLocation : null : place(STAT_PLACE[step.key]), open: () => ui.residentPanel(n.id), openLabel: ready ? '领奖励' : fieldPlan && !fieldAvailable ? '重新观察' : '详情' });
   }
   for (const t of live.daily().tasks) {
     if (t.claimed) continue;
@@ -75,9 +97,11 @@ export function trackedTask(game, list = listTasks(game)) {
 }
 
 export function taskPanel(game) {
-  const ui = game.ui;
-  let m;
+  const ui = game.ui, source = S;
+  let m, alive = true, offReplace;
   const body = h('div', { class: 'tasks' });
+  const current = () => alive && source === S;
+  body.addEventListener('click', event => { if (!current()) { event.preventDefault(); event.stopImmediatePropagation(); } }, true);
   const render = () => {
     const list = listTasks(game), cur = trackedTask(game, list);
     const groups = [...new Set(list.map((t) => t.group))];
@@ -93,13 +117,14 @@ export function taskPanel(game) {
               h('div', { class: 'tk-bar' }, h('div', {}, h('i', { style: { width: Math.min(100, (t.cur / t.need) * 100) + '%' } })), h('span', { class: 'num' }, t.ready ? '完成' : `${fmt(t.cur)}/${fmt(t.need)}`),
                 t.coins ? h('span', { class: 'price' }, h('img', { src: coinIco(), alt: '' }), fmt(t.coins)) : t.rewardText && h('span', { class: 'tk-rw' }, t.rewardText))),
             h('div', { class: 'tk-btns' },
-              t.open && h('button', { class: 'btn sm ' + (t.ready ? 'gold' : 'alt'), onclick: () => { m.close(true); t.open(); } }, t.openLabel),
-              h('button', { class: 'btn sm' + (on ? ' alt' : ''), disabled: on, onclick: () => { S.settings.track = t.key; S.settings.questOff = false; save(); bus.emit('quest'); render(); } }, on ? '追踪中' : '追踪')));
+              t.open && h('button', { class: 'btn sm ' + (t.ready ? 'gold' : 'alt'), onclick: () => { if (!current()) return; m.close(true); t.open(); } }, t.openLabel),
+              h('button', { class: 'btn sm' + (on ? ' alt' : ''), disabled: on, onclick: () => { if (!current()) return; S.settings.track = t.key; S.settings.questOff = false; save(); bus.emit('quest'); render(); } }, on ? '追踪中' : '追踪')));
         }),
       ])) : h('p', { class: 'tk-empty' }, '去广场的订单板看看今天的订单，或者和路上的居民聊聊，他们常有事想拜托你。'),
       h('p', { class: 'tk-note' }, '居民日常在「更多 → 居民」里接；每日订单每天零点更换。'));
   };
   render();
-  m = ui.modal(body, { ribbon: '任务清单', cls: 'live-modal' });
+  m = ui.modal(body, { ribbon: '任务清单', cls: 'live-modal', onClose: () => { alive = false; offReplace?.(); } });
+  offReplace = bus.on('stateReplaced', () => m.close(true));
   return m;
 }

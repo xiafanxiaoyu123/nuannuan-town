@@ -186,8 +186,8 @@ export function allInter(town) {
   return list;
 }
 
-export function findInters(town, maxCount = 4) {
-  maxCount = Math.max(0, Math.min(4, Number.isSafeInteger(maxCount) ? maxCount : 4));
+export function findInters(town, maxCount = Infinity) {
+  maxCount = maxCount === Infinity ? Infinity : Math.max(0, Number.isSafeInteger(maxCount) ? maxCount : 0);
   if (!maxCount) return [];
   const candidates = [];
   for (const it of town.allInter()) {
@@ -219,17 +219,17 @@ export function findInter(town) {
 }
 
 export function interact(town, index = 0) {
-  if (!Number.isSafeInteger(index) || index < 0 || index > 3) return false;
+  if (!Number.isSafeInteger(index) || index < 0) return false;
   const state = multiPromptState.get(town);
   return invokeInteraction(town, state?.selections[index] || (index === 0 ? captureInteraction(town.cur) : null), state?.generation, state?.zone);
 }
 
 export function updatePrompts(town) {
-  // 互动提示：支持多交互物品同时出现时并列展示多个交互按钮
+  // Keep all nearby candidates; the HUD presents three rows in a scrollable list.
   // 入床后由 UI 的专用操作条提供“睡到明早 / 下床”两个并列按钮，
   // 不再让通用单按钮提示抢走焦点或只显示其中一个。
   const blocked = blockedInteraction(town);
-  const list = blocked ? [] : findInters(town, 4);
+  const list = blocked ? [] : findInters(town);
   const it = list[0] || null;
   const label = it ? (typeof it.label === 'function' ? it.label() : it.label) : null;
   const promptItems = list.map((item) => {

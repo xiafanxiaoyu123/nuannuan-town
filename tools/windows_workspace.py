@@ -12,6 +12,7 @@ import subprocess
 import re
 import sys
 import importlib.metadata
+import shutil
 
 def file_integrity_level(file):
     """Read the mandatory label only; do not request or change audit/ACL data."""
@@ -61,9 +62,6 @@ def install_portable_launcher(root, folder, name):
     entry, runtime = folder/(name+'.exe'), folder/'NikkiTown.runtime.exe'
     if not entry.is_file() or runtime.exists():
         raise RuntimeError('Expected fresh Electron output')
-    if getattr(sys,'frozen',False):
-        raise RuntimeError('This Windows build workflow requires Python with PyInstaller 6.22.3; rebuild/update the standalone build tool before using it for this workflow.')
-    distribution = importlib.metadata.distribution('pyinstaller')
     verify_windows_execution_label(entry)
     entry.rename(runtime)
     digest = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
@@ -73,6 +71,20 @@ def install_portable_launcher(root, folder, name):
     ]},ensure_ascii=False,sort_keys=True,separators=(',',':')).encode('utf-8')
     (folder/'runtime-manifest.json').write_bytes(data)
     manifest_hash = hashlib.sha256(data).hexdigest()
+    if getattr(sys,'frozen',False):
+        support = Path(sys.executable).parent/'工程辅助文件/windows'
+        template = support/'portable-launcher-template.exe'
+        if not template.is_file():
+            raise RuntimeError('便携工具缺少启动器模板，请重新完整解压1.0.1或更新版本')
+        shutil.copyfile(template, entry)
+        # The frozen launcher reads this hash from its own executable overlay.
+        # It retains the same manifest pinning and validated per-user runtime cache.
+        with entry.open('ab') as stream:
+            stream.write(b'\nNIKKI-MANIFEST-SHA256:'+manifest_hash.encode('ascii')+b'\n')
+        shutil.copyfile(support/'launcher-LICENSES.txt',folder/'launcher-LICENSES.txt')
+        verify_windows_execution_label(entry)
+        return {'manifestSha256':manifest_hash,'launcherSha256':digest(entry),'runtimeSha256':digest(runtime)}
+    distribution = importlib.metadata.distribution('pyinstaller')
     work = folder.parent/(folder.name+'-launcher-build')
     work.mkdir(exist_ok=False)
     source = work/'windows-launcher.py'

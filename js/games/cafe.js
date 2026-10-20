@@ -5,13 +5,18 @@ import { Character, Momo, outfitToLook, randomNpcLook } from '../models/characte
 import { FOODS, FOOD_BUILD, coinModel } from '../models/items.js';
 import { DECOR_BUILD } from '../models/props.js';
 import { fitToScreen, MiniGame, buildRoom, roomLights, wallWindow, shelf, jar, plantPot } from './common.js';
-import { S } from '../core/state.js';
+import { S, bus } from '../core/state.js';
 import { app } from '../core/app.js';
 import { audio } from '../core/audio.js';
 import { fx } from '../core/fx.js';
 import { h, rand, randInt, pick, popIn, angleLerp, clamp } from '../core/util.js';
 import { foodIco } from '../core/icons.js';
-import { svg } from '../ui/ui.js';
+import { ui, svg } from '../ui/ui.js';
+import { createDish, animateDish } from '../models/homestead.js';
+import { parseDishKey } from '../shared/homestead.js';
+import { CAFE_SPECIALS, CAFE_STYLES, getCafeSpecials } from '../shared/cafe-specials.js';
+import { applyCafeSpecialAction } from '../core/cafe-specials-actions.js';
+import { cafeDishIcon } from '../live/cafe-specials-panel.js';
 
 const SLOTS = [-3.2, 0, 3.2];
 const KEYS = ['Q', 'W', 'E'];
@@ -22,10 +27,30 @@ const REST = Math.PI - 1.35; // 暖暖平时侧身站在柜台后，斜视角下
 export class CafeGame extends MiniGame {
   constructor(game) {
     super(game, 'cafe', { duration: 75, stars: [105, 210, 315] });
-    this.menu = FOODS.slice(0, Math.min(6, 2 + this.lv));
-    this.soldout = this.modifier?.id === 'soldout' ? randInt(0, this.menu.length - 1) : -1;
+    this.cafeSource = S;
+    const selection = game.playOpts?.cafeSpecials || { style: 'teatime', recipeId: null };
+    const begun = applyCafeSpecialAction({ type: 'begin', style: selection.style, recipeId: selection.recipeId }, this.cafeSource);
+    if (!begun.ok) throw new Error(begun.message);
+    this.cafeSession = begun.sessionId;
+    this.cafeStyle = begun.style;
+    this.signature = CAFE_SPECIALS.find((item) => item.id === begun.recipeId) || null;
+    this.signatureDish = parseDishKey(begun.dishKey);
+    this.signatureServed = 0;
+    this.regularAdvanced = false;
+    this.regularSpawned = false;
+    this.breakfastPair = 0;
+    const orderIds = this.cafeStyle === 'breakfast' ? ['coffee', 'donut', 'cake', 'tea', 'macaron', 'sundae'] : ['tea', 'cake', 'coffee', 'donut', 'macaron', 'sundae'];
+    if (this.signature) {
+      const partner = this.signature.id === 'milk_pudding' ? 'tea' : 'coffee';
+      orderIds.splice(orderIds.indexOf(partner), 1); orderIds.unshift(partner);
+    }
+    const maxMenu = Math.min(6, 2 + this.lv);
+    this.menu = orderIds.slice(0, maxMenu - (this.signature ? 1 : 0)).map((id) => FOODS.find((f) => f.id === id));
+    if (this.signature) this.menu.push({ id: this.signature.id, name: this.signature.shortName, price: ({ milk_pudding: 10, cherry_yogurt: 11, egg_sandwich: 12 })[this.signature.id] });
+    // 招牌不参与售罄事件：一份备货承诺供应完整一局。
+    this.soldout = this.modifier?.id === 'soldout' ? randInt(0, this.menu.length - (this.signature ? 2 : 1)) : -1;
     const avail = this.menu.filter((_, idx) => idx !== this.soldout);
-    this.specialFood = pick(avail.length ? avail : this.menu);
+    this.specialFood = this.signature ? this.menu.find((f) => f.id === this.signature.id) : pick(avail.length ? avail : this.menu);
     this.tray = [];
     this.trayLatte = [];
     this.stock = this.menu.map(() => 2);
@@ -41,6 +66,7 @@ export class CafeGame extends MiniGame {
     this.steamT = 0;
     this.build();
     this.mount();
+    this.stopCafeSource = bus.on('stateReplaced', () => this.onExit());
   }
 
   build() {
@@ -59,7 +85,7 @@ export class CafeGame extends MiniGame {
     t.position.set(0, 0.68, 0.11);
     board.add(t);
     this.menu.forEach((f, i) => {
-      const m = FOOD_BUILD[f.id]();
+      const m = this.buildFood(f.id);
       m.scale.setScalar(f.id === this.specialFood.id ? 0.72 : 0.62);
       const cols = Math.min(3, this.menu.length), r = Math.floor(i / 3), c = i % 3;
       const rowN = Math.min(3, this.menu.length - r * 3);
@@ -149,10 +175,10 @@ export class CafeGame extends MiniGame {
     this.trayEls = [0, 1, 2].map((idx) => h('button', { type: 'button', class: 'tray-slot', title: '点击撤下这格餐品', onclick: () => this.removeTray(idx) }));
     const foods = this.menu.map((f, i) => {
       const isSpecial = f.id === this.specialFood.id && i !== this.soldout;
-      return h('button', { class: 'slot stock' + (isSpecial ? ' special-food' : ''), onclick: () => this.add(i) },
+      return h('button', { type: 'button', class: 'slot stock' + (isSpecial ? ' special-food' : ''), 'data-cafe-food': f.id, onclick: () => this.add(i) },
         h('span', { class: 'key' }, i + 1),
-        isSpecial ? h('span', { class: 'special-tag' }, '主推+25%') : null,
-        h('img', { src: foodIco(f.id), alt: '' }),
+        isSpecial ? h('span', { class: 'special-tag' }, this.signature ? '自制招牌' : '主推+25%') : null,
+        h('img', { src: this.foodIcon(f.id), alt: '' }),
         h('b', {}, f.name),
         BREW.has(f.id) ? h('span', { class: 'bst' }, BREW_TXT.idle) : h('div', { class: 'pips' }, h('i'), h('i'), h('i')),
         h('div', { class: 'rs' }, h('i')));
@@ -165,6 +191,8 @@ export class CafeGame extends MiniGame {
       h('button', { class: 'btn sm', onclick: () => this.smartServe(), title: '智能上菜 / 收噗灵 (空格)' }, '⚡上菜'),
       h('button', { class: 'btn alt sm', onclick: () => this.clear(), title: '清空托盘 (X)' }, svg('close'), '清空')));
     this.bubbles = h('div', { style: { position: 'absolute', inset: '0', pointerEvents: 'none' } });
+    this.serviceNote = h('div', { class: 'cafe-service-note', 'data-cafe-service-note': '' }, this.serviceText());
+    bar.append(this.serviceNote);
     this.mountHUD([this.bubbles, bar]);
     fitToScreen(this.barEl, this.abort.signal, 0.48);
     this.on(window, 'keydown', (e) => {
@@ -176,6 +204,34 @@ export class CafeGame extends MiniGame {
       if (e.code === 'Space') { e.preventDefault(); this.smartServe(); }
       if (e.code === 'KeyX' || e.code === 'Backspace') this.clear();
     });
+  }
+
+  foodIcon(id) {
+    return id === this.signature?.id ? cafeDishIcon(id, this.signatureDish?.quality, this.signatureDish?.variant) : foodIco(id);
+  }
+  buildFood(id) {
+    if (id !== this.signature?.id) return FOOD_BUILD[id]();
+    const wrapper = group();
+    const dish = createDish(id, { quality: this.signatureDish?.quality || 'normal', variant: this.signatureDish?.variant === 'milky' ? 'milk' : 'base' });
+    dish.scale.setScalar(1.6);
+    wrapper.add(dish);
+    return wrapper;
+  }
+  serviceText() {
+    const name = CAFE_STYLES.find((style) => style.id === this.cafeStyle)?.name || '悠闲下午茶';
+    return `${name} · ${this.signature ? this.regularAdvanced ? '小满记住了这次招待' : `${this.signature.shortName}供应整局` : '常规菜单'}`;
+  }
+  closeCafeSession() {
+    if (!this.cafeSession) return;
+    const result = applyCafeSpecialAction({ type: 'end', sessionId: this.cafeSession }, this.cafeSource);
+    if (result.ok) { this.cafeSession = null; this.cafeRefunded = result.refunded; }
+    else ui.toast(result.message, { dedupeKey: 'cafe-session-save' });
+  }
+  onExit() {
+    this.stopCafeSource?.();
+    this.stopCafeSource = null;
+    this.closeCafeSession();
+    super.onExit();
   }
 
   smartServe() {
@@ -314,13 +370,13 @@ export class CafeGame extends MiniGame {
       el.disabled = !this.tray[i];
       el.classList.toggle('latte', !!this.trayLatte[i]);
       el.replaceChildren(...(this.tray[i] ? [
-        h('img', { src: foodIco(this.tray[i]), alt: '' }),
+        h('img', { src: this.foodIcon(this.tray[i]), alt: '' }),
         this.trayLatte[i] ? h('span', { class: 'latte-tag' }, '✨') : null,
       ] : []));
     });
-    while (this.trayItems.children.length) this.trayItems.remove(this.trayItems.children[0]);
+    while (this.trayItems.children.length) { const old = this.trayItems.children[0]; this.trayItems.remove(old); disposeSceneResources(old); }
     this.tray.forEach((id, i) => {
-      const m = FOOD_BUILD[id]();
+      const m = this.buildFood(id);
       m.position.set(-0.6 + i * 0.6, 0, 0);
       m.scale.setScalar(this.trayLatte[i] ? 1.02 : 0.9);
       this.trayItems.add(m);
@@ -335,38 +391,59 @@ export class CafeGame extends MiniGame {
     this.piles.forEach((p, i) => p && used.add(i));
     const free = [0, 1, 2].filter((s) => !used.has(s));
     if (!free.length) return false;
-    const slot = pick(free);
-    const elapsed = this.duration - this.time;
-    const maxN = elapsed < 12 ? 1 : elapsed < 30 && this.lv < 3 ? 2 : 3;
-    const n = Math.min(maxN, Math.random() < 0.35 ? 1 : Math.random() < 0.6 ? 2 : 3);
-    const order = Array.from({ length: n }, () => pick(this.menu).id);
-    const ch = new Character(randomNpcLook(this.npcI++));
+    // 招牌首客坐中间柜台，为左右两侧的既有技能与收益 HUD 留出空间。
+    const slot = this.signature && !this.regularSpawned && free.includes(1) ? 1 : pick(free);
+    const elapsed = this.elapsed;
+    const regular = !!this.signature && !this.regularSpawned;
+    const available = this.menu.filter((_, index) => index !== this.soldout);
+    const drinks = available.filter((food) => BREW.has(food.id));
+    const meals = available.filter((food) => !BREW.has(food.id));
+    let order;
+    if (regular) {
+      this.regularSpawned = true;
+      const partner = this.signature.id === 'milk_pudding' ? 'tea' : 'coffee';
+      const drink = drinks.find((food) => food.id === partner) || drinks[0];
+      order = (this.cafeStyle === 'breakfast' || this.signature.id === 'egg_sandwich') && drink ? [drink.id, this.signature.id] : [this.signature.id];
+    } else if (this.cafeStyle === 'breakfast' && drinks.length && meals.length) {
+      // 两位客人连续点同一套早餐，玩家可以预判下一份的冲泡与备料顺序。
+      const pair = Math.floor(this.breakfastPair++ / 2);
+      order = [drinks[pair % drinks.length].id, meals[pair % meals.length].id];
+    } else if (this.cafeStyle === 'teatime' && elapsed > 10 && drinks.length && meals.length && Math.random() < .7) {
+      order = [pick(drinks).id, pick(meals).id];
+    } else {
+      const maxN = elapsed < 12 ? 1 : this.cafeStyle === 'teatime' ? 2 : 3;
+      const n = Math.min(maxN, Math.random() < .35 ? 1 : Math.random() < .6 ? 2 : 3);
+      order = Array.from({ length: n }, () => pick(this.menu).id);
+    }
+    const n = order.length;
+    const ch = new Character(randomNpcLook(regular ? 0 : this.npcI++));
     ch.root.scale.setScalar(1.25);
     ch.root.position.set(12.4, 0, -3.1);
     this.scene.add(ch.root);
-    // 贵客：付双倍；甜品评论家：满意上菜恢复全员耐心；打包急客：快速上菜加时；居民常客：报酬 +30%
-    const vip = this.modifier?.id === 'vip' || (elapsed > 10 && Math.random() < 0.15);
-    const critic = !vip && elapsed > 14 && Math.random() < 0.14;
-    const hurry = !vip && !critic && elapsed > 8 && Math.random() < 0.14;
-    const resident = !vip && !critic && !hurry && Math.random() < 0.22 ? pick(['小满', '阿禾', '阿絮', '小桃', '七七']) : null;
-    const patience = (22.5 - this.lv * 0.8 + n * 4) * (vip ? 0.78 : hurry ? 0.82 : 1) * (1 + this.fx('bubble'));
+    // 保留贵客、评论家、急客与普通居民。招牌小满有自己的首单和回应。
+    const vip = !regular && (this.modifier?.id === 'vip' || (elapsed > 10 && Math.random() < 0.15));
+    const critic = !regular && !vip && elapsed > 14 && Math.random() < 0.14;
+    const hurry = !regular && !vip && !critic && elapsed > 8 && Math.random() < 0.14;
+    const resident = regular ? '小满' : !vip && !critic && !hurry && Math.random() < 0.22 ? pick(['小满', '阿禾', '阿絮', '小桃', '七七']) : null;
+    const patience = (22.5 - this.lv * 0.8 + n * 4) * (vip ? 0.78 : hurry ? 0.82 : 1) * (1 + this.fx('bubble')) * (this.cafeStyle === 'teatime' ? 1.22 : 1.04);
     if (vip || critic) {
       const gm = mat(critic ? '#ff9fbd' : '#ffd76a', { rough: 0.3, metal: 0.5 });
       const cr = group(0, 0.72, 0, cyl(0.2, 0.2, 0.09, gm, 0, 0, 0, { seg: 12 }));
       for (let k = 0; k < 5; k++) cr.add(cbox(0.08, 0.14, 0.08, gm, Math.sin(k * 1.257) * 0.15, 0.13, Math.cos(k * 1.257) * 0.15, { r: 0.02 }));
       ch.head.add(cr);
     }
-    const c = { ch, slot, order, vip, critic, hurry, resident, key: order.slice().sort().join(), state: 'in', patience, max: patience, path: [[SLOTS[slot], -3.1], [SLOTS[slot], -1.5]], el: null };
+    const c = { ch, slot, order, vip, critic, hurry, resident, regular, key: order.slice().sort().join(), state: 'in', patience, max: patience, path: [[SLOTS[slot], -3.1], [SLOTS[slot], -1.5]], el: null };
     this.customers.push(c);
     return true;
   }
   showBubble(c) {
     c.pt = h('i');
-    const tagText = c.vip ? '贵客 ×2' : c.critic ? '🧁评论家·鼓舞' : c.hurry ? '⚡急客·加时' : c.resident ? `${c.resident} +30%` : null;
-    c.el = h('div', { class: 'bubble' + (tagText ? ' vip' : ''), onclick: () => this.serve(c.slot) },
+    const tagText = c.regular ? '小满 · 来尝招牌' : c.vip ? '贵客 ×2' : c.critic ? '🧁评论家·鼓舞' : c.hurry ? '⚡急客·加时' : c.resident ? `${c.resident} +30%` : null;
+    c.el = h('div', { role: 'button', tabindex: '0', 'aria-label': `${c.resident || '客人'}的订单`, 'data-cafe-customer': String(c.slot), 'data-cafe-regular': c.regular ? 'man' : null, class: 'bubble' + (tagText ? ' vip' : '') + (c.regular ? ' cafe-regular' : ''), onclick: () => this.serve(c.slot), onkeydown: (e) => { if (e.code === 'Enter') this.serve(c.slot); } },
       tagText ? h('span', { class: 'viptag' }, tagText) : null,
       h('span', { class: 'kbd' }, KEYS[c.slot]),
-      h('div', { class: 'its' }, c.order.map((id) => h('img', { src: foodIco(id), alt: '' }))),
+      h('div', { class: 'its' }, c.order.map((id) => h('img', { src: this.foodIcon(id), alt: this.menu.find((f) => f.id === id)?.name || '' }))),
+      c.regular ? h('span', { class: 'cafe-regular-line' }, ['想尝尝你的手艺。', '今天也为这份味道来。', '吃完想去你家坐坐。', '熟悉的味道，真好。'][Math.min(3, getCafeSpecials(this.cafeSource).regularVisits || 0)]) : null,
       h('div', { class: 'pt' }, c.pt));
     if (this.soldout >= 0 && c.order.includes(this.menu[this.soldout].id)) {
       c.soldWait = 3;
@@ -398,8 +475,19 @@ export class CafeGame extends MiniGame {
       c.patience -= 0.9;
       return;
     }
+    if (this.signature && c.order.includes(this.signature.id)) {
+      const result = applyCafeSpecialAction({ type: 'serve', sessionId: this.cafeSession, npcId: c.regular ? 'man' : undefined }, this.cafeSource);
+      if (!result.ok) { ui.toast(result.message, { dedupeKey: 'cafe-session-save' }); return; }
+      this.signatureServed++;
+      if (c.regular) {
+        this.regularAdvanced = result.regularAdvanced;
+        const lines = ['谢谢你，这个味道我会记住。', '又吃到了，今天也很开心。', '下次能去你家坐坐吗？', '像回到熟悉的地方一样。'];
+        ui.toast(`小满：${lines[getCafeSpecials(this.cafeSource).storyComplete ? 3 : Math.min(2, Math.max(0, (result.regularVisits || 1) - 1))]}`, { life: 4200 });
+        this.serviceNote.textContent = this.serviceText();
+      }
+    }
     const base = c.order.reduce((s, id) => {
-      const f = FOODS.find((x) => x.id === id);
+      const f = this.menu.find((x) => x.id === id);
       return s + Math.round(f.price * (id === this.specialFood.id ? 1.25 : 1));
     }, 0);
     const ratio = clamp(c.patience / c.max);
@@ -459,6 +547,7 @@ export class CafeGame extends MiniGame {
     pl.el.remove();
   }
   onFinish() {
+    this.closeCafeSession();
     for (let i = 0; i < 3; i++) this.collect(i, true);
     for (const c of this.customers) if (c.state !== 'out') this.leave(c, true);
     this.nikki.setPose('cheer');
@@ -468,6 +557,12 @@ export class CafeGame extends MiniGame {
   resultLines() {
     const res = [['营业额', this.score], ['接待客人', `${this.served} 位`], ['最高连击', '×' + (this.maxCombo || 0)]];
     if (this.latteCount > 0) res.push(['黄金拉花', `${this.latteCount} 杯`]);
+    res.push(['营业风格', CAFE_STYLES.find((style) => style.id === this.cafeStyle)?.name || '悠闲下午茶']);
+    if (this.signature) {
+      res.push(['自制招牌', this.signatureServed ? `送出 ${this.signatureServed} 单 · 仅用 1 份` : this.cafeRefunded ? '未送出，已退回厨房' : '未送出，备货保留中']);
+      const memories = getCafeSpecials(this.cafeSource);
+      res.push(['小满的相遇', memories.storyComplete ? '家园茶叙已珍藏' : `${memories.regularVisits} / 3${memories.regularVisits >= 3 ? ' · 可以邀请来家里' : ''}`]);
+    }
     return res;
   }
 
@@ -484,6 +579,7 @@ export class CafeGame extends MiniGame {
     }
     this.nikki.update(dt);
     this.momo?.update(dt);
+    this.trayItems?.traverse((part) => { if (part.userData?.kind === 'homestead-dish') animateDish(part, this.elapsed); });
 
     if (this.state === 'play') {
       this.steamT += dt;
@@ -520,7 +616,7 @@ export class CafeGame extends MiniGame {
           return;
         }
         if (this.stock[i] >= 3) { bar.style.transform = 'scaleX(0)'; return; }
-        const need = (1.5 + i * 0.22 - this.lv * 0.06) * 0.75 * Math.pow(0.6, this.perks.restock || 0);
+        const need = (1.5 + i * 0.22 - this.lv * 0.06) * 0.75 * Math.pow(0.6, this.perks.restock || 0) * (this.cafeStyle === 'breakfast' ? .85 : 1);
         this.restock[i] += dt;
         bar.style.transform = `scaleX(${Math.min(1, this.restock[i] / need)})`;
         if (this.restock[i] >= need) { this.restock[i] = 0; this.stock[i]++; this.syncStock(); }
@@ -529,7 +625,7 @@ export class CafeGame extends MiniGame {
       if (this.spawnT <= 0) {
         const ok = this.spawn();
         const pace = Math.max(2.4, (6.1 - this.lv * 0.4 - Math.min(this.elapsed, 75) * 0.02) / this.pressure) * (this.modifier?.id === 'rush' && this.elapsed < 30 ? 0.5 : 1); // 关卡越靠后 / 无尽撑得越久，客人来得越密
-        this.spawnT = ok ? rand(pace * 0.75, pace * 1.15) : 0.6;
+        this.spawnT = ok ? rand(pace * 0.75, pace * 1.15) * (this.cafeStyle === 'teatime' ? 1.18 : .94) : 0.6;
       }
     }
     const barTop = this.barEl ? this.barEl.getBoundingClientRect().top : window.innerHeight - 96;
@@ -569,7 +665,10 @@ export class CafeGame extends MiniGame {
         c.pt.style.background = k > 0.5 ? '#6fcf9f' : k > 0.25 ? '#ffc94d' : '#ff7f8f';
         const sp = app.project(new THREE.Vector3(p.x, 2.55, p.z), this.camera);
         c.el.style.left = clamp(sp.x, 60, window.innerWidth - 60) + 'px';
-        c.el.style.top = clamp(sp.y, 128, Math.max(145, barTop - 44)) + 'px';
+        const bubbleBottom = Math.max(145, barTop - 44);
+        const topHudBottom = c.regular ? this.hudEl.querySelector('.gtop').getBoundingClientRect().bottom : 0;
+        const minBubbleBottom = c.regular ? Math.min(bubbleBottom, Math.max(128, topHudBottom + c.el.offsetHeight + 10)) : 128;
+        c.el.style.top = clamp(sp.y, minBubbleBottom, bubbleBottom) + 'px';
         if (c.patience <= 0) {
           this.lost++;
           this.loseLife();

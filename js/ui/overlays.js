@@ -6,6 +6,7 @@ import { audio } from '../core/audio.js';
 import { coinIco } from '../core/icons.js';
 import { svg } from './components/svg.js';
 import { click } from './components/actions.js';
+import { S } from '../core/state.js';
 
 export async function iris(fn) {
   const el = this.irisEl;
@@ -19,22 +20,63 @@ export async function iris(fn) {
 }
 
 export function bubble(b) {
-  const old = this.bubbles.find((x) => x.obj === b.obj);
-  if (old) { old.el.remove(); this.bubbles.splice(this.bubbles.indexOf(old), 1); }
+  if (b.recallSource && b.recallSource !== S) return;
+  if (b.teaId && S.homestead?.tea?.id !== b.teaId) return;
+  // Nearby greetings should wait for a deliberately requested memory to finish.
+  // A new player-initiated conversation can still replace it immediately.
+  const town = this.game.town;
+  if (b.ambient && this.bubbles.some(old => old.obj === b.obj && old.recallSource === S && old.t <= old.life && app.view === town && town.zone === (old.zone || 'town'))) return;
+  // A tea conversation has one visible speaker, so neighboring guests do not
+  // cover one another's words. Ordinary town conversations keep their behavior.
+  for (const old of [...this.bubbles]) if (old.obj === b.obj || b.teaId && old.teaId === b.teaId) { old.el.remove(); this.bubbles.splice(this.bubbles.indexOf(old), 1); }
   const el = h('div', { class: 'talkb', style: { '--c': b.tone || '#ff8fb1' } }, h('b', {}, b.name), h('span', {}, b.text));
+  if (b.teaId) el.dataset.teaBubble = b.teaId;
+  if (b.recallSource) el.dataset.residentRecall = 'true';
   this.bubbleLayer.append(el);
-  this.bubbles.push({ ...b, el, t: 0 });
+  this.bubbles.push({ ...b, teaSource: b.teaId ? S : null, el, t: 0 });
 }
 
 export function updateBubbles(dt) {
   if (!this.bubbles.length) return;
-  const t = this.game.town, on = app.view === t && t.camMode === 'play' && t.zone === 'town';
+  const t = this.game.town;
   this._bv = this._bv || t.pos.clone();
   for (const b of [...this.bubbles]) {
+    if (b.recallSource && b.recallSource !== S) { b.el.remove(); this.bubbles.splice(this.bubbles.indexOf(b), 1); continue; }
+    const sceneMatches = t.zone === (b.zone || 'town');
+    const currentTea = b.teaId && b.teaSource === S && S.homestead?.tea?.id === b.teaId && sceneMatches;
+    if (currentTea && (app.view !== t || t.camMode !== 'play' || t.modal || t.photoOn || document.hidden || !document.hasFocus() || innerWidth < innerHeight)) { b.el.hidden = true; continue; }
+    const currentRecall = b.recallSource === S && b.t <= b.life && app.view === t && sceneMatches;
+    if (currentRecall && (t.modal || t.photoOn || document.hidden || !document.hasFocus() || innerWidth < innerHeight)) { b.el.hidden = true; continue; }
+    b.el.hidden = false;
+    const on = app.view === t && t.camMode === 'play' && sceneMatches && (!b.teaId || currentTea);
+    // Project before advancing a memory's clock: behind-camera text is unread.
+    let p;
+    if (currentRecall && on) {
+      p = app.project(this._bv.copy(b.obj.position).setY(2.75), t.camera);
+      if (p.behind) { b.el.hidden = true; continue; }
+    }
     b.t += dt;
     if (b.t > b.life || !on) { b.el.classList.add('out'); if (b.t > b.life + 0.3 || !on) { b.el.remove(); this.bubbles.splice(this.bubbles.indexOf(b), 1); } continue; }
-    const p = app.project(this._bv.copy(b.obj.position).setY(2.75), t.camera);
-    b.el.style.transform = `translate(${Math.round(Math.min(app.width - 20, Math.max(20, p.x)))}px, ${Math.round(Math.max(70, p.y))}px) translate(-50%, -100%)`;
+    p = p || app.project(this._bv.copy(b.obj.position).setY(2.75), t.camera);
+    let x = Math.min(app.width - 20, Math.max(20, p.x)), y = Math.max(70, p.y);
+    if (b.teaId) {
+      const questShown = this.quest && !this.quest.classList.contains('hide') && !this.hud?.classList.contains('off');
+      const layoutKey = `${app.width}:${app.height}:${!!questShown}`;
+      if (!b.bounds || b.bounds.viewport !== layoutKey) b.bounds = { viewport: layoutKey, width: b.el.offsetWidth, height: b.el.offsetHeight, quest: questShown ? this.quest.getBoundingClientRect() : null };
+      x = Math.max(b.bounds.width / 2 + 12, Math.min(app.width - b.bounds.width / 2 - 12, p.x));
+      y = Math.max(b.bounds.height + 12, Math.min(app.height - 12, p.y));
+      const q = b.bounds.quest, half = b.bounds.width / 2;
+      if (q?.width && q?.height && x + half > q.left && x - half < q.right && y > q.top && y - b.bounds.height < q.bottom) {
+        if (q.right + 12 + b.bounds.width <= app.width - 12) x = q.right + 12 + half;
+        else if (q.bottom + 12 + b.bounds.height <= app.height - 12) y = q.bottom + 12 + b.bounds.height;
+      }
+    } else if (b.recallSource) {
+      const viewport = `${app.width}:${app.height}`;
+      if (!b.bounds || b.bounds.viewport !== viewport) b.bounds = { viewport, width: b.el.offsetWidth, height: b.el.offsetHeight };
+      x = Math.max(b.bounds.width / 2 + 12, Math.min(app.width - b.bounds.width / 2 - 12, p.x));
+      y = Math.max(b.bounds.height + 12, Math.min(app.height - 12, p.y));
+    }
+    b.el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, -100%)`;
     b.el.style.visibility = p.behind ? 'hidden' : 'visible';
   }
 }

@@ -6,12 +6,14 @@ import { FISH, fishModel } from '../models/items.js';
 import { festivalAt } from '../live/effects.js';
 import { cloud, boat, treeRound, treePine } from '../models/props.js';
 import { MiniGame } from './common.js';
-import { S, stat, bus } from '../core/state.js';
+import { S, stat, bus, save, flushSave } from '../core/state.js';
 import { app } from '../core/app.js';
 import { audio } from '../core/audio.js';
 import { fx } from '../core/fx.js';
 import { h, rand, randInt, clamp, tween, ease } from '../core/util.js';
 import { fishIco } from '../core/icons.js';
+import { applyLifeDiscovery } from '../shared/life-discoveries.js';
+import { residentLife } from '../live/residents.js';
 
 const WATER_Y = -0.5;
 const AI_LABEL = { dart: '⚡猛窜', sink: '🌊深潜', float: '🫧上浮', mixed: '🌀多变', smooth: '🍃平稳' };
@@ -24,11 +26,18 @@ export class FishGame extends MiniGame {
     this.pt = 0;
     this.caught = 0;
     this.quickHooks = 0;
+    this.lifeSource = S;
+    this.reelSequence = 0;
+    this.observation = null;
+    this.observationTick = 0;
+    this.recoveredCatches = 0;
+    this.treasureCatches = 0;
     this.bestFish = null;
     this.hold = false;
     this.barH = (0.375 + this.lv * 0.02) * (1 + this.fx('water')); // 难度下调约 1/4
     this.build();
     this.mount();
+    this.offLifeState = bus.on('stateReplaced', () => { if (S !== this.lifeSource) this.onExit(); });
   }
 
   build() {
@@ -146,12 +155,18 @@ export class FishGame extends MiniGame {
     this.tipEl = h('div', { class: 'fishtip card' }, '准备甩竿…');
     this.biteEl = h('div', { class: 'bite hide' }, '!');
     this.popEl = h('div', {});
-    this.mountHUD([this.barEl, this.tipEl, this.biteEl, this.popEl]);
-    const down = (e) => { if (e && e.target && e.target.closest && e.target.closest('button')) return; this.hold = true; this.press(); };
+    this.observeTitle = h('b', { class: 'fish-observe-title' });
+    this.observeStatus = h('p', { class: 'fish-observe-status', 'aria-live': 'polite' });
+    this.observeActions = h('div', { class: 'fish-observe-actions hide' });
+    this.observeEl = h('section', { class: 'fish-observe card hide', 'data-fish-observe': '' }, this.observeTitle, this.observeStatus, this.observeActions);
+    this.mountHUD([this.barEl, this.tipEl, this.biteEl, this.popEl, this.observeEl]);
+    const isControl = (e, focused = false) => (e?.target?.closest?.('button,input,textarea,select,[contenteditable="true"]') || focused && document.activeElement?.closest?.('button,input,textarea,select,[contenteditable="true"]'));
+    const down = (e) => { if (isControl(e) || !this.canFishInput()) return; this.hold = true; this.press(); };
     const up = () => (this.hold = false);
     this.on(window, 'pointerdown', down);
     this.on(window, 'pointerup', up);
-    this.on(window, 'keydown', (e) => { if (e.code === 'Space' || e.code === 'KeyE') { e.preventDefault(); if (!e.repeat) down(); } });
+    this.on(window, 'pointercancel', up, { whilePaused: true });
+    this.on(window, 'keydown', (e) => { if ((e.code === 'Space' || e.code === 'KeyE') && !isControl(e, true)) { e.preventDefault(); if (!e.repeat) down(e); } });
     this.on(window, 'keyup', (e) => { if (e.code === 'Space' || e.code === 'KeyE') up(); });
     this.on(window, 'blur', up);
   }
@@ -162,12 +177,59 @@ export class FishGame extends MiniGame {
   onStart() {
     this.cast();
   }
-  onPause() { this.hold = false; }
+  canFishInput() { return this.playing && S === this.lifeSource && app.view === this && !app.suspended && !app.orientationBlocked; }
+  onPause() { this.hold = false; this.observeActions?.classList.add('hide'); }
+  beginObservation(quickHook) {
+    this.cancelObservation();
+    const token = residentLife.beginFishingObservation(this.lifeSource), info = token && residentLife.fishingObservationState(token);
+    const observation = this.observation = { id: ++this.reelSequence, token, focus: info?.focus, title: info?.title || '', quickHook, treasureSeen: false, decision: 'none', momoAssisted: false, settled: false };
+    this.observeActions?.replaceChildren(...['skip', 'try'].map(decision => h('button', {
+      type: 'button', class: 'btn alt sm', 'data-fish-decision': decision,
+      onclick: () => this.chooseTreasure(decision, observation.id),
+    }, decision === 'skip' ? '专心收鱼' : '试着捞宝')));
+    this.syncObservation();
+  }
+  cancelObservation() {
+    if (this.observation?.token) residentLife.cancelFishingObservation(this.observation.token);
+    this.observation = null;
+    this.observeEl?.classList.add('hide');
+  }
+  chooseTreasure(decision, castId) {
+    const observation = this.observation;
+    if (!['skip', 'try'].includes(decision) || !this.canFishInput() || this.phase !== 'reel' || !observation || observation.settled || observation.id !== castId || observation.decision !== 'none' || !this.tre?.on || !residentLife.fishingObservationState(observation.token)) return false;
+    this.hold = false;
+    observation.decision = decision;
+    if (decision === 'skip') { this.tre = null; this.treEl.classList.add('hide'); }
+    this.syncObservation();
+    audio.sfx('click');
+    return true;
+  }
+  syncObservation() {
+    if (!this.observeEl) return;
+    const o = this.observation, info = o?.token && residentLife.fishingObservationState(o.token);
+    const visible = !!o && S === this.lifeSource && !this.dead && (!!info || !!o.resultText);
+    this.observeEl.classList.toggle('hide', !visible);
+    if (!visible) return;
+    this.observeTitle.textContent = o.title;
+    let text = o.resultText;
+    if (!text) {
+      const steady = `最低进度 ${Math.round(clamp(this.minProgress) * 100)}%`;
+      if (o.decision === 'skip') text = `已放弃本次宝箱 · ${steady}`;
+      else if (this.treBonus > 0) text = `${o.decision === 'try' ? '已捞到宝箱' : '顺手捞到了宝箱'}，先把鱼稳稳带回来`;
+      else if (o.treasureSeen && !this.tre) text = '宝箱已经沉下去，这条鱼还在等你收线';
+      else if (this.tre?.on) text = o.focus === 'steady' ? `宝箱出现了 · ${steady}，要不要分心？` : `宝箱出现了 · 覆盖 ${Math.round(Math.min(1, this.tre.got / .9) * 100)}% · ${steady}`;
+      else text = o.focus === 'steady' ? `${AI_LABEL[this.fish?.ai] || '🍃平稳'} · ${steady}` : '还没见到宝箱，先把鱼留在绿条里';
+      if (o.momoAssisted) text += ' · 大喵已协助';
+    }
+    if (this.observeStatus.textContent !== text) this.observeStatus.textContent = text;
+    this.observeActions.classList.toggle('hide', !info || !this.canFishInput() || this.phase !== 'reel' || !this.tre?.on || o.decision !== 'none');
+  }
   setPhase(p) {
     this.phase = p;
     this.pt = 0;
   }
   cast() {
+    this.cancelObservation();
     this.setPhase('cast');
     this.nikki.setPose('cheer');
     this.tipText('甩竿！');
@@ -175,7 +237,7 @@ export class FishGame extends MiniGame {
     const from = new THREE.Vector3(1.6, 1.6, 0.3), to = new THREE.Vector3(rand(4.2, 5.6), WATER_Y, rand(0.2, 1));
     if (this.hotspot) this.hotspot.position.set(to.x, WATER_Y + 0.025, to.z);
     this.tween({ dur: 0.55, ease: ease.linear, update: (k) => { this.bobber.position.lerpVectors(from, to, k); this.bobber.position.y += Math.sin(k * Math.PI) * 2.2; }, done: () => {
-      if (this.dead || this.state !== 'play') return;
+      if (this.dead || this.state !== 'play' || S !== this.lifeSource || app.view !== this) return;
       audio.sfx('water');
       fx.burst(this.scene, to.clone().setY(WATER_Y + 0.1), { n: 8, colors: ['#ffffff', '#cfeeff'], speed: 1.4, up: 2.2, life: 0.5, size: 0.5 });
       this.bobY = WATER_Y;
@@ -197,7 +259,7 @@ export class FishGame extends MiniGame {
     return FISH[0];
   }
   press() {
-    if (!this.playing) return;
+    if (!this.canFishInput()) return;
     if (this.phase === 'bite') {
       // 咬钩 → 进入收线；0.38 秒内反应触发「闪电刺鱼」
       const quickHook = this.pt > 0 && this.pt <= 0.38;
@@ -208,6 +270,7 @@ export class FishGame extends MiniGame {
       this.bar = 0.2; this.barV = 0;
       this.fp = 0.5; this.ft = 0.5; this.ftT = 0;
       this.prog = quickHook ? 0.52 : 0.4;
+      this.minProgress = this.prog;
       if (quickHook) {
         this.quickHooks++;
         fx.sparkle(this.scene, this.bobber.position.clone().setY(WATER_Y + 0.35), 8, ['#ffe27a', '#ffffff', '#7fd3ee']);
@@ -222,6 +285,7 @@ export class FishGame extends MiniGame {
         this.traitEl.classList.toggle('king', isKing);
       }
       this.setPhase('reel');
+      this.beginObservation(quickHook);
       this.barEl.classList.remove('off');
       this.biteEl.classList.add('hide');
       this.nikki.setPose('reel');
@@ -236,16 +300,34 @@ export class FishGame extends MiniGame {
     }
   }
   endReel(win) {
-    if (!this.playing || this.phase !== 'reel') return;
+    if (!this.canFishInput() || this.phase !== 'reel' || this.observation?.settled) return false;
+    const source = this.lifeSource, observation = this.observation;
+    if (observation) observation.settled = true;
+    const outcome = {
+      fishId: this.fish.id, quickHook: !!observation?.quickHook,
+      minProgress: Number.isFinite(this.minProgress) ? clamp(this.minProgress) : 1,
+      perfect: !this.left, reelMs: Math.max(0, Math.round((this.pt || 0) * 1000)),
+      treasureSeen: !!observation?.treasureSeen, decision: observation?.decision || 'none',
+      treasureGot: win && this.treBonus > 0, momoAssisted: !!observation?.momoAssisted,
+    };
+    // 先离开本竿阶段，统计/图鉴回调即使重入也不能重复记鱼或收益。
+    this.setPhase('rest');
+    this.restT = win ? 1.35 : .9;
     this.barEl.classList.add('off');
     this.treEl.classList.add('hide');
     this.traitEl?.classList.add('hide');
     if (!win) this.loseLife();
     if (win) {
       const f = this.fish;
+      const minProgress = outcome.minProgress;
+      if (minProgress <= .12) this.recoveredCatches++;
+      if (this.treBonus > 0) this.treasureCatches++;
+      const discovery = applyLifeDiscovery(source, { type: 'fish_caught', minProgress, treasure: this.treBonus });
       this.caught++;
       stat('fish_caught');
+      if (source !== S || this.dead) return false;
       bus.emit('found', 'fish', f.id);
+      if (source !== S || this.dead) return false;
       if (!this.bestFish || f.price > this.bestFish.price) this.bestFish = f;
       const perfect = !this.left;
       if (perfect) this.perfects = (this.perfects || 0) + 1;
@@ -253,10 +335,22 @@ export class FishGame extends MiniGame {
       const earn = Math.round(base * (this.modifier?.id === 'storm' ? 1.5 : this.modifier?.id === 'golden_tide' ? 1.35 : 1));
       this.addScore(earn);
       this.setCombo(this.combo + 1);
+      if (source !== S || this.dead) return false;
+      const recorded = observation?.token ? residentLife.finishFishingObservation(observation.token, outcome) : null;
+      if (source !== S || this.dead) return false;
+      // 一条已经钓起的鱼、图鉴、鱼讯和发现一起保存；失败保留事实并重试，不单独回滚发现。
+      let stored = false;
+      try { stored = flushSave(); } catch (_) { stored = false; }
+      if (!stored) save();
+      if (observation?.token) {
+        observation.resultText = !stored ? '这条鱼已钓起 · 本机暂未保存' : recorded?.changed ? '这条真实鱼讯已经记下，继续看看下一竿' : recorded?.message || '这条鱼已收好';
+      }
+      if (stored && discovery.changed && source === S) bus.emit('lifeDiscovery', discovery);
+      if (source !== S || this.dead) return false;
       audio.sfx(f.price >= 44 || f.king ? 'fanfare' : 'success');
       this.nikki.setPose('cheer');
       const titlePrefix = (f.king ? '👑巨型鱼王 · ' : '') + (perfect ? '完美收线！' : '');
-      this.tipText(`${titlePrefix}钓到了 ${f.name}！`);
+      this.tipText(`${titlePrefix}钓到了 ${f.name}！${stored ? '' : ' 本机暂未保存'}`);
       const p = this.bobber.position.clone();
       fx.burst(this.scene, p.clone().setY(WATER_Y + 0.1), { n: 10, colors: ['#ffffff', '#cfeeff', '#9be0f0'], speed: 1.7, up: 2.8, life: 0.7, size: 0.5 });
       if (this.fishMesh) { this.scene.remove(this.fishMesh); this.fishMesh = null; }
@@ -267,21 +361,24 @@ export class FishGame extends MiniGame {
       const to = new THREE.Vector3(-1.9, 0.9, -0.7);
       this.tween({ dur: 1.05, ease: ease.linear, update: (k) => { m.position.lerpVectors(p, to, k); m.position.y += Math.sin(k * Math.PI) * 1.8; m.rotation.z = k * 4.5; }, done: () => { if (this.fishMesh === m) this.fishMesh = null; this.scene.remove(m); fx.sparkle(this.scene, to, 6); } });
       this.popEl.replaceChildren(h('div', { class: 'caught card' }, h('img', { src: fishIco(f.id) }), h('b', {}, (f.king ? '👑鱼王 · ' : '') + (perfect ? '完美 · ' : '') + f.name), h('span', { class: 'price num' }, `+${earn}` + (this.treBonus ? '（含宝箱）' : ''))));
-      setTimeout(() => this.popEl.replaceChildren(), 1300);
-      this.setPhase('rest');
-      this.restT = 1.35;
+      clearTimeout(this.catchTimer);
+      this.catchTimer = setTimeout(() => { if (!this.dead && S === source && this.observation === observation) this.popEl.replaceChildren(); }, 1300);
     } else {
+      if (observation?.token) residentLife.cancelFishingObservation(observation.token);
+      if (this.state === 'over' || this.dead || source !== S) return false;
+      if (observation?.token) observation.resultText = '这条鱼没有收回来，不写进今日鱼讯；下一竿再试';
       this.setCombo(0);
       audio.sfx('fail');
       this.nikki.setPose('sad');
-      this.tipText('鱼跑掉了…');
-      this.setPhase('rest');
-      this.restT = 0.9;
+      this.tipText(this.treBonus > 0 ? '鱼跑掉了，宝箱也没能一起带回来…' : '鱼跑掉了…');
     }
+    this.syncObservation();
+    return true;
   }
   canMomoSkill() { return this.phase === 'reel' && !!this.fish && this.prog < 1; }
   onMomoSkill() {
-    if (!this.playing || !this.canMomoSkill()) return false;
+    if (!this.canFishInput() || !this.canMomoSkill()) return false;
+    if (this.observation) this.observation.momoAssisted = true;
     this.bar = clamp(this.fp - this.barH / 2, 0, 1 - this.barH);
     this.barV = 0;
     this.prog = Math.min(1, this.prog + 0.35);
@@ -292,6 +389,8 @@ export class FishGame extends MiniGame {
     return true;
   }
   onFinish() {
+    this.cancelObservation();
+    clearTimeout(this.catchTimer);
     if (this.fishMesh) { this.scene.remove(this.fishMesh); this.fishMesh = null; }
     this.barEl.classList.add('off');
     this.biteEl.classList.add('hide');
@@ -299,14 +398,18 @@ export class FishGame extends MiniGame {
     this.tipEl.style.opacity = 0;
   }
   onExit() {
+    this.cancelObservation();
+    clearTimeout(this.catchTimer);
+    this.offLifeState?.(); this.offLifeState = null;
     if (this.fishMesh) { this.scene.remove(this.fishMesh); this.fishMesh = null; }
     super.onExit();
   }
   resultLines() {
-    return [['渔获收入', this.score], ['钓到的鱼', `${this.caught} 条`], ['完美 / 刺鱼', `${this.perfects || 0} / ${this.quickHooks} 次`], ['最好的一条', this.bestFish ? this.bestFish.name : '—']];
+    return [['渔获收入', this.score], ['钓到的鱼', `${this.caught} 条`], ['完美 / 刺鱼', `${this.perfects || 0} / ${this.quickHooks} 次`], ['险中收回 / 鱼宝两全', `${this.recoveredCatches} / ${this.treasureCatches} 次`], ['最好的一条', this.bestFish ? this.bestFish.name : '—']];
   }
 
   tick(dt, time) {
+    if (this.paused || this.dead || S !== this.lifeSource || app.view !== this || app.suspended || app.orientationBlocked) return;
     this.pt += dt;
     this.nikki.update(dt);
     this.momo.update(dt);
@@ -385,17 +488,18 @@ export class FishGame extends MiniGame {
         this.fp += (this.ft - this.fp) * Math.min(1, dt * (1.2 + d * 1.2) * (0.85 + this.pressure * 0.15));
         const inside = this.fp >= this.bar - 0.02 && this.fp <= this.bar + this.barH + 0.02;
         this.prog += (inside ? 0.45 : -0.165 - d * 0.03) * dt;
+        this.minProgress = Math.min(this.minProgress, clamp(this.prog));
         if (!inside) this.left = true;
         // 宝箱：用绿条罩住它一会儿就能捞到
         const tr = this.tre;
         if (tr) {
-          if (!tr.on && this.pt >= tr.at) { tr.on = true; this.treEl.classList.remove('hide'); this.treEl.style.bottom = tr.pos * 100 + '%'; audio.sfx('pop', 3); }
+          if (!tr.on && this.pt >= tr.at) { tr.on = true; if (this.observation) this.observation.treasureSeen = true; this.treEl.classList.remove('hide'); this.treEl.style.bottom = tr.pos * 100 + '%'; audio.sfx('pop', 3); this.syncObservation(); }
           if (tr.on) {
             tr.t += dt;
             const cover = tr.pos >= this.bar && tr.pos <= this.bar + this.barH;
             tr.got = Math.max(0, tr.got + (cover ? dt : -dt * 0.5));
             this.treEl.style.setProperty('--k', Math.min(1, tr.got / 0.9));
-            if (tr.got >= 0.9) { this.treBonus = randInt(12, 26) + this.lv * 3; this.tre = null; this.treEl.classList.add('hide'); audio.sfx('coin'); this.tipText(`捞到宝箱！+${this.treBonus}`); }
+            if (tr.got >= 0.9) { this.treBonus = randInt(12, 26) + this.lv * 3; this.tre = null; this.treEl.classList.add('hide'); audio.sfx('coin'); this.tipText('捞到宝箱！把这条鱼稳稳收回来，就能一起带走。'); }
             else if (tr.t > 5) { this.tre = null; this.treEl.classList.add('hide'); }
           }
         }
@@ -413,6 +517,8 @@ export class FishGame extends MiniGame {
         if (this.pt > this.restT) this.cast();
       }
     }
+    this.observationTick += dt;
+    if (this.observationTick >= .15) { this.observationTick = 0; this.syncObservation(); }
     // 鱼线：从竿梢连到浮漂
     const tip = (this._tip = this._tip || new THREE.Vector3());
     this.tip.getWorldPosition(tip);

@@ -6,6 +6,12 @@ const root = path.resolve(__dirname, '..');
 const [command, ...extra] = process.argv.slice(2);
 const safe = path.join(root, 'docs/ai-handoff/skills/nuannuan-maintenance/scripts/safe_local.py');
 const suites = {
+  'qa:homestead-rules': 'tools/qa/homestead_rules_checks.cjs',
+  'qa:homestead-models': 'tools/qa/homestead_models_checks.cjs',
+  'qa:homestead-save': 'tools/qa/homestead_save_checks.cjs',
+  'qa:homestead-mail': 'tools/qa/homestead_mail_checks.cjs',
+  'qa:homestead-world': 'tools/qa/homestead_world_checks.cjs',
+  'qa:homestead-ui': 'tools/qa/homestead_ui_runner.cjs',
   'qa:save': 'tools/qa/save_transfer_checks.js',
   'qa:daily': 'tools/qa/daily_save_checks.cjs',
   'qa:daily-module': 'tools/qa/daily_module_checks.cjs',

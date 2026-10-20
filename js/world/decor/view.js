@@ -43,13 +43,17 @@ export function resetView(decor) {
   decor.viewYaw = 0.25;
   decor.viewPitch = 1.0;
   decor.zoom = decor.cfg.zoom;
-  decor.pan.x = decor.pan.z = 0;
+  const bounds = decor.cfg.bounds?.();
+  if (bounds) decor.zoom = Math.max(decor.cfg.zoom, (bounds.x1 + 1) * 1.2);
+  // 重置视角聚焦已解锁庭院；尚未购买东侧扩建时不把镜头移进荒地。
+  decor.pan.x = bounds ? (bounds.x1 + 1 - decor.lot.cols) / 2 : 0;
+  decor.pan.z = bounds ? (bounds.z1 + 1 - decor.lot.rows) / 2 : 0;
   decor.cameraMode = 'place';
   bus.emit('decorCamera', decor.cameraMode);
 }
 
 /** @param {import('../decor.js').DecorSys} decor */
-export function zoomBy(decor, delta) { decor.zoom = clamp(decor.zoom + delta, 20, 62); }
+export function zoomBy(decor, delta) { decor.zoom = clamp(decor.zoom + delta, 20, decor.cfg.key === 'home' ? Math.max(62, decor.lot.cols * 1.3) : 62); }
 
 /** @param {import('../decor.js').DecorSys} decor */
 export function panCameraBy(decor, dx, dz) {

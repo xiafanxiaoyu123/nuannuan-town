@@ -4,6 +4,7 @@ import { Momo } from './character.js';
 import { cropModel } from './items.js';
 import { HOUSE_FURNITURE_BUILD } from './house-furniture.js';
 import { buildYardBuilding } from './yard-building.js';
+import { createRanchFurniture } from './homestead.js';
 
 const PHOTO_THEMES = [
   { id: 'sunset', sky: '#bfe6ff', hill: '#98de9b', sun: '#ffe066' },
@@ -768,6 +769,18 @@ export function bunting(ax, ay, az, bx, by, bz, n = 9) {
 // ————————————————— 家园装饰（家具）—————————————————
 // 每个函数返回以占地中心为原点的 Group；userData.tick(t) 为可选动画
 export const DECOR_BUILD = {
+  ranch_coop: () => createRanchFurniture('ranch_coop'),
+  ranch_barn: () => createRanchFurniture('ranch_barn'),
+  ranch_hutch: () => createRanchFurniture('ranch_hutch'),
+  ranch_fence: () => createRanchFurniture('ranch_fence'),
+  ranch_gate: () => createRanchFurniture('ranch_gate'),
+  ranch_trough: () => createRanchFurniture('ranch_trough'),
+  ranch_hay: () => createRanchFurniture('ranch_hay'),
+  ranch_sign: () => createRanchFurniture('ranch_sign'),
+  ranch_picnic: () => createRanchFurniture('ranch_picnic'),
+  ranch_cookstation: () => createRanchFurniture('ranch_cookstation'),
+  ranch_flower: () => createRanchFurniture('ranch_flower'),
+  ranch_lantern: () => createRanchFurniture('ranch_lantern'),
   stone() {
     const g = group();
     g.add(cbox(0.42, 0.08, 0.4, STONE, -0.2, 0.03, -0.2, { r: 0.03, ry: 0.2, cast: false }));

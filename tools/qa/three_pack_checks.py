@@ -3,6 +3,7 @@ import argparse
 import importlib.util
 import json
 import os
+import sys
 from pathlib import Path
 import tempfile
 import time
@@ -11,12 +12,63 @@ import zipfile
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'tools'))
 spec = importlib.util.spec_from_file_location('pack_three', ROOT / 'tools/pack_three.py')
 pack = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pack)
 
 
 class Checks(unittest.TestCase):
+    def test_matching_update_key_can_be_restored(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            config = pack.read_json(ROOT / 'desktop/release-config.json')
+            pack.save_json(root / 'desktop/release-config.json', config)
+            pack.restore_update_key(root, lambda _: None)
+            self.assertTrue(pack.update_key_state(root)[0])
+            self.assertEqual(pack.sha(root / 'desktop' / config['updatePublicKeyFile']), pack.sha(ROOT / 'desktop' / config['updatePublicKeyFile']))
+
+    def test_custom_update_identity_is_not_replaced(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            config = {**pack.read_json(ROOT / 'desktop/release-config.json'), 'updatePublicKeyId': 'friends-key'}
+            pack.save_json(root / 'desktop/release-config.json', config)
+            pack.restore_update_key(root, lambda _: None)
+            self.assertFalse((root / 'desktop' / config['updatePublicKeyFile']).exists())
+
+    def test_existing_key_is_never_overwritten(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            config = pack.read_json(ROOT / 'desktop/release-config.json')
+            pack.save_json(root / 'desktop/release-config.json', config)
+            file = root / 'desktop' / config['updatePublicKeyFile']
+            file.write_text('custom existing key', encoding='utf-8')
+            pack.restore_update_key(root, lambda _: None)
+            self.assertEqual(file.read_text(), 'custom existing key')
+
+    def test_no_update_url_does_not_require_public_key(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            pack.save_json(root / 'desktop/release-config.json', {'apiBase': 'https://example.invalid'})
+            self.assertTrue(pack.update_key_state(root)[0])
+
+    def test_runtime_only_missing_calls_installer_without_npm_ci(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            installer = root / 'desktop/node_modules/electron/install.js'
+            installer.parent.mkdir(parents=True)
+            installer.write_text('fixture')
+            report = {'missingDependencyGroups': [], 'tools': {'npm': 'npm.cmd', 'node': 'node.exe', 'esbuild': 'esbuild.cmd'}, 'checks': []}
+            calls = []
+            def execute(command, cwd, env, log):
+                calls.append(command)
+                target = installer.parent / 'dist/electron.exe'
+                target.parent.mkdir()
+                target.write_bytes(b'fixture-runtime')
+            with patch.object(pack, 'inspect', return_value=report), patch.object(pack, 'restore_update_key'), patch.object(pack, 'run', side_effect=execute):
+                pack.repair_dependencies(root, ['windows'], log=lambda _: None)
+            self.assertEqual(calls, [['node.exe', installer]])
+
     def test_missing_project_is_actionable(self):
         with tempfile.TemporaryDirectory() as folder:
             report = pack.inspect(Path(folder), ['web'])

@@ -213,19 +213,20 @@ export function rebuildYard(town, animate) {
   });
   pm.castShadow = cap.castShadow = true;
   g.add(pm, cap);
-  // 荒地：还没扩建到的格子里长满野草和野花
+  // 荒地：保持固定实例预算，并把草均匀分布到扩大的整片待开放区域。
   const rnd = seeded(4242), fl = S.floor || {};
   const tuft = new THREE.InstancedMesh(rboxGeo(0.13, 0.42, 0.13, 0.04), mat('#8fd480'), 1400);
   const bloom = new THREE.InstancedMesh(rboxGeo(0.2, 0.2, 0.2, 0.06), mat('#ffffff'), 220);
   const col = new THREE.Color(), bc = ['#fff3a8', '#ffffff', '#ffc2d6', '#d9c8ff'];
   let ti = 0, bi = 0;
+  const grassDensity = Math.min(1, 1400 / Math.max(1, (LOT.cols * LOT.rows - (Y.x1 + 1) * (Y.z1 + 1)) * 2.1));
   for (let x = 0; x < LOT.cols; x++) for (let z = 0; z < LOT.rows; z++) {
     const r1 = rnd(), r2 = rnd(), r3 = rnd(), r4 = rnd();
     if ((x <= Y.x1 && z <= Y.z1) || fl[x + ',' + z]) continue;
     const wx = LOT.x0 + x + 0.5, wz = LOT.z0 + z + 0.5;
     if (Math.abs(wx - xb) < 0.9 || Math.abs(wz - zb) < 0.9) continue;
     const k = 1 + Math.floor(r1 * 3);
-    for (let j = 0; j < k && ti < 1400; j++) {
+    for (let j = 0; j < k && ti < 1400 && r4 < grassDensity; j++) {
       d.position.set(wx + (((r2 * (j + 1) * 7.3) % 1) - 0.5) * 0.9, 0.2, wz + (((r3 * (j + 2) * 5.1) % 1) - 0.5) * 0.9);
       d.rotation.set(0, r4 * 6 + j, (r2 - 0.5) * 0.5);
       d.scale.set(1, 0.6 + ((r1 * (j + 3) * 3.7) % 1) * 1.1, 1);

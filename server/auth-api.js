@@ -6,7 +6,8 @@ const { DatabaseSync } = require('node:sqlite');
 const fs = require('node:fs');
 const path = require('node:path');
 const GIFT_CATALOG = require('./gift-catalog.json');
-const GIFT_IDS = Object.fromEntries(['owned', 'seeds', 'crops', 'decor'].map((type) => [type, new Set(GIFT_CATALOG[type].map((item) => item.id))]));
+const GIFT_IDS = Object.fromEntries(['owned', 'seeds', 'crops', 'decor', 'pantry', 'dishes'].map((type) => [type, new Set((GIFT_CATALOG[type] || []).map((item) => item.id))]));
+const { PANTRY, parseDishKey, ensureHomestead } = require('../js/shared/homestead.js');
 const createBilling = require('./billing');
 const createAdminWorkbench = require('./admin-workbench');
 const { validateCloudSave } = require('./save-contract');
@@ -395,6 +396,10 @@ function adminSaveSummary(row) {
     cropsTotal: sum(data?.crops),
     seedsTotal: sum(data?.seeds),
     decorTotal: sum(data?.decor),
+    pantryTotal: sum(data?.homestead?.pantry),
+    dishesTotal: sum(data?.homestead?.dishes),
+    ranchAnimals: data?.homestead?.animals?.length || 0,
+    placedDishes: data?.homestead?.placed?.length || 0,
     house: Number(data?.house || 1),
     yardLv: Number(data?.yardLv || 1),
     gday: Number(data?.gday || 0),
@@ -475,12 +480,15 @@ function giftOps(body) {
       if (!ids.length || ids.length > 100 || ids.length !== (Array.isArray(op.ids) ? new Set(op.ids).size : 0)) throw Object.assign(new Error('服饰礼包包含无效或重复的物品 ID'), { status: 400 });
       return { type, ids };
     }
-    if (['crops', 'seeds', 'decor'].includes(type)) {
+    if (['crops', 'seeds', 'decor', 'pantry', 'dishes'].includes(type)) {
       if (!op.items || typeof op.items !== 'object' || Array.isArray(op.items)) throw Object.assign(new Error(`${type} 礼包格式不正确`), { status: 400 });
       const items = {};
       for (const [id, value] of Object.entries(op.items)) {
         const amount = Number(value);
-        if (!safeId(id) || !Number.isSafeInteger(amount) || amount < 1 || amount > 1_000_000) throw Object.assign(new Error(`${type} 礼包包含无效数量或 ID`), { status: 400 });
+        const validId = type === 'dishes'
+          ? /^[a-z][a-z0-9_]{0,79}:(normal|tasty|fine):(plain|milky)$/.test(id) && !!parseDishKey(id)
+          : safeId(id) && (type !== 'pantry' || Object.hasOwn(PANTRY, id));
+        if (!validId || !Number.isSafeInteger(amount) || amount < 1 || amount > (['pantry', 'dishes'].includes(type) ? 999999 : 1_000_000)) throw Object.assign(new Error(`${type} 礼包包含无效数量或 ID`), { status: 400 });
         items[id] = amount;
       }
       if (!Object.keys(items).length || Object.keys(items).length > 100) throw Object.assign(new Error(`${type} 礼包数量不正确`), { status: 400 });
@@ -544,9 +552,9 @@ function mailInput(body, replay = false) {
 
 function applyGiftOpsToSave(data, ops) {
   data = validateSave(data).data;
-  const addQuantity = (current, amount) => {
+  const addQuantity = (current, amount, maximum = Number.MAX_SAFE_INTEGER) => {
     const next = current + amount;
-    if (!Number.isSafeInteger(next) || next < current) throw Object.assign(new Error('这份礼包超过当前存档的数量容量，未发放任何物品'), { status: 409, code: 'SAVE_CAPACITY_EXCEEDED' });
+    if (!Number.isSafeInteger(next) || next < current || next > maximum) throw Object.assign(new Error('这份礼包超过当前存档的数量容量，未发放任何物品'), { status: 409, code: 'SAVE_CAPACITY_EXCEEDED' });
     return next;
   };
   data.owned = [...new Set(data.owned)];
@@ -556,6 +564,10 @@ function applyGiftOpsToSave(data, ops) {
     if (['crops', 'seeds', 'decor'].includes(op.type)) {
       data[op.type] = data[op.type] || {};
       for (const [key, amount] of Object.entries(op.items)) data[op.type][key] = addQuantity(data[op.type][key] || 0, amount);
+    }
+    if (['pantry', 'dishes'].includes(op.type)) {
+      const inventory = ensureHomestead(data)[op.type];
+      for (const [key, amount] of Object.entries(op.items)) inventory[key] = addQuantity(inventory[key] || 0, amount, 999999);
     }
   }
   data.savedAt = Date.now();

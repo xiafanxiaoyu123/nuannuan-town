@@ -31,7 +31,7 @@ async function check(name, fn) { try { const detail = await fn(); checks.push({ 
       ['https://localhost:5173/', {}, true], ['http://localhost:5173/?slot=qa', {}, false],
       ['http://localhost:5173/?slot=', {}, false], ['http://localhost:5173/?sandbox=0', {}, false],
       ['http://localhost:5173/?slot=qa&sandbox=1', {}, true], ['http://localhost:3000/?sandbox=1', {}, false],
-      ['https://example.invalid/?sandbox=1', {}, false], ['https://example.invalid:5173/?sandbox=1', {}, false],
+      ['https://nikkitown.eu.cc/?sandbox=1', {}, false], ['https://nikkitown.eu.cc:5173/?sandbox=1', {}, false],
       ['http://192.168.1.2:5173/?sandbox=1', {}, false], ['app://game/index.html?sandbox=1', {}, false],
       ['http://localhost:5173/?sandbox=1', { NikkiNative: {} }, false],
       ['http://localhost:5173/?sandbox=1', { Capacitor: { isNativePlatform: () => true } }, false],
@@ -119,7 +119,7 @@ async function check(name, fn) { try { const detail = await fn(); checks.push({ 
     normal.dispose(); assert.equal(store.get(baseKey), originalRaw);
   });
   await check('生产网址即使 sandbox=1 也不解锁、不换存档键', async () => {
-    const prodStore = new Map([[baseKey, originalRaw]]), prod = await env({ url: 'https://example.invalid/?sandbox=1', store: prodStore });
+    const prodStore = new Map([[baseKey, originalRaw]]), prod = await env({ url: 'https://nikkitown.eu.cc/?sandbox=1', store: prodStore });
     assert.equal(prod.mode.LOCAL_PLAY, false); assert(prod.st.load()); assert.equal(prod.st.S.coins, 1234); assert.equal(prod.st.S.house, original.house);
     prod.st.flushSave(); assert(!prodStore.has(baseKey + suffix)); prod.dispose();
   });

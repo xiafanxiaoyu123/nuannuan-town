@@ -366,6 +366,8 @@
                     <span>家具布置（ID:数量，逗号分隔）</span>
                     <input id="template-decor" list="gift-decor-options" placeholder="例如：fence:2">
                   </label>
+                  <label><span>牧场材料（ID:数量）</span><input id="template-pantry" list="gift-pantry-options" placeholder="egg:3, milk:2"></label>
+                  <label><span>料理（菜品:品质:变体:数量）</span><input id="template-dishes" list="gift-dishes-options" placeholder="egg_custard:normal:plain:1"></label>
                 </div>
                 <div id="template-visual-ops" class="visual-ops-preview" aria-live="polite"></div>
               </div>
@@ -466,6 +468,8 @@
               <datalist id="account-options"></datalist>
               <datalist id="gift-owned-options"></datalist>
               <datalist id="gift-decor-options"></datalist>
+              <datalist id="gift-pantry-options"></datalist>
+              <datalist id="gift-dishes-options"></datalist>
 
               <label>
                 <span>邮件标题 *（最多 80 字）</span>
@@ -508,6 +512,8 @@
                     <span>家具布置（ID:数量）</span>
                     <input id="mail-decor" list="gift-decor-options" placeholder="fence:1">
                   </label>
+                  <label><span>牧场材料（ID:数量）</span><input id="mail-pantry" list="gift-pantry-options" placeholder="egg:3, milk:2"></label>
+                  <label><span>料理（菜品:品质:变体:数量）</span><input id="mail-dishes" list="gift-dishes-options" placeholder="egg_custard:normal:plain:1"></label>
                 </div>
                 <div id="mail-visual-ops" class="visual-ops-preview" aria-live="polite"></div>
               </div>
@@ -698,6 +704,6 @@
   </dialog>
 
   <div id="toast-region" class="toast-region" aria-live="polite"></div>
-  <script src="admin.js?v=55b9fb4efd" defer></script>
+  <script src="admin.js?v=c8939d5d85" defer></script>
 </body>
 </html>

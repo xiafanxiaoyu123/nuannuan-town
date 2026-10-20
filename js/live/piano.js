@@ -1,8 +1,12 @@
 import { audio } from '../core/audio.js';
 import { app } from '../core/app.js';
-import { S, bus, addCoins } from '../core/state.js';
+import { S, bus } from '../core/state.js';
 import { h } from '../core/util.js';
+import { fx } from '../core/fx.js';
 import { PIANO_ROWS, pianoNote } from './piano-data.js';
+import { getLifeDiscoveries, MUSICBOX_ECHO_KEYS } from '../shared/life-discoveries.js';
+import { completePianoPerformance } from '../core/life-discoveries-actions.js';
+import { createMelodyAttempt } from '../shared/life-session.js';
 
 const TIMBRES = [
   { id: 'piano', label: '🎹 暖木钢琴', osc: 'sine', partials: [[1, 1, 3.8], [2, 0.3, 1.65], [3, 0.11, 0.8], [4, 0.045, 0.32]] },
@@ -83,17 +87,20 @@ export class PianoVoices {
 
 export function openPiano(game, rec, isPresent = () => true) {
   if (game.pianoSession || app.view !== game.town || !['house', 'build'].includes(game.town.zone) || game.busy || game.town.decor.active || game.town.photoOn || !isPresent()) return null;
-  const ui = game.ui, town = game.town, wasPaused = audio.musicPaused, musicMode = audio.mode;
+  const ui = game.ui, town = game.town, wasPaused = audio.musicPaused, musicMode = audio.mode, sourceState = S;
   const zone = town.zone;
   audio.init(); audio.pauseMusic(); town.keys.clear(); town.stick.x = town.stick.y = 0; town.moveTo = null;
   const voices = audio.ctx ? new PianoVoices(audio.ctx, audio.sfxBus) : null;
   const abort = new AbortController(), buttons = new Map(), held = new Map(), pointers = new Map(), offs = [];
   let dialog, closed = false, latch = false, space = false, poseTimer, autoTimer = null;
   let currentSong = SONGS[0], stepIdx = 0, timbreIdx = 0;
+  let attempt = createMelodyAttempt(currentSong.keys);
+  const echoKnown = getLifeDiscoveries(sourceState).musicboxHeard;
+  const songs = echoKnown ? [...SONGS, { id: 'musicbox_echo', name: '🐚 海岸回声', keys: [...MUSICBOX_ECHO_KEYS] }] : SONGS;
 
   const body = h('div', { class: 'piano-player' }, h('div', { class: 'piano-title' }, h('div', {}, h('h2', {}, '小屋钢琴'), h('p', {}, '三排七音 · 支持跟弹曲谱、自动试听与音色切换'))));
   const status = h('p', { class: 'piano-status', 'aria-live': 'polite' }, voices ? '跟着曲谱高亮的琴键弹奏，或自由发挥吧' : '这个浏览器暂不支持音频，请换一个浏览器试试');
-  const active = () => !closed && app.view === town && town.zone === zone && isPresent() && body.style.display !== 'none' && !dialog?.box.querySelector('.tutorial-guide');
+  const active = () => !closed && S === sourceState && !app.suspended && !document.hidden && app.view === town && town.zone === zone && isPresent() && body.style.display !== 'none' && !dialog?.box.querySelector('.tutorial-guide');
   const pedal = () => latch || space;
 
   // 曲谱架与跟弹高亮
@@ -118,17 +125,19 @@ export function openPiano(game, rec, isPresent = () => true) {
     stopAuto();
     currentSong = song;
     stepIdx = 0;
+    attempt = createMelodyAttempt(song.keys);
     for (const b of songTabsEl.querySelectorAll('button')) b.classList.toggle('on', b.dataset.song === song.id);
     syncSheetGuide();
     status.textContent = `已切换曲谱《${song.name}》，按高亮键 ${song.keys[0]} 开始跟弹`;
   };
-  for (const song of SONGS) {
+  for (const song of songs) {
     songTabsEl.append(h('button', { type: 'button', class: 'btn alt sm' + (song.id === currentSong.id ? ' on' : ''), 'data-song': song.id, onclick: () => selectSong(song) }, song.name));
   }
   const autoBtn = h('button', { type: 'button', class: 'btn alt sm', onclick: () => {
     if (!active()) return;
     if (autoTimer) { stopAuto(); status.textContent = '已停止自动试听，可继续自由弹奏'; return; }
     stepIdx = 0;
+    attempt.reset();
     syncSheetGuide();
     autoBtn.textContent = '⏹ 停止试听';
     status.textContent = `正在自动演奏《${currentSong.name}》…`;
@@ -154,6 +163,7 @@ export function openPiano(game, rec, isPresent = () => true) {
   const sheetStand = h('div', { class: 'piano-sheet card' },
     h('div', { class: 'piano-sheet-head' }, songTabsEl, h('div', { class: 'piano-sheet-tools' }, timbreBtn, autoBtn)),
     sheetNotesEl);
+  if (!echoKnown) sheetStand.append(h('p', { class: 'piano-hint' }, '海岸八音盒里的旋律，也许能带回这架钢琴。'));
 
   const refreshPedal = () => {
     sustain.setAttribute('aria-pressed', String(pedal()));
@@ -182,17 +192,24 @@ export function openPiano(game, rec, isPresent = () => true) {
     sources.add(source);
     buttons.get(code)?.setAttribute('aria-pressed', 'true');
     status.textContent = `${note.name} · ${note.solfege} · ${note.hz.toFixed(1)} Hz`;
-    if (currentSong && code === 'Key' + currentSong.keys[stepIdx]) {
-      stepIdx++;
-      if (stepIdx >= currentSong.keys.length) {
-        stepIdx = 0;
-        const reward = source !== 'auto' && S?.gday !== undefined && S._pianoDay !== S.gday ? 60 : 0;
-        if (reward > 0) {
-          S._pianoDay = S.gday;
-          addCoins(reward);
-          ui.refreshAll?.();
+    const practice = attempt.press(code.replace(/^Key/, ''), source !== 'auto');
+    if (practice.matched) {
+      stepIdx = attempt.index;
+      if (practice.complete) {
+        if (source === 'auto') stopAuto();
+        const result = completePianoPerformance({ melody: currentSong.id, notes: currentSong.keys.join(''), manual: practice.manual }, sourceState);
+        const reward = result.ok ? result.coins || 0 : 0;
+        if (reward > 0) ui.refreshAll?.();
+        status.textContent = practice.manual ? `🎉 完整弹奏《${currentSong.name}》！${reward ? `获得今日演奏打赏 +${reward} 噗灵` : '大喵为你鼓掌！'}` : '试听结束。按第一个高亮键，从头亲手弹一遍吧。';
+        if (practice.manual && currentSong.id === 'musicbox_echo') {
+          if (result.ok) {
+            const point = town.momo.root.position.clone().setY(1.4);
+            fx.hearts(town.scene, point, 4);
+            fx.sparkle(town.scene, point, 7, ['#c9b6f2', '#ffd76a', '#ffffff']);
+            status.textContent = `♪ 大喵听出来了：这是海岸的那支曲子！${reward ? ' 今日演奏打赏 +60 噗灵' : ''}`;
+          } else status.textContent = '旋律弹完了，这次回忆还没存好。腾出设备空间后，可以再弹一遍。';
         }
-        status.textContent = `🎉 完整弹奏《${currentSong.name}》！${reward ? `获得今日演奏打赏 +${reward} 噗灵` : '大喵为你鼓掌！'}`;
+        if (!result.ok) status.textContent = '旋律弹完了，这次打赏与回忆还没存好。释放设备空间或结束装修后，可以再弹一遍。';
         town.player.setPose('cheer');
       } else {
         town.player.setPose('work');
@@ -237,12 +254,12 @@ export function openPiano(game, rec, isPresent = () => true) {
   const close = () => {
     if (closed) return; closed = true; releaseAll(); voices?.dispose(); abort.abort(); offs.forEach((off) => off()); clearInterval(contextTimer);
     if (game.pianoSession === session) delete game.pianoSession;
-    if (!wasPaused && audio.mode === musicMode && !app.suspended) audio.resumeMusic();
+    if (S === sourceState && !wasPaused && audio.mode === musicMode && !app.suspended) audio.resumeMusic();
   };
   dialog = ui.modal(body, { ribbon: '自由弹奏', cls: 'piano-modal', onClose: close });
   const session = { press, release, releaseAll, close: () => dialog.close(true), voices, body, get held() { return held; }, get closed() { return closed; } };
   game.pianoSession = session;
-  for (const event of ['zoneChanged', 'reset', 'decorMode']) offs.push(bus.on(event, () => dialog.close(true)));
+  for (const event of ['zoneChanged', 'reset', 'stateReplaced', 'decorMode']) offs.push(bus.on(event, () => dialog.close(true)));
   offs.push(bus.on('decorChanged', () => { if (!isPresent()) dialog.close(true); }));
   const contextTimer = setInterval(() => { if (app.view !== town || town.zone !== zone || !isPresent()) dialog.close(true); }, 100);
   return session;

@@ -48,10 +48,6 @@ def build(root=ROOT, output=None):
     if 'node_modules' in html:
         raise ValueError('Unmapped dependency URL in native HTML')
     (target / 'index.html').write_text(stamp_html(html, version, build_id, 'native'), encoding='utf-8')
-    # Public distribution preserves notices; miniature QA fixtures may omit them.
-    for notice, destination in (('node_modules/three/LICENSE', 'vendor/three/LICENSE'), ('LICENSE', 'LICENSE'), ('THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_NOTICES.md')):
-        if (root / notice).is_file():
-            shutil.copy2(root / notice, target / destination)
     # The old _serve.js lacked server/auth-api; do not emit a broken preview entry.
     manifest = {'schema': 1, 'kind': 'esm', 'version': version, 'buildId': build_id, 'modules': sorted(graph['inputs']),
                 'sourceSha256': {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in source_files},

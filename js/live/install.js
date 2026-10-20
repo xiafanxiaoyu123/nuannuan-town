@@ -23,6 +23,9 @@ import { installNonoyHome } from './nonoyhome.js';
 import { installPhoto } from './photo.js';
 import { calendarPanel } from '../ui/calendar.js';
 import { installFestivalDecor } from './festival-decor.js';
+import { openLifeDiscoveries } from './life-discoveries-panel.js';
+import { LIFE_DISCOVERIES } from '../shared/life-discoveries.js';
+import { announceAnimalWalkDiscovery } from './animal-walk-hud.js';
 
 const BOARD = { x: -2.4, z: 1.2 }, SITE = { x: 36, z: -3.2 };
 
@@ -38,6 +41,12 @@ export function installLive(game, ui) {
   setTimeout(initGrants, 1500);
   ui.residentHub = () => residentHub(game);
   ui.residentPanel = (id) => residentPanel(id, game);
+  ui.lifeDiscoveries = () => openLifeDiscoveries(game);
+  bus.on('lifeDiscovery', result => {
+    const shown = announceAnimalWalkDiscovery(game, result);
+    const names = (result.unlocked || []).filter(id => !shown.includes(id)).map(id => LIFE_DISCOVERIES.find(item => item.id === id)?.name).filter(Boolean);
+    if (names.length) ui.toast(`生活新发现：${names.join('、')} · 已记入手账`, { kind: 'ach', life: 3800 });
+  });
   // —— 第五家店登记数据；建成前由店铺入口/开局/升级共同拦住 ——
   SHOPS.bakery = { id: 'bakery', name: PROJECT.name, style: PROJECT.style, color: PROJECT.color, tagline: PROJECT.tagline, how: ['点面团入炉，金色区间及时取出', '面包先放展示架，点客人交付订单', 'Lv.2/3解锁面包，Lv.4加烤炉，Lv.5加宽金色区间'], upgrade: [600, 1500, 3200, 6000] };
   if (!S.shops.bakery) S.shops.bakery = { lv: 1, best: 0, plays: 0 };
@@ -128,8 +137,9 @@ export function installLive(game, ui) {
   const archiveBtn = ib('eye', '人物', () => archivePanel(game));
   const companionBtn = ib('heart', '共同回忆', () => ui.companionPanel());
   const communityBtn = ib('home', '公共建设', () => ui.communityPanel());
+  const discoveryBtn = ib('star', '生活发现', () => ui.lifeDiscoveries());
   tr.insertBefore(dailyBtn, tr.children[1]);
-  const secondary = [bookBtn, ui.achBtn, ui.camBtn, tr.querySelector('[aria-label="衣橱"]'), homeBtn, tr.querySelector('[aria-label="设置"]'), residentBtn, archiveBtn, companionBtn, communityBtn, ui.helpBtn];
+  const secondary = [bookBtn, discoveryBtn, ui.achBtn, ui.camBtn, tr.querySelector('[aria-label="衣橱"]'), homeBtn, tr.querySelector('[aria-label="设置"]'), residentBtn, archiveBtn, companionBtn, communityBtn, ui.helpBtn];
   for (const btn of secondary) { btn.classList.add('hud-secondary'); tr.append(btn); }
   for (const btn of [dailyBtn, bookBtn, homeBtn, residentBtn]) btn.append(h('em', { class: 'dot' }));
   let moreDialog = null;

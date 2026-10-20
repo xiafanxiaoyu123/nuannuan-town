@@ -1,6 +1,6 @@
 {
   "name": "nikki-block-town",
-  "version": "3.0.2",
+  "version": "3.0.5",
   "private": true,
   "description": "暖暖的方块小镇：使用 Three.js 构建的非官方同人模拟经营游戏",
   "license": "MIT",
@@ -46,7 +46,13 @@
     "qa:fortune-save": "node tools/tasks.cjs qa:fortune-save",
     "qa:ui3-interaction": "node tools/tasks.cjs qa:ui3-interaction",
     "qa:ui3-save": "node tools/tasks.cjs qa:ui3-save",
-    "qa:style-contest": "node tools/tasks.cjs qa:style-contest"
+    "qa:style-contest": "node tools/tasks.cjs qa:style-contest",
+    "qa:homestead-rules": "node tools/tasks.cjs qa:homestead-rules",
+    "qa:homestead-models": "node tools/tasks.cjs qa:homestead-models",
+    "qa:homestead-save": "node tools/tasks.cjs qa:homestead-save",
+    "qa:homestead-mail": "node tools/tasks.cjs qa:homestead-mail",
+    "qa:homestead-world": "node tools/tasks.cjs qa:homestead-world",
+    "qa:homestead-ui": "node tools/tasks.cjs qa:homestead-ui"
   },
   "dependencies": {
     "three": "0.170.0"

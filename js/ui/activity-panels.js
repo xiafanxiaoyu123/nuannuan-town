@@ -18,13 +18,23 @@ import { festivalDialogue } from '../live/festival-dialogue.js';
 import { svg } from './components/svg.js';
 import { priceTag } from './components/price-tag.js';
 import { click } from './components/actions.js';
+import { createCafeMemoryCard } from '../live/cafe-specials-panel.js';
+import { holdResidentForReading } from '../world/town/residents.js';
 
 const FRIEND_AT_UI = 8;
 
 export function reqPanel(id) {
-  let m;
-  const body = h('div', { class: 'req' });
+  const source = S, game = this.game, town = game?.town;
+  let m, closed = false, releaseReading = null, renderEpoch = 0;
+  const body = h('div', { class: 'req', 'data-req-panel': id });
+  const isCurrent = () => !closed && S === source && body.isConnected;
+  const reqClick = fn => {
+    const epoch = renderEpoch, invoke = click(fn);
+    return e => { if (isCurrent() && epoch === renderEpoch) invoke(e); };
+  };
   const render = () => {
+    if (closed || S !== source) return;
+    renderEpoch++;
     const r = reqOf(id), n = r.npc, st = STYLES[n.like], d = r.def;
     const fr = Math.min(FRIEND_AT_UI, (S.npc[id] || { t: 0 }).t);
     const hearts = h('div', { class: 'hearts' }, Array.from({ length: FRIEND_AT_UI }, (_, i) => h('i', { class: i < fr ? 'on' : '' })));
@@ -34,9 +44,9 @@ export function reqPanel(id) {
     } else {
       const ico = d.type === 'deliver' ? cropIco(d.crop) : d.type === 'score' || (d.type === 'stat' && d.stat.startsWith('play_')) ? shopIcon(d.shop || d.stat.slice(5)) : null;
       const btn = r.state === 'offer'
-        ? h('button', { class: 'btn', onclick: click(() => { acceptReq(id); audio.sfx('quest'); this.toast(`接下了${n.name}的委托：${d.title}`); render(); }) }, '接下委托')
+        ? h('button', { class: 'btn', 'data-req-act': 'accept', onclick: reqClick(() => { acceptReq(id); audio.sfx('quest'); this.toast(`接下了${n.name}的委托：${d.title}`); render(); }) }, '接下委托')
         : r.state === 'ready'
-          ? h('button', { class: 'btn gold', onclick: click((e) => { const b = e.currentTarget.getBoundingClientRect(); const v = turnInReq(id); if (v) { audio.sfx('fanfare'); this.flyCoins(b.left + b.width / 2, b.top, 8); this.toast(`${n.name}：谢谢你！  +${fmt(v)}`, { kind: 'quest', icon: coinIco(), life: 3600 }); } render(); }) }, '交付 ', priceTag(r.reward))
+          ? h('button', { class: 'btn gold', 'data-req-act': 'turnin', onclick: reqClick((e) => { const b = e.currentTarget.getBoundingClientRect(); const v = turnInReq(id); if (v) { audio.sfx('fanfare'); this.flyCoins(b.left + b.width / 2, b.top, 8); this.toast(`${n.name}：谢谢你！  +${fmt(v)}`, { kind: 'quest', icon: coinIco(), life: 3600 }); } render(); }) }, '交付 ', priceTag(r.reward))
           : h('button', { class: 'btn alt', disabled: true }, '进行中…');
       card = h('div', { class: 'reqcard ' + r.state },
         h('p', { class: 'say' }, `「${d.say}」`),
@@ -50,12 +60,23 @@ export function reqPanel(id) {
         h('div', {}, h('h2', {}, n.name), h('p', {}, `${n.job} · 喜欢「${st.name}」风格 · 已帮忙 ${r.st.done} 次`), hearts)),
       ...(festivalDialogue(id) ? [h('p', { class: 'say festival-dialogue' }, `「${festivalDialogue(id)}」`)] : []),
       card,
-      h('div', { class: 'row resident-entry' }, h('button', { class: 'btn alt sm', onclick: click(() => { m.close(true); this.residentPanel(id); }) }, '看看居民日常')),
+      h('div', { class: 'row resident-entry' }, h('button', { class: 'btn alt sm', 'data-req-act': 'resident', onclick: reqClick(() => { m.close(true); this.residentPanel(id); }) }, '看看居民日常')),
       storyStrip(id));
   };
   render();
-  const stopDay = bus.on('newDay', render);
-  m = this.modal(body, { ribbon: '居民委托', cls: 'live-modal', onClose: () => stopDay() });
+  const stopDay = bus.on('newDay', () => { if (isCurrent()) render(); });
+  const offReplace = bus.on('stateReplaced', () => m?.close(true));
+  const offZone = bus.on('zoneChanged', zone => { if (zone !== 'town') releaseReading?.(); });
+  const refresh = setInterval(() => {
+    if (!isCurrent()) { m?.close(true); return; }
+    if (!town || app.view !== town || town.zone !== 'town' || !town.active || game.busy) releaseReading?.();
+  }, 1000);
+  m = this.modal(body, { ribbon: '居民委托', cls: 'live-modal', onClose: () => {
+    closed = true; releaseReading?.(); clearInterval(refresh); stopDay(); offReplace(); offZone();
+  } });
+  // A remote request view cannot acquire a resident that happens to pass later.
+  const nearby = town && !game.busy && app.view === town && town.zone === 'town' ? town.npcs.find(n => n.def.id === id) : null;
+  releaseReading = holdResidentForReading(town, nearby, () => isCurrent() && !game.busy);
 }
 
 export function refreshAch() {
@@ -144,6 +165,10 @@ export function shopPanel(id) {
         h('div', { class: 'stats' },
           h('div', { class: 'chip' }, '最高营业额', h('b', {}, h('img', { src: coinIco() }), fmt(st.best))),
           h('div', { class: 'chip' }, '营业次数', h('b', {}, st.plays))),
+        id === 'cafe' && createCafeMemoryCard({
+          onCook: (recipeId) => { m.close(true); g.homesteadUI?.openKitchen({ recipeId }); },
+          onHost: () => { m.close(true); g.homesteadUI?.openTea({ guest: 'man' }); },
+        }),
         modes(),
         h('div', { class: 'row' }, upBtn,
           h('button', { class: 'btn alt sm', onclick: click(() => { m.close(true); this.tutorial(id, true); }) }, '玩法教程'))));
@@ -160,10 +185,14 @@ export function homePanel() {
         h('img', { src: houseIcon(next.tier), alt: '' }), h('b', {}, `升级为${next.name}`), h('p', {}, `室内扩至 ${housePlan(next.tier).cols}×${housePlan(next.tier).rows} 格 · 美化度 +${next.beauty - HOUSES[S.house - 1].beauty}${next.tier===3?' · 解锁自由隔断':''}`), priceTag(next.price))
     : h('div', { class: 'bigcard' }, h('img', { src: houseIcon(3), alt: '' }), h('b', {}, '云朵城堡'), h('p', {}, '室内 34×23 格 · 装修中可免费搭建实墙与门洞'));
   const yl = S.yardLv || 1, yn = YARDS[yl];
+  const yardTiles = () => YARDS.map(y => {
+    const last = YARDS.at(-1), w = (y.x1 + 1) / (last.x1 + 1), h2 = (y.z1 + 1) / (last.z1 + 1);
+    return h('i', { class: y.lv <= yl ? 'on' : y.lv === yl + 1 ? 'next' : '', style: { width: `calc(${w * 100}% - ${w * .6}rem)`, height: `calc(${h2 * 100}% - ${h2 * .6}rem)` } });
+  });
   const yard = yn
     ? h('button', { class: 'bigcard', onclick: () => g.upgradeYard(() => m.close(true)) },
-        h('div', { class: 'yardico' }, YARDS.map((y) => h('i', { class: y.lv <= yl ? 'on' : y.lv === yl + 1 ? 'next' : '' }))), h('b', {}, `扩建为「${yn.name}」`), h('p', {}, `${yn.note}，美化度 +${yn.beauty - YARDS[yl - 1].beauty}`), priceTag(yn.price))
-    : h('div', { class: 'bigcard' }, h('div', { class: 'yardico' }, YARDS.map(() => h('i', { class: 'on' }))), h('b', {}, '梦幻庄园'), h('p', {}, '整座小岛都已经是你的后院啦'));
+        h('div', { class: 'yardico' }, yardTiles()), h('b', {}, `扩建为「${yn.name}」`), h('p', {}, `${yn.note}，美化度 +${yn.beauty - YARDS[yl - 1].beauty}`), priceTag(yn.price))
+    : h('div', { class: 'bigcard' }, h('div', { class: 'yardico' }, yardTiles()), h('b', {}, YARDS[yl - 1].name), h('p', {}, `后院已全部开放：${YARDS[yl - 1].x1 + 1}×${YARDS[yl - 1].z1 + 1} 格，牧场与花园都由你布置`));
   m = this.modal(h('div', { class: 'home' },
     h('h2', {}, '欢迎回家'),h('p',{class:'fine'},`当前室内 ${housePlan(S.house).cols}×${housePlan(S.house).rows} 格；升级保留家具和地板原位置。`),
     h('div', { class: 'grid' },

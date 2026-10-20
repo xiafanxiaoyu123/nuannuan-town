@@ -1,0 +1,53 @@
+/* 沿用奶油卡片、粉色描边与现有按钮；小横屏由弹窗内容区滚动。 */
+.cafe-prep-modal { width: min(54rem, 100%); }
+.cafe-preparation, .cafe-preparation *, .cafe-memory, .cafe-memory * { box-sizing: border-box; min-width: 0; overflow-wrap: anywhere; }
+.cafe-preparation { display: grid; grid-auto-rows: max-content; gap: .75rem; color: var(--ink); }
+.cafe-prep-header h2 { margin: 0 0 .25rem; }
+.cafe-prep-header p, .cafe-prep-note { margin: 0; color: var(--ink2); font-size: .85rem; line-height: 1.55; }
+.cafe-style-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
+.cafe-style-choice, .cafe-recipe-choice { background: #fffaf3; border: 2px solid #f0d9dc; border-radius: 1rem; color: var(--ink); font: inherit; cursor: pointer; text-align: left; }
+.cafe-style-choice { display: grid; gap: .3rem; padding: .7rem .9rem; }
+.cafe-style-choice span { font-size: .8rem; line-height: 1.45; color: var(--ink2); }
+.cafe-style-choice.selected, .cafe-recipe-choice.selected { border-color: var(--pink2); background: #fff0f5; box-shadow: inset 0 0 0 1px #fff; }
+.cafe-prep-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem; }
+.cafe-prep-label small { color: var(--ink2); }
+.cafe-special-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .55rem; }
+.cafe-recipe-choice { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2rem; padding: .55rem; text-align: center; min-height: 8.8rem; }
+.cafe-recipe-choice img { width: 4.8rem; height: 4.3rem; object-fit: contain; }
+.cafe-recipe-choice strong { font-size: .9rem; line-height: 1.3; }
+.cafe-recipe-choice small, .cafe-regular-menu span { font-size: .73rem; line-height: 1.45; color: var(--ink2); }
+.cafe-recipe-choice:disabled { opacity: .62; cursor: default; }
+.cafe-regular-menu b { font-size: 1rem; }
+.cafe-prep-actions, .cafe-memory-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.cafe-prep-actions { justify-content: flex-end; padding: .1rem .15rem .75rem; }
+.cafe-prep-actions .btn, .cafe-memory-actions .btn { max-width: 100%; white-space: normal; line-height: 1.3; height: auto; min-height: 2.35rem; padding-top: .45rem; padding-bottom: .45rem; }
+.cafe-memory { background: #fff8ef; border: 1px solid #eedbd1; border-radius: 1rem; padding: .85rem; margin-bottom: .75rem; }
+.cafe-memory-head { display: flex; gap: .6rem; align-items: center; }
+.cafe-memory-head img { flex: 0 0 2.8rem; width: 2.8rem; height: 2.8rem; object-fit: contain; }
+.cafe-memory-head strong, .cafe-memory-head small { display: block; }
+.cafe-memory-head small { margin-top: .2rem; color: var(--ink2); }
+.cafe-memory p { font-size: .82rem; line-height: 1.6; margin: .6rem 0; }
+.cafe-memory-pages { font-size: .8rem; margin: .5rem 0; }
+.cafe-memory-pages summary { cursor: pointer; color: var(--pink2); }
+.cafe-service-note { position: absolute; left: 50%; bottom: calc(100% + .5rem); transform: translateX(-50%); width: max-content; max-width: 100%; padding: .35rem .75rem; border: 1px solid #f0d9dc; border-radius: 1rem; background: #fffaf3e8; color: var(--ink2); font-size: .75rem; text-align: center; overflow-wrap: anywhere; pointer-events: none; }
+.cafebar .slot.stock b { max-width: 100%; white-space: normal; overflow-wrap: anywhere; line-height: 1.15; }
+.cafebar .special-tag { position: static; align-self: center; margin: .05rem 0 .1rem; max-width: 100%; line-height: 1.25; white-space: normal; }
+.bubble.cafe-regular { min-width: 9rem; max-width: 11rem; background: #fff0f5; box-shadow: 0 0 0 .18rem #efa8c1, var(--shadow); }
+.bubble.cafe-regular::after { background: #fff0f5; }
+.bubble.cafe-regular .viptag { position: static; align-self: stretch; height: auto; max-width: 100%; padding: .12rem .3rem .12rem 1.6rem; line-height: 1.3; white-space: normal; text-align: center; }
+.bubble.cafe-regular .kbd { left: .25rem; top: .3rem; }
+.bubble .cafe-regular-line { max-width: 9rem; font-size: .68rem; line-height: 1.3; text-align: center; color: #a55c75; overflow-wrap: anywhere; }
+@media (max-height: 560px) and (orientation: landscape) {
+  .cafe-preparation { gap: .45rem; }
+  .cafe-prep-header h2 { font-size: 1.15rem; }
+  .cafe-prep-header p, .cafe-prep-note { font-size: .73rem; }
+  .cafe-style-choice { padding: .45rem .6rem; gap: .15rem; }
+  .cafe-style-choice strong { font-size: .86rem; }
+  .cafe-style-choice span { font-size: .7rem; }
+  .cafe-recipe-choice { min-height: 6rem; padding: .35rem; }
+  .cafe-recipe-choice img { width: 3rem; height: 2.7rem; }
+  .cafe-recipe-choice strong { font-size: .78rem; }
+  .cafe-recipe-choice small { font-size: .65rem; }
+  .cafe-memory { padding: .6rem; }
+  .cafe-service-note { font-size: .63rem; padding: .25rem .5rem; }
+}

@@ -8,12 +8,17 @@ import subprocess
 import sys
 import uuid
 import zipfile
+import importlib.metadata
 
 ROOT = Path(__file__).resolve().parent.parent
 HELPERS = ('resource_graph.py', 'module_graph.cjs', 'build_runtime.py', 'build_dist.py',
            'build_single.py', 'check_candidate.py', 'web_delivery.py', 'web_play_loader.js',
            'web_play_sw.js', 'verify_packaged_assets.cjs')
-README = '''暖暖小镇三端打包工具 · Windows 便携版 1.0.0
+README = '''暖暖小镇三端打包工具 · Windows 便携版 1.0.1
+
+1.0.1 修复：Electron44的npm包安装后不自动下载运行文件，本版会显式调用官方
+安装器。也可补回与工程更新地址和密钥标识一致的随包验签公钥，不覆盖已有公钥。
+截图中的“update-public.pem缺失”和“Electron运行时缺失”可点击“补齐项目依赖”处理。
 
 发给朋友：请发送整个 ZIP。对方先全部解压，再双击“暖暖小镇三端打包工具.exe”。
 请保留同目录的 _internal 文件夹，不能只发送 EXE。
@@ -62,16 +67,54 @@ def digest(file):
     return h.hexdigest()
 
 
+def build_launcher_template(out, folder):
+    support = folder / '工程辅助文件/windows'
+    support.mkdir(parents=True)
+    work = out / 'launcher-template-build'
+    work.mkdir()
+    source = (ROOT / 'desktop/windows-launcher.py').read_text(encoding='utf-8')
+    original = "MANIFEST_SHA256 = '__MANIFEST_SHA256__'"
+    replacement = '''def read_pinned_manifest_hash():
+    marker = b'\\nNIKKI-MANIFEST-SHA256:'
+    with open(sys.executable, 'rb') as stream:
+        stream.seek(-(len(marker) + 65), 2)
+        value = stream.read()
+    if not value.startswith(marker) or not value.endswith(b'\\n'):
+        raise ValueError('启动器缺少固定的资源清单校验值')
+    digest = value[len(marker):-1].decode('ascii')
+    if len(digest) != 64 or any(c not in '0123456789abcdef' for c in digest):
+        raise ValueError('启动器资源校验值无效')
+    return digest
+
+MANIFEST_SHA256 = read_pinned_manifest_hash()'''
+    if source.count(original) != 1:
+        raise RuntimeError('Launcher source changed; review template compatibility')
+    script = work / 'launcher-template.py'
+    script.write_text(source.replace(original, replacement), encoding='utf-8')
+    command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onefile', '--noconsole',
+               '--manifest', str(ROOT / 'desktop/windows-launcher.manifest'), '--icon', str(ROOT / 'desktop/icon.ico'),
+               '--name', 'portable-launcher-template', '--distpath', str(support),
+               '--workpath', str(work / 'work'), '--specpath', str(work), str(script)]
+    with (out / 'launcher-template.log').open('w', encoding='utf-8') as log:
+        subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=True)
+    licenses = ['Python: ' + (Path(sys.base_prefix) / 'LICENSE.txt').read_text(encoding='utf-8', errors='replace')]
+    distribution = importlib.metadata.distribution('pyinstaller')
+    for file in distribution.files or []:
+        if file.name in ('COPYING.txt', 'LICENSE'):
+            licenses.append('PyInstaller: ' + Path(distribution.locate_file(file)).read_text(encoding='utf-8', errors='replace'))
+    (support / 'launcher-LICENSES.txt').write_text('\n\n'.join(licenses), encoding='utf-8')
+
+
 def main():
     stamp = datetime.now().strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex[:6]
     out = ROOT / 'output' / ('pack-tool-portable-' + stamp)
     out.mkdir(parents=True)
     version = out / 'version.txt'
-    version.write_text('''VSVersionInfo(ffi=FixedFileInfo(filevers=(1,0,0,0), prodvers=(1,0,0,0), mask=0x3f,
+    version.write_text('''VSVersionInfo(ffi=FixedFileInfo(filevers=(1,0,1,0), prodvers=(1,0,1,0), mask=0x3f,
 flags=0x0, OS=0x40004, fileType=0x1, subtype=0x0, date=(0,0)),
 kids=[StringFileInfo([StringTable('080404b0', [StringStruct('FileDescription','暖暖小镇三端打包工具'),
-StringStruct('FileVersion','1.0.0'), StringStruct('ProductName','暖暖小镇三端打包工具'),
-StringStruct('ProductVersion','1.0.0')])]), VarFileInfo([VarStruct('Translation',[2052,1200])])])''', encoding='utf-8')
+StringStruct('FileVersion','1.0.1'), StringStruct('ProductName','暖暖小镇三端打包工具'),
+StringStruct('ProductVersion','1.0.1')])]), VarFileInfo([VarStruct('Translation',[2052,1200])])])''', encoding='utf-8')
     command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir',
                '--console', '--hide-console', 'hide-early', '--name', '暖暖小镇三端打包工具',
                '--icon', str(ROOT / 'desktop/icon.ico'), '--version-file', str(version),
@@ -81,19 +124,31 @@ StringStruct('ProductVersion','1.0.0')])]), VarFileInfo([VarStruct('Translation'
     with (out / 'packaging.log').open('w', encoding='utf-8') as log:
         subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=True)
     folder = out / 'dist/暖暖小镇三端打包工具'
+    build_launcher_template(out, folder)
     (folder / '先读我.txt').write_text(README, encoding='utf-8-sig')
     helpers = folder / '工程辅助文件/tools'
     helpers.mkdir(parents=True)
     for name in HELPERS:
         shutil.copy2(ROOT / 'tools' / name, helpers / name)
+    public = folder / '工程辅助文件/desktop'
+    public.mkdir(parents=True)
+    config = json.loads((ROOT / 'desktop/release-config.json').read_text(encoding='utf-8-sig'))
+    public_source = (ROOT / 'desktop' / config['updatePublicKeyFile']).resolve()
+    public_bytes = public_source.read_bytes()
+    if b'PRIVATE KEY' in public_bytes or b'-----BEGIN PUBLIC KEY-----' not in public_bytes:
+        raise RuntimeError('Not a public key')
+    (public / 'update-public.pem').write_bytes(public_bytes)
+    (public / 'update-key-info.json').write_text(json.dumps({
+        'updatePublicKeyId': config['updatePublicKeyId'], 'updateManifestUrl': config['updateManifestUrl'],
+        'sha256': hashlib.sha256(public_bytes).hexdigest()}, ensure_ascii=False, indent=2), encoding='utf-8')
     source = folder / '工具源码'
     source.mkdir()
-    for name in ('pack_three.py', 'package_pack_tool.py'):
+    for name in ('pack_three.py', 'package_pack_tool.py', 'windows_workspace.py'):
         shutil.copy2(ROOT / 'tools' / name, source / name)
     files = [{'path': p.relative_to(folder).as_posix(), 'bytes': p.stat().st_size, 'sha256': digest(p)}
              for p in sorted(folder.rglob('*')) if p.is_file()]
-    (folder / '文件校验.json').write_text(json.dumps({'toolVersion': '1.0.0', 'files': files}, ensure_ascii=False, indent=2), encoding='utf-8')
-    archive = out / '暖暖小镇三端打包工具-Windows便携版.zip'
+    (folder / '文件校验.json').write_text(json.dumps({'toolVersion': '1.0.1', 'files': files}, ensure_ascii=False, indent=2), encoding='utf-8')
+    archive = out / '暖暖小镇三端打包工具-1.0.1-Windows便携版.zip'
     with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as bundle:
         for p in sorted(folder.rglob('*')):
             if p.is_file():

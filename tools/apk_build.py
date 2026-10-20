@@ -5,9 +5,9 @@ import os, shutil, subprocess, sys, tempfile
 from pathlib import Path
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-WORK = os.environ.get('NIKKI_APK_WORK') or os.path.join(ROOT, 'output', 'android-build')
+WORK = os.environ.get('NIKKI_APK_WORK') or (r'C:\nikki-build' if os.name == 'nt' else os.path.join(tempfile.gettempdir(), 'nikki-build'))
 SDK = os.environ.get('ANDROID_HOME') or os.environ.get('ANDROID_SDK_ROOT') or (os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Android', 'Sdk') if os.name == 'nt' else os.path.expanduser('~/Android/Sdk'))
-JDK = os.environ.get('JAVA_HOME', '')
+JDK = os.environ.get('JAVA_HOME') or (r'C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot' if os.name == 'nt' else '')
 
 def ignore(d, names):
     # 只排除 Gradle 的构建缓存，不能误伤游戏资源里的同名文件夹

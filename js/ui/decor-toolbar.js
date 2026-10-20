@@ -16,7 +16,7 @@ export { refreshDecor, refreshDecorPreview, refreshDecorCamera } from './decor-r
 export function buildDecorList() {
   this.decorSlots = DECOR.map((d) => {
     const cnt = h('span', { class: 'cnt' });
-    const el = h('button', { class: 'slot', 'data-decor-id': d.id, title: `${d.name} · 美化度 +${d.beauty}${d.indoorOnly ? ' · 仅限室内' : ''}`, onclick: click(() => this.game.town.decor.select(d.id), 'tab') },
+    const el = h('button', { class: 'slot', 'data-decor-id': d.id, title: `${d.name} · 美化度 +${d.beauty}${d.indoorOnly ? ' · 仅限室内' : ''}${d.ranchHousing ? ' · 仅家园可安置动物' : ''}${d.desc ? ' · ' + d.desc : ''}`, onclick: click(() => this.game.town.decor.select(d.id), 'tab') },
       cnt, h('img', { alt: '' }), h('b', {}, d.name), priceTag(d.price));
     el._cnt = cnt;
     el._id = d.id;

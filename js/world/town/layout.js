@@ -1,11 +1,13 @@
 // Town 坐标契约。RLOT/RC/DOORS 在扩建时原位更新，外部引用必须保持同一对象。
 import { BUILD_HOME_DOCK, BUILD_DOCK } from '../build-constants.js';
+import { HOME_LOT } from '../../shared/world.js';
 
 export const ISLAND = { w: 90, d: 42, r: 9 }; // 东西各扩出一截：西边是居民区，东边留给以后的新街区
 // 家园是远离小镇的一座独立大岛，整片院子都是可布置的网格
-export const HOME = { cx: -500, cz: 0, w: 54, d: 42, r: 9 };
-export const LOT = { x0: HOME.cx - 19, z0: HOME.cz - 15, cols: 38, rows: 26 };
-export const HOUSE_POS = { x: HOME.cx, z: LOT.z0 + 3 };
+// 圆角矩形实际面积精确翻倍：A = w*d - (4-π)*r²。西岸和旧家园坐标不动。
+export const HOME = { cx: -481, cz: 0, w: 92, d: (2 * (54 * 42 - (4 - Math.PI) * 81) + (4 - Math.PI) * 81) / 92, r: 9 };
+export const LOT = HOME_LOT;
+export const HOUSE_POS = { x: -500, z: LOT.z0 + 3 };
 // 小屋在小镇西侧；进屋是独立的室内空间；穿过后门是后院（上面那座大岛）
 export const TOWN_HOUSE = { x: -20, z: -9.5 };
 export const RLOT = { x0: 489, z0: -7.5, cols: 22, rows: 15 };

@@ -9,6 +9,22 @@ import { saveTransferPanel } from './save-transfer.js';
 import { account, accountSummary as currentAccountSummary } from '../core/account.js';
 import { LOCAL_PLAY } from '../core/local-play-mode.js';
 import { click } from './components/actions.js';
+import { PANTRY, RECIPE, parseDishKey } from '../shared/homestead.js';
+
+export function mailAttachmentText(item) {
+  const qualities = { normal: '家常', tasty: '可口', fine: '精致' };
+  const labels = { crops: '作物', seeds: '种子', decor: '家具' };
+  return (item.ops || []).map(op => {
+    if (op.type === 'coins') return `噗灵 +${fmt(op.amount)}`;
+    if (op.type === 'owned') return `解锁 ${op.ids.length} 件物品`;
+    if (op.type === 'pantry') return Object.entries(op.items || {}).map(([id, n]) => `${PANTRY[id]?.name || '牧场材料'} ×${fmt(n)}`).join('、');
+    if (op.type === 'dishes') return Object.entries(op.items || {}).map(([id, n]) => {
+      const parsed = parseDishKey(id);
+      return parsed ? `${RECIPE[parsed.recipe].name}（${qualities[parsed.quality]}${parsed.variant === 'milky' ? '·奶香' : ''}）×${fmt(n)}` : `料理 ×${fmt(n)}`;
+    }).join('、');
+    return `${labels[op.type] || '物品'} ${Object.values(op.items || {}).reduce((a, b) => a + b, 0)} 份`;
+  }).join('、');
+}
 
 export function refreshAccountUi() {
   if (this.accountStatus) this.accountStatus.textContent = currentAccountSummary();
@@ -89,7 +105,7 @@ export function showMailPanel() {
   const counts = h('p', { class: 'mail-counts', 'aria-live': 'polite' }, '正在确认邮件状态…');
   const status = h('p', { class: 'mail-status', role: 'status', 'aria-live': 'polite' });
   const active = () => !!modal && !modal.veil._closed && account.profile?.id === owner;
-  const attachmentText = item => (item.ops || []).map(op => op.type === 'coins' ? `噗灵 +${fmt(op.amount)}` : op.type === 'owned' ? `解锁 ${op.ids.length} 件物品` : `${op.type} ${Object.values(op.items || {}).reduce((a, b) => a + b, 0)} 份`).join('、');
+  const attachmentText = mailAttachmentText;
   const refresh = h('button', { class: 'btn alt sm', type: 'button', 'data-mail-action': 'refresh', onclick: click(() => load(false)) }, '刷新');
   const claimAll = h('button', { class: 'btn sm', type: 'button', 'data-mail-action': 'claim-all', onclick: click(() => mutate('all')) }, '一键领取');
   const more = h('button', { class: 'btn alt sm', type: 'button', hidden: true, 'data-mail-action': 'more', onclick: click(() => load(true)) }, '加载更多');

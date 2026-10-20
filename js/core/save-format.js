@@ -5,11 +5,18 @@ import { DAILY_TASK_COUNT, dailyDefinition, dailyProgressIsInteger } from '../sh
 import { createRecordRules } from '../live/canon-record.js';
 import { housePlan } from '../world/house-plan.js';
 import { isYardStructure, MAX_YARD_LEVEL, validateYardLayout, buildInteriorChecker } from '../world/yard-building.js';
+import { HOME_LOT } from '../shared/world.js';
 import { BUILD_LOT } from '../world/build-constants.js';
 import { PAID_PHOTO_POSE_IDS } from '../live/photo-poses.js';
 import { MOMO_CLOAK_IDS } from '../models/momo-cloaks.js';
 import { prepareCompatibleSave, photoThemeIndex } from '../shared/save-compat.js';
 import { FORTUNE_LEVELS } from '../shared/momo-fortune.js';
+import { validateHomesteadState } from '../shared/homestead.js';
+import { validateCafeSpecials } from '../shared/cafe-specials.js';
+import { validateLifeDiscoveries } from '../shared/life-discoveries.js';
+import { performanceMetadataError } from '../shared/resident-performance.js';
+import { fieldPlanError, fieldNotesError } from '../shared/resident-fieldwork.js';
+import { fishingJournalError, fishingNotesError } from '../shared/fishing-journal.js';
 
 export const SAVE_FILE_FORMAT = 'nikki-block-town-save';
 export const SAVE_FILE_VERSION = 1;
@@ -72,7 +79,7 @@ function placements(v, at, legacy = false, interior = housePlan(1), allowLegacyB
   const indoor = at === 'placedIn' || at.startsWith('decorLayouts.house') || at.startsWith('live.companion.events.corner');
   const yard = at === 'placed' || at.startsWith('decorLayouts.home');
   const build = at === 'buildPlaced' || at.startsWith('decorLayouts.build');
-  const bounds = indoor ? [interior.cols, interior.rows] : build ? [BUILD_LOT.cols, BUILD_LOT.rows] : yard ? [38, 26] : null;
+  const bounds = indoor ? [interior.cols, interior.rows] : build ? [BUILD_LOT.cols, BUILD_LOT.rows] : yard ? [HOME_LOT.cols, HOME_LOT.rows] : null;
   const buildMax = allowLegacyHeight ? 4 : MAX_YARD_LEVEL;
   const max = at.startsWith('live.companion.events.') ? 16 : bounds ? bounds[0] * bounds[1] * (build ? (buildMax + 1) * 4 : yard && allowLegacyBuilding ? 3 : 1) : 2000;
   arr(v, at, max).forEach((p, i) => {
@@ -113,7 +120,7 @@ function placements(v, at, legacy = false, interior = housePlan(1), allowLegacyB
 }
 function floors(v, at, legacy = false, interior = housePlan(1)) {
   const entries = Object.entries(obj(v, at));
-  const bounds = legacy ? null : at === 'floorIn' || at.startsWith('decorLayouts.house') ? [interior.cols, interior.rows] : at === 'buildFloor' || at.startsWith('decorLayouts.build') ? [BUILD_LOT.cols, BUILD_LOT.rows] : [38, 26];
+  const bounds = legacy ? null : at === 'floorIn' || at.startsWith('decorLayouts.house') ? [interior.cols, interior.rows] : at === 'buildFloor' || at.startsWith('decorLayouts.build') ? [BUILD_LOT.cols, BUILD_LOT.rows] : [HOME_LOT.cols, HOME_LOT.rows];
   if (entries.length > (bounds ? bounds[0] * bounds[1] : 2000)) fail(at, '地板数量过多');
   for (const [key, id] of entries) {
     const [x, z] = key.split(',').map(Number);
@@ -204,9 +211,11 @@ function validateLive(l, interior) {
   }
   if (l.residents) {
     const r = l.residents, at = 'live.residents'; fields(r, ['day', 'performed'], str, at); optional(r, 'base', numberMap, at + '.base');
-    if (r.tasks !== undefined) for (const [id, t] of Object.entries(obj(r.tasks, at + '.tasks'))) { const a = at + '.tasks.' + id; obj(t, a); numberMap(t.base, a + '.base'); fields(t, ['claimed'], flag, a); }
+    if (r.tasks !== undefined) for (const [id, t] of Object.entries(obj(r.tasks, at + '.tasks'))) { const a = at + '.tasks.' + id; obj(t, a); numberMap(t.base, a + '.base'); fields(t, ['claimed'], flag, a); if (Object.hasOwn(t, 'plan')) { const error = fieldPlanError(t.plan); if (id !== 'he' || error || t.claimed && t.plan.phase !== 'done') fail(a + '.plan', error || '巡田步骤与居民状态不一致'); } if (Object.hasOwn(t, 'journal')) { const error = fishingJournalError(t.journal); if (id !== 'shi' || error || t.claimed && t.journal.catches.length !== 2) fail(a + '.journal', error || '鱼讯与居民状态不一致'); } }
+    if (Object.hasOwn(r, 'fishingNotes')) { const error = fishingNotesError(r.fishingNotes); if (error) fail(at + '.fishingNotes', error); }
+    if (Object.hasOwn(r, 'fieldNotes')) { const error = fieldNotesError(r.fieldNotes); if (error) fail(at + '.fieldNotes', error); }
     if (r.album !== undefined) for (const [id, t] of Object.entries(obj(r.album, at + '.album'))) { obj(t, at + '.album.' + id); str(t.day, at + '.album.day'); outfit(t.outfit, at + '.album.outfit'); }
-    for (const key of ['reviews', 'poems']) optional(r, key, (v, a) => arr(v, a, 100).forEach((t) => { obj(t, a); str(t.day, a + '.day'); strings(t.lines, a + '.lines'); optional(t, 'outfit', outfit, a + '.outfit'); optional(t, 'counts', numberMap, a + '.counts'); }), at + '.' + key);
+    for (const key of ['reviews', 'poems']) optional(r, key, (v, a) => arr(v, a, 100).forEach((t) => { obj(t, a); str(t.day, a + '.day'); strings(t.lines, a + '.lines'); optional(t, 'outfit', outfit, a + '.outfit'); optional(t, 'counts', numberMap, a + '.counts'); if (key === 'poems') { const error = performanceMetadataError(t); if (error) fail(a + '.performance', error); } }), at + '.' + key);
   }
   if (l.canon) {
     optional(l.canon, 'met', flagMap, 'live.canon.met');
@@ -327,6 +336,9 @@ export function validateSaveData(d, options = {}) {
   optional(d, 'req', (v, at) => { for (const [id, r] of Object.entries(obj(v, at))) { obj(r, at + '.' + id); fields(r, ['i', 'done', 'until', 'base', 'prog', 'acc'], num, at + '.' + id); } });
   optional(d, 'npc', (v, at) => { for (const [id, n] of Object.entries(obj(v, at))) { if (id === '_sets') { strings(n, at + '.' + id); continue; } obj(n, at + '.' + id); fields(n, ['t'], num, at + '.' + id); fields(n, ['last'], str, at + '.' + id); } });
   optional(d, 'live', (v) => validateLive(v, interior));
+  optional(d, 'homestead', () => { const errors = validateHomesteadState(d); if (errors.length) fail('homestead', errors[0]); });
+  optional(d, 'cafeSpecials', () => { const errors = validateCafeSpecials(d); if (errors.length) fail('cafeSpecials', errors[0]); });
+  optional(d, 'lifeDiscoveries', () => { const errors = validateLifeDiscoveries(d); if (errors.length) fail('lifeDiscoveries', errors[0]); });
   return d;
 }
 

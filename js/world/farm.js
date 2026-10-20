@@ -13,6 +13,7 @@ import { fertilizerCount, useFertilizer } from '../shared/save-compat.js';
 
 const SOIL = mat('#b08566'), SOIL_WET = mat('#8a6048');
 const keyOf = (e) => e.gx + ',' + e.gz;
+const plantStamp = p => p ? { plantId: p.tree || p.crop, plantedAt: p.t0 } : null;
 // 沿用原能力套装的三件门槛；草帽是可选饰品，未拥有时不会临时借用。
 const HARVEST_PARTS = ['hair', 'dress', 'shoes'].map(cat => CLOTHES.find(c => c.set === 'basket' && c.cat === cat));
 const HARVEST_HAT = CLOTHES.find(c => c.set === 'basket' && c.cat === 'acc');
@@ -94,6 +95,18 @@ export class Farm {
   }
   state(rec) {
     return S.farm[keyOf(rec.e)] || null;
+  }
+  currentPlot(rec) {
+    return !!rec?.obj?.position && this.recs().includes(rec) && S.placed.includes(rec.e);
+  }
+  // 只发布已成功发生的实际动作；自动浇水共用 applyWater，但不冒充玩家的主目标。
+  reportAction(source, rec, kind, before, details = {}) {
+    if (source !== S || !this.currentPlot(rec)) return;
+    bus.emit('farmAction', {
+      source, kind, actor: this._harvesting ? 'harvestAll' : 'manual', at: Date.now(),
+      plot: { key: keyOf(rec.e), plotId: rec.e.id, gx: rec.e.gx, gz: rec.e.gz },
+      before, after: plantStamp(this.state(rec)), ...details,
+    });
   }
   hasCrop(e) {
     return !!S.farm[keyOf(e)];
@@ -350,7 +363,8 @@ export class Farm {
   }
 
   plant(rec) {
-    if (!rec?.obj?.position || !rec.e || isBig(rec) || this.state(rec)) return false;
+    if (!this.currentPlot(rec) || isBig(rec) || this.state(rec)) return false;
+    const source = S;
     const c = CROP[S.seed];
     if (!c) return false;
     if (S.seeds[c.id] > 0) {
@@ -379,7 +393,9 @@ export class Farm {
     fx.burst(this.town.scene, new THREE.Vector3(pos.x, 0.3, pos.z), { n: 6, colors: ['#b08566', '#8a6048'], speed: 1.2, up: 2, life: 0.5, size: 0.6 });
     this.refresh(rec, true);
     popIn(rec.farm.holder, 0.35);
+    this.reportAction(source, rec, 'plant', null, { name: c.name });
     stat('planted');
+    return true;
   }
   // 铲除果树：树没了，田空出来，可以重新种或搬动。种树的钱不退
   removeTree(rec) {
@@ -394,7 +410,8 @@ export class Farm {
     return true;
   }
   plantTree(rec) {
-    if (!rec?.obj?.position || !rec.e || !isBig(rec) || this.state(rec)) return false;
+    if (!this.currentPlot(rec) || !isBig(rec) || this.state(rec)) return false;
+    const source = S;
     const f = FRUIT[S.sapling] || FRUITS[0];
     if (!spend(f.price)) return;
     const pos = rec.obj.position;
@@ -405,11 +422,14 @@ export class Farm {
     fx.burst(this.town.scene, new THREE.Vector3(pos.x, 0.3, pos.z), { n: 8, colors: ['#b08566', '#8a6048', f.leaf], speed: 1.3, up: 2.2, life: 0.55, size: 0.6 });
     this.refresh(rec, true);
     popIn(rec.farm.holder, 0.35);
+    this.reportAction(source, rec, 'plant', null, { name: f.name });
     stat('planted');
     stat('trees');
+    return true;
   }
   // 浇水的实际效果（玩家、喷水器、大喵共用）；返回是否真的浇了
   applyWater(rec) {
+    if (!this.currentPlot(rec)) return false;
     const p = this.state(rec);
     if (!p) return false;
     const now = Date.now();
@@ -434,8 +454,13 @@ export class Farm {
     return true;
   }
   water(rec) {
-    const pos = rec.obj.position;
-    if (!this.applyWater(rec)) return;
+    if (!this.currentPlot(rec)) return false;
+    const source = S, plant = this.state(rec), before = plantStamp(plant), pos = rec.obj.position;
+    if (!plant) return false;
+    const remainBefore = plant.tree ? treeInfo(plant).remain : plotRemain(plant);
+    if (!this.applyWater(rec)) return false;
+    const remainAfter = plant.tree ? treeInfo(plant).remain : plotRemain(plant);
+    this.reportAction(source, rec, 'water', before, { name: (FRUIT[plant.tree] || CROP[plant.crop]).name, remainBefore, remainAfter });
     // 解锁满篮时光后，手动浇水会顺带滋润紧邻的缺水田块 (I4)
     if (this.harvestUnlocked()) {
       for (const other of this.recs()) {
@@ -449,12 +474,14 @@ export class Farm {
     this.town.act('water', 0.7);
     audio.sfx('water');
     stat('watered');
+    return true;
   }
   harvest(rec) {
-    if (!rec?.obj?.position || !rec.e) return false;
+    if (!this.currentPlot(rec)) return false;
+    const source = S;
     const p = this.state(rec), pos = rec.obj.position;
     if (!p || p.tree || !CROP[p.crop] || plotStage(p) < 3) return false;
-    const c = CROP[p.crop], chance = outfitFx(S.outfit, 'sun');
+    const before = plantStamp(p), c = CROP[p.crop], chance = outfitFx(S.outfit, 'sun');
     const aura = this.fieldAura(rec);
     const inSeason = c.season && c.season === this.town.seasons?.current;
     const bonusYield = (chance > 0 && Math.random() < chance ? 1 : 0) + (aura.beehive && Math.random() < 0.25 ? 1 : 0) + (inSeason && Math.random() < 0.25 ? 1 : 0) + (p.shiny ? 1 : 0);
@@ -481,15 +508,18 @@ export class Farm {
     // 收获只入装修仓库；手持展示由玩家在家园面板主动选择。
     if (giantId) bus.emit('giantCrop', giantId);
     this.refresh(rec, true);
+    this.reportAction(source, rec, 'harvest', before, { name: c.name, yield: { itemId: giantId || c.id, count: giantId ? 1 : n, kind: giantId ? 'decor' : 'crop' } });
     stat('harvested');
     return true;
   }
   pickFruit(rec) {
-    if (!rec?.obj?.position || !rec.e) return false;
+    if (!this.currentPlot(rec)) return false;
+    const source = S;
     const p = this.state(rec), pos = rec.obj.position;
     if (!p?.tree || !FRUIT[p.tree]) return false;
     const t = treeInfo(p);
     if (!t.ripe) return;
+    const before = plantStamp(p);
     S.crops[p.tree] = (S.crops[p.tree] || 0) + t.n;
     bus.emit('found', 'crop', p.tree, t.n);
     p.last = Date.now();
@@ -499,9 +529,11 @@ export class Farm {
     fx.sparkle(this.town.scene, new THREE.Vector3(pos.x, 2, pos.z), 12, [t.f.color, '#fff3a8', '#ffffff']);
     bus.emit('float', { x: pos.x, y: 2.4, z: pos.z, text: `${t.f.name} +${t.n}`, cls: 'good' });
     this.refresh(rec, true);
+    this.reportAction(source, rec, 'harvest', before, { name: t.f.name, yield: { itemId: p.tree, count: t.n, kind: 'crop' } });
     stat('harvested');
     stat('fruits', t.n);
     save();
+    return true;
   }
 
   // 一键采集能力只检查拥有的三件衣物，不依赖玩家当前穿搭。

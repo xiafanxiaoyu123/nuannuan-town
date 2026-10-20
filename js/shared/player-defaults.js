@@ -2,6 +2,7 @@
 import { CLOTHES, DEFAULT_OUTFIT } from './clothing.js';
 import { RESIDENTS as NPCS } from '../live/people.js';
 import { normalizeGraphicsSettings } from '../core/graphics-settings.js';
+import { createHomestead } from './homestead.js';
 export const createStartingPlot = (i) => ({ id: 'plot', gx: 3 + (i % 4) * 2, gz: 9 + Math.floor(i / 4) * 2, rot: 0 });
 
 export function createPlayerDefaults() {
@@ -15,6 +16,7 @@ export function createPlayerDefaults() {
     momoCloak: 'classic',
     momoOwned: ['classic'],
     crops: {},
+    homestead: createHomestead({}, 0),
     seeds: {}, // 签到赠送的免费种子，播种时优先消耗
     gday: 0, // 小镇日历：已经过了多少个小镇日
     work: {}, // 上班方案：每家店一套预设穿搭；没有记录 = 不自动切换
